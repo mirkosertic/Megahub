@@ -104,7 +104,7 @@ void HubWebServer::start() {
       // Chunked response to optimize RAM usage
       size_t content_length = index_html_gz_len;
 
-      INFO("webserver() - Size of response is %d", content_length);
+      DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/html");
 
       response.addHeader("Cache-Control", "no-cache, must-revalidate");
@@ -122,7 +122,7 @@ void HubWebServer::start() {
 	  // Chunked response to optimize RAM usage
       size_t content_length = main_js_gz_len;
 
-      INFO("webserver() - Size of response is %d", content_length);
+      DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/javascript");
 
       response.addHeader("Cache-Control", "no-cache, must-revalidate");
@@ -140,7 +140,7 @@ void HubWebServer::start() {
 	  // Chunked response to optimize RAM usage
       size_t content_length = style_css_gz_len;
 
-      INFO("webserver() - Size of response is %d", content_length);
+      DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/css");
 
       response.addHeader("Cache-Control", "no-cache, must-revalidate");
@@ -204,7 +204,7 @@ void HubWebServer::start() {
 						// Chunked response to optimize RAM usage
 						size_t content_length = index_html_gz_len;
 
-						INFO("webserver() - Size of response is %d", content_length);
+						DEBUG("webserver() - Size of response is %d", content_length);
 						PsychicStreamResponse response(resp, "text/html");
 
 						response.addHeader("Cache-Control", "no-cache, must-revalidate");
@@ -218,7 +218,7 @@ void HubWebServer::start() {
 	PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
 	projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
-		INFO("webserver() - got data chunk with position %llu and length %u", position, length);
+		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
 		String uri = request->uri().substring(9);
 		int p = uri.indexOf('/');
@@ -232,10 +232,10 @@ void HubWebServer::start() {
 		File content;
 
 		if (position == 0) {
-			INFO("webserver() - creating file %s", file.c_str());
+			DEBUG("webserver() - creating file %s", file.c_str());
 			content = fs_->open(file, FILE_WRITE, true);
 		} else {
-			INFO("webserver() - opening file %s for append", file.c_str());        
+			DEBUG("webserver() - opening file %s for append", file.c_str());        
 			content = fs_->open(file, FILE_APPEND);
 		}
 
@@ -276,16 +276,16 @@ void HubWebServer::start() {
 	PsychicUploadHandler *projectSyntaxCheckHandler = new PsychicUploadHandler();
 	projectSyntaxCheckHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
-		INFO("webserver() - got data chunk with position %llu and length %u", position, length);
+		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
 		String file = "/~syntaxcheck.lua";
 		File content;
 
 		if (position == 0) {
-			INFO("webserver() - creating file %s", file.c_str());
+			DEBUG("webserver() - creating file %s", file.c_str());
 			content = fs_->open(file, FILE_WRITE, true);
 		} else {
-			INFO("webserver() - opening file %s for append", file.c_str());        
+			DEBUG("webserver() - opening file %s for append", file.c_str());        
 			content = fs_->open(file, FILE_APPEND);
 		}
 
@@ -342,16 +342,16 @@ void HubWebServer::start() {
 	PsychicUploadHandler *executeHandler = new PsychicUploadHandler();
 	executeHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
-		INFO("webserver() - got data chunk with position %llu and length %u", position, length);
+		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
 		String file = "/~execute.lua";
 		File content;
 
 		if (position == 0) {
-			INFO("webserver() - creating file %s", file.c_str());
+			DEBUG("webserver() - creating file %s", file.c_str());
 			content = fs_->open(file, FILE_WRITE, true);
 		} else {
-			INFO("webserver() - opening file %s for append", file.c_str());        
+			DEBUG("webserver() - opening file %s for append", file.c_str());        
 			content = fs_->open(file, FILE_APPEND);
 		}
 
@@ -457,7 +457,7 @@ bool HubWebServer::isStarted() {
 }
 
 void HubWebServer::ssdpNotify() {
-	INFO("Sent SSDP NOTIFY messages");
+	DEBUG("Sent SSDP NOTIFY messages");
 
 	const IPAddress SSDP_MULTICAST_ADDR(239, 255, 255, 250);
 	const uint16_t SSDP_PORT = 1900;

@@ -1,5 +1,7 @@
 # Megahub
 
+[![PlatformIO CI](https://github.com/mirkosertic/Megahub/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/mirkosertic/Megahub/actions/workflows/build.yml)
+
 ## Introduction
 
 Megahub is an ESP32-based alternative hub designed for Lego&copy; enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for Lego&copy; WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
