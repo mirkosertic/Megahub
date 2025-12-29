@@ -11,3 +11,4 @@ kicad/esp32_devkit/fp-info-cache
 Wconfig/secrets.txt
 frontend/node_modules
 data
+managed_components

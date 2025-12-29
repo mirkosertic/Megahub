@@ -93,32 +93,13 @@ void HubWebServer::start() {
 	announceMDNS();
 	announceSSDP();
 
-	server_->config.max_uri_handlers = 30;
+	server_->config.max_uri_handlers = 40;
 	server_->setPort(80);
 	server_->start();
 
 	server_->on("/", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
       INFO("webserver() - Rendering / page");
-      IPAddress remote = request->client()->remoteIP();
-
-      IPAddress apSubnet(192, 168, 4, 0);
-      IPAddress apSubnetMask(255, 255, 255, 0);
-      if ((remote & apSubnetMask) == (apSubnet & apSubnetMask))
-      {
-        INFO("Root request thru AP IP - Redirecting to configuration page");
-        PsychicStreamResponse response(resp, "text/html");
-        response.setCode(302);
-        response.addHeader("Cache-Control","no-cache, must-revalidate");
-        response.addHeader("Location","/settings.html");
-        response.setContentLength(0),
-
-        response.beginSend();
-        return response.endSend();
-      }
-
-      unsigned int stackHighWatermark = uxTaskGetStackHighWaterMark(nullptr);
-      INFO("webserver() - Free HEAP is %d, stackHighWatermark is %d", ESP.getFreeHeap(), stackHighWatermark);
 
       // Chunked response to optimize RAM usage
       size_t content_length = index_html_gz_len;
@@ -444,32 +425,30 @@ void HubWebServer::start() {
 }
 
 void HubWebServer::publishLogMessages() {
-	String logMessage = loggingOutput_->waitForLogMessage(portMAX_DELAY);
-	if (logMessage.length() > 0) {
-		if (eventSource_.count() == 0) {
-			// No clients connected, skip sending
-			return;
+	String logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
+	while (logMessage.length() > 0) {
+		if (eventSource_.count() > 0) {
+			JsonDocument root;
+			root["message"] = logMessage;
+
+			String strContent;
+			serializeJson(root, strContent);
+
+			eventSource_.send(strContent.c_str(), "log", millis());
 		}
 
-		JsonDocument root;
-		root["message"] = logMessage;
-
-		String strContent;
-		serializeJson(root, strContent);
-
-		eventSource_.send(strContent.c_str(), "log", millis());
+		logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
 	}
 }
 
 void HubWebServer::publishCommands() {
-	String command = Commands::instance()->waitForCommand(portMAX_DELAY);
-	if (command.length() > 0) {
-		if (eventSource_.count() == 0) {
-			// No clients connected, skip sending
-			return;
+	String command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	while (command.length() > 0) {
+		if (eventSource_.count() > 0) {
+			eventSource_.send(command.c_str(), "command", millis());
 		}
 
-		eventSource_.send(command.c_str(), "command", millis());
+		command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
 	}
 }
 

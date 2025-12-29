@@ -999,14 +999,16 @@ if (!import.meta.env.DEV) {
                 console.error('Error loading model.xml:', error);
         });
 
-    var eventSource = new EventSource('/events');
-    eventSource.onerror = (event) => {
-        console.error("EventSource failed:", event);
-    };
-    eventSource.addEventListener("log", (event) => {
-        addLog(JSON.parse(event.data).message);
-    });
-    eventSource.addEventListener("command", (event) => {
-        processUIEvent(JSON.parse(event.data));
-    });
+    setTimeout(() => {
+        var eventSource = new EventSource('/events');
+        eventSource.onerror = (event) => {
+            console.error("EventSource failed:", event);
+        };
+        eventSource.addEventListener("log", (event) => {
+            addLog(JSON.parse(event.data).message);
+        });
+        eventSource.addEventListener("command", (event) => {
+            processUIEvent(JSON.parse(event.data));
+        });
+    }, 1000);
 }
