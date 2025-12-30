@@ -8,24 +8,27 @@ export default defineConfig({
     emptyOutDir: true,
     minify: 'esbuild',
     cssMinify: true,
+    cssCodeSplit: false,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
+        index: resolve(__dirname, 'index.html'),
+        project: resolve(__dirname, 'project.html'),
       },
       output: {
+        manualChunks: undefined,
+                
         entryFileNames: '[name].js',
-        chunkFileNames: 'chunks/[name]-[hash].js',
+        chunkFileNames: '[name].js',
         assetFileNames: (assetInfo) => {
           if (assetInfo.name.endsWith('.css')) {
-            return 'style.css';
+            return '[name][extname]'
           }
-          if (assetInfo.name.endsWith('.html')) {
-            return '[name].html';
-          }
-          return 'assets/[name].[ext]';
+          return '[name][extname]'
         }
       }
-    }
+    },
+    // Increase warning limit if you get large bundle warnings
+    chunkSizeWarningLimit: 1500    
   },
   plugins: [
     compress({ 

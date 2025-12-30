@@ -1,4 +1,4 @@
-<html>
+<html lang="en">
 
 <head>
     <meta charset="utf-8">
@@ -7,19 +7,12 @@
 </head>
 
 <body>
-    <div class="layoutcontainer">
-        <div id="blocklyDiv"></div>
-        <div id="outputPanel">
-            <h2>MegaHub Dev Environment</h2>
-            <button class="reset" id="reset">Zurücksetzen</button>
-            <button class="syntaxcheck" id="syntaxcheck">Perform a syntax check</button>
-            <button class="execute" id="execute">Execute!</button>
-            <div id="luaeditor"></div>
-            <div id="uicomponents"></div>
-        </div>
-        <div id="log-container"></div>
+    <div class="global-layout">
+        <custom-header id="header" class="layout-header"></custom-header>
+        <custom-files id="files" class="layout-content"></custom-files>
+        <custom-logger id="logger" class="layout-footer"></custom-logger>
     </div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/index.js"></script>
 </body>
 
 </html>

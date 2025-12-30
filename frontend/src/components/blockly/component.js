@@ -1,3 +1,5 @@
+import template from './component.html?raw';
+
 // Import Blockly core.
 import * as Blockly from 'blockly/core';
 // Import the default blocks.
@@ -8,28 +10,7 @@ import {registerFieldColour} from '@blockly/field-colour';
 // Import a message file.
 import * as En from 'blockly/msg/en';
 
-import Prism from 'prismjs'
-import 'prismjs/components/prism-lua'
-import 'prismjs/plugins/line-numbers/prism-line-numbers'
-import 'prismjs/themes/prism-tomorrow.css'
-import 'prismjs/plugins/line-numbers/prism-line-numbers.css'
-
-registerFieldColour();
-
-Blockly.setLocale(En);
-Blockly.ContextMenuItems.registerCommentOptions()
-
 const commandGenerator = luaGenerator;
-commandGenerator.finish = function (code) {
-    var initCode = '';
-    if (commandGenerator.init_ && commandGenerator.init_.length > 0) {
-        initCode = commandGenerator.init_.join('\n') + '\n\n';
-    }
-
-    delete commandGenerator.init_;
-
-    return initCode + code;
-};
 
 const customBlocks = {
     "mh_main_control_loop": {
@@ -74,12 +55,7 @@ const customBlocks = {
         generator: (block, generator) => {
             var statements = generator.statementToCode(block, 'DO');
 
-            if (!generator.init_) {
-                generator.init_ = [];
-            }
-            generator.init_.push("hub.init(function()\n" + statements + "end)");
-
-            return '';
+            return "hub.init(function()\n" + statements + "end)\n";
         }
     },
     "mh_wait": {
@@ -713,191 +689,104 @@ const customBlocks = {
             return "ui.showvalue(\"" + labelCode + "\", " + styleCode + ", " + valueCode + ")\n";
         }
     },
-
 };
 
-// Register Blocks
-Object.values(customBlocks).forEach(def => {
-    if (def.blockdefinition) {
-        Blockly.Blocks[def.blockdefinition.type] = {
-            init: function () {
-                this.jsonInit(def.blockdefinition);
-            }
-        };
-    }
-});
-
-// Register Generators
-Object.entries(customBlocks).forEach(([type, def]) => {
-    if (def.generator) {
-        commandGenerator.forBlock[type] = function (block) {
-            return def.generator(block, commandGenerator);
-        };
-    }
-});
-
 function generateToolbox(definitions) {
-    const categories = {};
+  const categories = {};
 
-    // Blocks nach Kategorien gruppieren
-    Object.entries(definitions).forEach(([type, def]) => {
-        const categoryName = def.category || 'Sonstiges';
+  // Blocks nach Kategorien gruppieren
+  Object.entries(definitions).forEach(([type, def]) => {
+      const categoryName = def.category || 'Sonstiges';
 
-        if (!categories[categoryName]) {
-            categories[categoryName] = {
-                colour: def.colour || 0,
-                blocks: []
+      if (!categories[categoryName]) {
+          categories[categoryName] = {
+              colour: def.colour || 0,
+              blocks: []
+          };
+      }
+
+      categories[categoryName].blocks.push({
+          kind: 'block',
+          type: type
+      });
+  });
+
+  var box = {
+      kind: 'categoryToolbox',
+      contents: Object.entries(categories).map(([name, data]) => ({
+          kind: 'category',
+          name: name,
+          colour: data.colour,
+          contents: data.blocks
+      }))
+  };
+
+  box.contents.push({
+    kind: 'category',
+    name: 'Variables',
+    custom: 'VARIABLE',
+    categorystyle: 'variable_category'
+  });
+
+  return box;
+};
+
+class BlocklyHTMLElement extends HTMLElement {
+
+  workspace = null;
+
+  connectedCallback() {
+    this.innerHTML = template;
+
+    registerFieldColour();
+
+    Blockly.setLocale(En);
+    Blockly.ContextMenuItems.registerCommentOptions();
+
+    // Register Blocks
+    Object.values(customBlocks).forEach(def => {
+        if (def.blockdefinition) {
+            Blockly.Blocks[def.blockdefinition.type] = {
+                init: function () {
+                    this.jsonInit(def.blockdefinition);
+                }
             };
         }
-
-        categories[categoryName].blocks.push({
-            kind: 'block',
-            type: type
-        });
     });
 
-    var box = {
-        kind: 'categoryToolbox',
-        contents: Object.entries(categories).map(([name, data]) => ({
-            kind: 'category',
-            name: name,
-            colour: data.colour,
-            contents: data.blocks
-        }))
-    };
-
-    box.contents.push({
-      kind: 'category',
-      name: 'Variables',
-      custom: 'VARIABLE',
-      categorystyle: 'variable_category'
-    });
-
-    return box;
-}
-
-
-// Workspace Setup
-const workspace = Blockly.inject('blocklyDiv', {
-    toolbox: generateToolbox(customBlocks),
-    zoom: {
-        controls: true,
-        wheel: true,
-        startScale: 1.0,
-        maxScale: 3,
-        minScale: 0.3,
-        scaleSpeed: 1.2
-    },
-    trashcan: true
-});
-
-// Functions
-
-function generateCode() {
-    const code = commandGenerator.workspaceToCode(workspace);
-
-    document.getElementById('luaeditor').innerHTML = `<pre class="line-numbers"><code class="language-lua">${Prism.highlight(code, Prism.languages.lua, 'lua')}</code></pre>`;
-
-    // Highlight all code blocks
-    Prism.highlightAll();
-    return code;
-}
-
-function syntaxCheck() {
-    const luaCode = generateCode();
-
-    // Perform syntax check
-    // Write code to backend
-    fetch("/syntaxcheck", {
-        method: "PUT",
-        body: luaCode,
-        headers: {
-            "Content-type": "text/x-lua; charset=UTF-8",
-        },
-    })
-    .then((response) => response.json())
-    .then((response) => {
-        alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-    });
-}
-
-function executeCode() {
-    const luaCode = generateCode();
-
-    fetch("/execute", {
-        method: "PUT",
-        body: luaCode,
-        headers: {
-            "Content-type": "text/x-lua; charset=UTF-8",
-        },
-    })
-    .then((response) => response.json())
-    .then((response) => {
-        alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-    });
-}
-
-document.getElementById("reset").addEventListener("click", () => {
-    clearWorkspace();
-});
-
-document.getElementById("syntaxcheck").addEventListener("click", () => {
-    syntaxCheck();
-});
-
-document.getElementById("execute").addEventListener("click", () => {
-    executeCode();
-});
-
-const STRORAGE_KEY = 'blockly_robot_workspace';
-
-// Workspace als XML speichern
-function saveToLocalStorage(key) {
-    try {
-        const xml = Blockly.Xml.workspaceToDom(workspace);
-        const xmlText = Blockly.Xml.domToText(xml);
-        localStorage.setItem(key, xmlText);
-        console.log('Workspace saved to localStorage, sending backup to backend');
-
-        if (!import.meta.env.DEV) {
-            // Write model to backend
-            fetch("model.xml", {
-                method: "PUT",
-                body: xmlText,
-                headers: {
-                    "Content-type": "application/xml; charset=UTF-8",
-                },
-            })
-            .then((response) => {
-                console.log("Got response from backend : " + response);
-            });
-
-            const luaCode = generateCode();
-            // Write code to backend
-            fetch("program.lua", {
-                method: "PUT",
-                body: luaCode,
-                headers: {
-                    "Content-type": "text/x-lua; charset=UTF-8",
-                },
-            })
-            .then((response) => {
-                console.log("Got response from backend : " + response);
-            });
+    // Register Generators
+    Object.entries(customBlocks).forEach(([type, def]) => {
+        if (def.generator) {
+            commandGenerator.forBlock[type] = function (block) {
+                return def.generator(block, commandGenerator);
+            };
         }
+    });
 
-        return true;
-    } catch (error) {
-        console.error('Error while saving project:', error);
-        return false;
-    }
-}
+    // Workspace Setup
+    this.workspace = Blockly.inject(this, {
+        toolbox: generateToolbox(customBlocks),
+        zoom: {
+            controls: true,
+            wheel: true,
+            startScale: 1.0,
+            maxScale: 3,
+            minScale: 0.3,
+            scaleSpeed: 1.2
+        },
+        trashcan: true
+    });
+  };
 
-function loadXML(xmlText) {
+  addChangeListener(listener) {
+    this.workspace.addChangeListener(listener);
+  };
+
+  loadXML(xmlText) {
     try {
-        workspace.clear();
+        this.workspace.clear();
         const xml = Blockly.utils.xml.textToDom(xmlText);
-        Blockly.Xml.domToWorkspace(xml, workspace);
+        Blockly.Xml.domToWorkspace(xml, this.workspace);
         console.log('Workspace loaded!');
         return true;
 
@@ -905,110 +794,24 @@ function loadXML(xmlText) {
         console.error('Error while parsing workspace:', error);
         return false;
     }
-}
+  };
 
-// Workspace aus LocalStorage laden
-function loadFromLocalStorage(key) {
-    try {
-        console.info("Trying to load from localStorage");
-        const xmlText = localStorage.getItem(key);
-        if (!xmlText) {
-            console.log('No data found in localStorage');
-            return false;
-        }
+  generateXML() {
+    const xml = Blockly.Xml.workspaceToDom(this.workspace);
+    const xmlText = Blockly.Xml.domToText(xml);
+    return xmlText;
+  };
 
-        loadXML(xmlText);
+  generateLUAPreview() {
+    const code = commandGenerator.workspaceToCode(this.workspace);
+    return code;
+  };
 
-        return true;
-    } catch (error) {
-        console.error('Error while loading workspace:', error);
-        return false;
-    }
-}
-
-function clearWorkspace() {
+  clearWorkspace() {
     if (confirm('Workspace wirklich zurücksetzen?')) {
         workspace.clear();
     }
-}
+  };
+};
 
-// Auto-generate on change
-workspace.addChangeListener(() => {
-    generateCode();
-});
-
-// Enable autp save every 10 seconds
-setInterval(() => {
-    saveToLocalStorage(STRORAGE_KEY);
-}, 10000);
-
-const MAX_LOG_ENTRIES = 50;
-let logCount = 0;
-
-function addLog(message) {
-    const container = document.getElementById('log-container');
-    const logEntry = document.createElement('div');
-    logEntry.className = 'log-entry';
-   
-    logEntry.textContent = `${message}`;
-    
-    // Add new entry at the top
-    container.insertBefore(logEntry, container.firstChild);
-    logCount++;
-    
-    // Remove oldest entry if limit exceeded
-    if (logCount > MAX_LOG_ENTRIES) {
-        container.removeChild(container.lastChild);
-        logCount--;
-    }
-}
-
-function processUIEvent(event) {
-    if (event.type === "show_value") {
-        const label = event.label || "Value";
-        const format = event.format || "FORMAT_SIMPLE";
-        const value = event.value || 0;
-
-        var element = document.querySelector('[data-label="' + label + '"]');
-        if (element === null) {
-            // Create new element
-            element = document.createElement('div');
-            element.className = 'ui-value-entry';
-            element.setAttribute('data-label', label);
-            element.innerHTML = `${value}`;
-
-            document.getElementById('uicomponents').appendChild(element);
-        } else {
-            element.innerHTML = `${value}`;
-        }
-    }
-    console.log("UI Event: ", event);
-}
-
-// Try to load a program
-if (!import.meta.env.DEV) {
-    fetch("model.xml")
-        .then((response) => response.text())
-        .then((text) => {
-            if (!loadXML(text)) {
-                // Load last known workspace version
-                loadFromLocalStorage(STRORAGE_KEY);
-            }
-        })
-        .catch((error) => {
-                console.error('Error loading model.xml:', error);
-        });
-
-    setTimeout(() => {
-        var eventSource = new EventSource('/events');
-        eventSource.onerror = (event) => {
-            console.error("EventSource failed:", event);
-        };
-        eventSource.addEventListener("log", (event) => {
-            addLog(JSON.parse(event.data).message);
-        });
-        eventSource.addEventListener("command", (event) => {
-            processUIEvent(JSON.parse(event.data));
-        });
-    }, 1000);
-}
+customElements.define('custom-blockly', BlocklyHTMLElement);

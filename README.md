@@ -4,9 +4,9 @@
 
 ## Introduction
 
-Megahub is an ESP32-based alternative hub designed for Lego&copy; enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for Lego&copy; WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
+Megahub is an ESP32-based alternative hub designed for LEGO&copy; enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for LEGO&copy; WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
 
-This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular Lego&copy; sensors and motors.
+This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO&copy; sensors and motors.
 It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
 
 ** Use it at your own Risk!! **
@@ -15,7 +15,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 - **KiCad**: All schematics and PCB production files are available in KiCad and Gerber format
 - **WiFi Enabled**: Built-in wireless connectivity for remote control and programming
-- **4 UART Ports**: Connect up to 4 Lego&copy; WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
+- **4 UART Ports**: Connect up to 4 LEGO&copy; WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
 - **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
 - **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
 - **Flexible GPIO**: Additional GPIO pins available for custom sensors, buttons, and peripherals
@@ -26,7 +26,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ## How It Differs from Existing Solutions
 
-### vs. Lego&copy; Powered Up!
+### vs. LEGO&copy; Powered Up!
 
 - **Open Source**: Complete control over firmware and functionality
 - **Expandable**: Access to additional GPIO pins for custom hardware
@@ -36,7 +36,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ### vs. fischertechnik&copy; RX Controller
 
-- **Lego Compatibility**: Native support for Lego WeDo protocol
+- **LEGO Compatibility**: Native support for LEGO WeDo 2.0 protocol
 - **Web-based Programming**: No proprietary software required
 - **Cost-effective**: Based on affordable ESP32 hardware
 - **Visual Programming**: Blockly support makes it accessible for all skill levels

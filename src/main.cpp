@@ -16,7 +16,6 @@
 #include <WiFi.h>
 #include <Wire.h>
 
-
 #define RXD2	  16
 #define TXD2	  17
 #define BAUD_RATE 2400
@@ -124,7 +123,7 @@ void loop() {
 
 	if (WiFi.status() == WL_CONNECTED) {
 		if (!webserver->isStarted()) {
-			INFO("Starting WebServer as WiFi status == WL_CONNECTED")
+			INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP: %s", WiFi.localIP().toString().c_str());
 			webserver->start();
 		} else {
 			webserver->loop();

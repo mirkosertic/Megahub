@@ -10,6 +10,8 @@
 #include <ESPmDNS.h>
 #include <WiFi.h>
 
+#define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
+
 void logForwarderTask(void *param) {
 	HubWebServer *server = (HubWebServer *) param;
 	while (true) {
@@ -69,7 +71,7 @@ String HubWebServer::getSSDPDescription() {
 	String devicetype = hub_->deviceType();
 	String version = hub_->version();
 	String serialnumber = hub_->serialnumber();
-	String configurationurl = "http://" + String(deviceuid.c_str()) + ".local:" + wsport_ + "/project/lala/";
+	String configurationurl = "http://" + String(deviceuid.c_str()) + ".local:" + wsport_ + "/index.html";
 
 	String xml = "<?xml version='1.0'?>";
 	xml += "<root xmlns='urn:schemas-upnp-org:device-1-0'>";
@@ -107,7 +109,7 @@ void HubWebServer::start() {
       DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/html");
 
-      response.addHeader("Cache-Control", "no-cache, must-revalidate");
+	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
 	  response.addHeader("Content-Encoding", "gzip");
       response.setContentLength(content_length);
 
@@ -115,22 +117,58 @@ void HubWebServer::start() {
 	  response.write(index_html_gz, index_html_gz_len);
       return response.endSend(); });
 
-	server_->on("/main.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/index.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
-      INFO("webserver() - Rendering /main.js resource");
+      INFO("webserver() - Rendering /index.js resource");
 
 	  // Chunked response to optimize RAM usage
-      size_t content_length = main_js_gz_len;
+      size_t content_length = index_js_gz_len;
 
       DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/javascript");
 
-      response.addHeader("Cache-Control", "no-cache, must-revalidate");
+	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
 	  response.addHeader("Content-Encoding", "gzip");
       response.setContentLength(content_length);
 
       response.beginSend();
-	  response.write(main_js_gz, main_js_gz_len);
+	  response.write(index_js_gz, index_js_gz_len);
+      return response.endSend(); });
+
+	server_->on("/project.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+
+      INFO("webserver() - Rendering /project.js resource");
+
+	  // Chunked response to optimize RAM usage
+      size_t content_length = project_js_gz_len;
+
+      DEBUG("webserver() - Size of response is %d", content_length);
+      PsychicStreamResponse response(resp, "text/javascript");
+
+	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
+	  response.addHeader("Content-Encoding", "gzip");
+      response.setContentLength(content_length);
+
+      response.beginSend();
+	  response.write(project_js_gz, project_js_gz_len);
+      return response.endSend(); });
+
+	server_->on("/component.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+
+      INFO("webserver() - Rendering /component.js resource");
+
+	  // Chunked response to optimize RAM usage
+      size_t content_length = component_js_gz_len;
+
+      DEBUG("webserver() - Size of response is %d", content_length);
+      PsychicStreamResponse response(resp, "text/javascript");
+
+	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
+	  response.addHeader("Content-Encoding", "gzip");
+      response.setContentLength(content_length);
+
+      response.beginSend();
+	  response.write(component_js_gz, component_js_gz_len);
       return response.endSend(); });
 
 	server_->on("/style.css", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
@@ -143,7 +181,7 @@ void HubWebServer::start() {
       DEBUG("webserver() - Size of response is %d", content_length);
       PsychicStreamResponse response(resp, "text/css");
 
-      response.addHeader("Cache-Control", "no-cache, must-revalidate");
+	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
 	  response.addHeader("Content-Encoding", "gzip");
       response.setContentLength(content_length);
 
@@ -151,12 +189,33 @@ void HubWebServer::start() {
 	  response.write(style_css_gz, style_css_gz_len);
       return response.endSend(); });
 
+	server_->on("/stop", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp) {
+
+		INFO("webserver() - /stop received");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		JsonDocument root;
+		root["success"] = hub_->stopLUACode();
+
+		String strContent;
+		serializeJson(root, strContent);
+		
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend(); });
+
 	server_->on("/description.xml", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
                     INFO("webserver() - /description.xml received");
 
                     String data = this->getSSDPDescription();
 
                     PsychicStreamResponse response(resp, "application/xml");
+					// This must not be cached by clients!
                     response.addHeader("Cache-Control", "no-cache, must-revalidate");
                     response.setContentLength(data.length());
 
@@ -202,7 +261,7 @@ void HubWebServer::start() {
 						INFO("webserver() - Index page %s requested", uri.c_str());
 
 						// Chunked response to optimize RAM usage
-						size_t content_length = index_html_gz_len;
+						size_t content_length = project_html_gz_len;
 
 						DEBUG("webserver() - Size of response is %d", content_length);
 						PsychicStreamResponse response(resp, "text/html");
@@ -211,7 +270,7 @@ void HubWebServer::start() {
 						response.setContentLength(content_length);
     					response.addHeader("Content-Encoding", "gzip");
 						response.beginSend();
-						response.write(index_html_gz, index_html_gz_len);
+						response.write(project_html_gz, project_html_gz_len);
 						return response.endSend(); 
 					} });
 
@@ -518,7 +577,7 @@ void HubWebServer::loop() {
 
 			// Check if it's an M-SEARCH request
 			if (strstr(packetBuffer, "M-SEARCH") && strstr(packetBuffer, "ssdp:discover")) {
-				INFO("Received SSDP M-SEARCH request");
+				DEBUG("Received SSDP M-SEARCH request");
 
 				// Extract search target
 				char *stLine = strstr(packetBuffer, "ST:");
@@ -568,7 +627,7 @@ void HubWebServer::loop() {
 				udp_->write((uint8_t *) response, strlen(response));
 				udp_->endPacket();
 
-				INFO("Sent SSDP response");
+				DEBUG("SSDP response sent");
 			}
 		}
 	}

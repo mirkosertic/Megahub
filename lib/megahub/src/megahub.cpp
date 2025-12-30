@@ -12,7 +12,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-
 #define MEGAHUBREF_NAME "MEGAHUBTHISREF"
 #define FASTLEDREF_NAME "FASTLEDREF"
 
@@ -689,6 +688,22 @@ void Megahub::executeLUACode(String luaCode) {
 	}
 
 	INFO("Execution completed in %ld milliseconds", time);
+}
+
+bool Megahub::stopLUACode() {
+	INFO("Stopping Lua code execution");
+
+	if (mainControlLoopTaskHandle != NULL) {
+		INFO("Canceling existing main control loop task");
+		xTaskNotify(mainControlLoopTaskHandle, 1, eSetValueWithOverwrite);
+		vTaskDelay(pdMS_TO_TICKS(100)); // Give some time to finish
+		mainControlLoopTaskHandle = NULL;
+
+		return true;
+	}
+
+	INFO("No Lua code execution to stop");
+	return false;
 }
 
 int Megahub::digitalReadFrom(int pin) {

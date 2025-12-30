@@ -1,0 +1,26 @@
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Megahub Dev Environment</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+</head>
+
+<body>
+    <div class="global-layout-sidebar">
+        <custom-header id="header" class="layout-header"></custom-header>
+        <custom-blockly id="blockly" class="layout-content"></custom-blockly>
+        <div class="layout-sidebar">
+            <button class="reset" id="reset">Reset workspace</button>
+            <button class="syntaxcheck" id="syntaxcheck">Perform a syntax check</button>
+            <button class="execute" id="execute">Execute!</button>
+            <button class="stop" id="stop">Stop!</button>
+            <custom-lua-preview id="luapreview"></custom-lua-preview>
+            <custom-ui id="uicomponents"></custom-ui>
+        </div>
+        <custom-logger id="logger" class="layout-footer"></custom-logger>
+    </div>
+    <script type="module" src="/src/project.js"></script>
+</body>
+
+</html>

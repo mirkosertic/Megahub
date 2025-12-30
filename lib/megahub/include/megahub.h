@@ -51,6 +51,7 @@ public:
 
 	LuaCheckResult checkLUACode(String luaCode);
 	void executeLUACode(String luaCode);
+	bool stopLUACode();
 
 	int digitalReadFrom(int pin);
 	void digitalWriteTo(int pin, int value);
