@@ -1,0 +1,17 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    align-content: stretch;
+}
+
+.ui-value-entry {
+    flex: 0 1 auto;
+}
+
+.ui-value-entry::before {
+    content: attr(data-label) ": ";
+    font-weight: bold;
+}

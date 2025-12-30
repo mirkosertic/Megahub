@@ -115,7 +115,11 @@ void setup() {
 
 	configuration->loadAndApply();
 
+	INFO("Setup completed");
 	Statusmonitor::instance()->setStatus(IDLE);
+
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
+	INFO("Free PSRAM is %d", ESP.getFreePsram());
 }
 
 void loop() {

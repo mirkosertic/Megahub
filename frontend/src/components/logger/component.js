@@ -1,4 +1,5 @@
 import template from './component.html?raw';
+import styleSheet from './style.css?raw';
 
 const MAX_LOG_ENTRIES = 50;
 
@@ -7,7 +8,14 @@ class LoggerHTMLElement extends HTMLElement {
   logCount = 0;
 
   connectedCallback() {
-    this.innerHTML = template;
+    const shadow = this.attachShadow({ mode: 'open' })
+    
+    // Create adoptable stylesheet
+    const sheet = new CSSStyleSheet()
+    sheet.replaceSync(styleSheet)
+    shadow.adoptedStyleSheets = [sheet]
+    
+    shadow.innerHTML = template
   };
 
   addToLog(message) {
@@ -15,15 +23,17 @@ class LoggerHTMLElement extends HTMLElement {
     logEntry.className = 'log-entry';
    
     logEntry.textContent = `${message}`;
-    
+        
+    const container = this.shadowRoot;    
+
     // Add new entry at the top
-    this.insertBefore(logEntry, this.firstChild);
+    container.insertBefore(logEntry, container.firstChild);
     this.logCount++;
     
     // Remove oldest entry if limit exceeded
     if (this.logCount > MAX_LOG_ENTRIES) {
-        this.removeChild(this.lastChild);
-        logCount--;
+        container.removeChild(container.lastChild);
+        this.logCount--;
     }
   };
 };

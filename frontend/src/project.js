@@ -103,7 +103,7 @@ function saveToLocalStorage(key) {
                 },
             })
             .then((response) => {
-                console.log("Got response from backend : " + response);
+                console.log("Got response from backend : " + JSON.stringify(response));
             });
 
             const luaCode = generateCode();
@@ -116,7 +116,7 @@ function saveToLocalStorage(key) {
                 },
             })
             .then((response) => {
-                console.log("Got response from backend : " + response);
+                console.log("Got response from backend : " + JSON.stringify(response));
             });
         }
 

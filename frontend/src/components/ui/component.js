@@ -1,9 +1,17 @@
 import template from './component.html?raw';
+import styleSheet from './style.css?raw';
 
 class UIHTMLElement extends HTMLElement {
 
   connectedCallback() {
-    this.innerHTML = template;
+    const shadow = this.attachShadow({ mode: 'open' })
+    
+    // Create adoptable stylesheet
+    const sheet = new CSSStyleSheet()
+    sheet.replaceSync(styleSheet)
+    shadow.adoptedStyleSheets = [sheet]
+    
+    shadow.innerHTML = template
   };
 
   processUIEvent(event) {
@@ -12,7 +20,9 @@ class UIHTMLElement extends HTMLElement {
         const format = event.format || "FORMAT_SIMPLE";
         const value = event.value || 0;
 
-        var element = this.querySelector('[data-label="' + label + '"]');
+        const container = this.shadowRoot;   
+      
+        var element = container.querySelector('[data-label="' + label + '"]');
         if (element === null) {
             // Create new element
             element = document.createElement('div');
@@ -20,7 +30,7 @@ class UIHTMLElement extends HTMLElement {
             element.setAttribute('data-label', label);
             element.innerHTML = `${value}`;
 
-            this.appendChild(element);
+            container.appendChild(element);
         } else {
             element.innerHTML = `${value}`;
         }
@@ -29,7 +39,7 @@ class UIHTMLElement extends HTMLElement {
   };
 
   clear() {
-    this.innerHTML = template;
+    this.shadowRoot.innerHTML = template;
   }
 };
 

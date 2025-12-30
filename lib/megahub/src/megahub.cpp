@@ -363,6 +363,25 @@ int imu_library(lua_State *luaState) {
 	return 1;
 }
 
+int debug_freeheap(lua_State *luaState) {
+
+	long value = ESP.getFreeHeap();
+	DEBUG("Free heap is %ld", value);
+
+	lua_pushnumber(luaState, value);
+
+	return 1;
+}
+
+int debug_library(lua_State *luaState) {
+	const luaL_Reg hubfunctions[] = {
+		{"freeHeap", debug_freeheap},
+		{		 NULL,		   NULL}
+	};
+	luaL_newlib(luaState, hubfunctions);
+	return 1;
+}
+
 int ui_show_value(lua_State *luaState) {
 
 	DEBUG("UI show value called");
@@ -457,6 +476,8 @@ lua_State *Megahub::newLuaState() {
 	luaL_requiref(ls, "imu", imu_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
 	luaL_requiref(ls, "ui", ui_library, 1);
+	lua_pop(ls, 1); // remove lib from stack
+	luaL_requiref(ls, "deb", debug_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
 
 	// And also global functions

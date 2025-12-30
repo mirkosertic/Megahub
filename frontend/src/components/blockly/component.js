@@ -689,6 +689,26 @@ const customBlocks = {
             return "ui.showvalue(\"" + labelCode + "\", " + styleCode + ", " + valueCode + ")\n";
         }
     },
+
+    "mh_debug_free_heap": {
+        category: 'Debug',
+        colour: 230,
+        blockdefinition: {
+            "type": "mh_debug_free_heap",
+            "message0": "Get free HEAP memory",
+            "args0": [
+            ],
+            "output": null,
+            "colour": 230,
+            "tooltip": "Get free HEAP memory",
+            "helpUrl": ""
+        },
+        generator: (block, generator) => {
+            const command = "deb.freeHeap()";
+
+            return [command, 0];
+        }
+    },    
 };
 
 function generateToolbox(definitions) {
