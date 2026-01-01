@@ -38,6 +38,7 @@ public:
 	void setM2(bool status);
 	void setMotorSpeed(int speed);
 
+	void setPinMode(int pin, int mode);
 	int digitalRead(int pin);
 	void digitalWrite(int pin, int value);
 

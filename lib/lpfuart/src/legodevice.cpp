@@ -1,9 +1,8 @@
 #include "legodevice.h"
 
+#include "i2csync.h"
 #include "logging.h"
 #include "waitingstate.h"
-
-#include "i2csync.h"
 
 LegoDevice::LegoDevice(SerialIO *serialIO)
 	: serialSpeed(2400)
@@ -170,7 +169,7 @@ void LegoDevice::setM1(bool status) {
 void LegoDevice::setM2(bool status) {
 	i2c_lock();
 	serialIO_->setM2(status);
-	i2c_unlock();	
+	i2c_unlock();
 }
 
 void LegoDevice::setMotorSpeed(int speed) {
@@ -203,12 +202,17 @@ void LegoDevice::loop() {
 	}
 }
 
+void LegoDevice::setPinMode(int pin, int mode) {
+	i2c_lock();
+	serialIO_->setPinMode(pin, mode);
+	i2c_unlock();
+}
+
 int LegoDevice::digitalRead(int pin) {
 	i2c_lock();
 	int value = serialIO_->digitalRead(pin);
 	i2c_unlock();
 	return value;
-
 }
 void LegoDevice::digitalWrite(int pin, int value) {
 	i2c_lock();

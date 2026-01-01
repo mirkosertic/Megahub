@@ -162,11 +162,25 @@ int hub_digitalwrite(lua_State *luaState) {
 	return 0;
 }
 
+int hub_set_pin_mode(lua_State *luaState) {
+
+	int pin = lua_tointeger(luaState, 1);
+	int value = lua_tointeger(luaState, 2);
+
+	DEBUG("Setting pin mode of pin %d to %d", pin, value);
+
+	Megahub *megahub = getMegaHubRef(luaState);
+	megahub->setPinMode(pin, value);
+
+	return 0;
+}
+
 int hub_library(lua_State *luaState) {
 	const luaL_Reg hubfunctions[] = {
 		{"main_control_loop", hub_register_main_control_loop},
 		{			 "init",					   hub_init},
 		{	 "setmotorspeed",			  hub_setmotorspeed},
+		{		  "pinMode",				hub_set_pin_mode},
 		{		 "digitalRead",				hub_digitalread},
 		{	 "digitalWrite",				 hub_digitalwrite},
 		{			   NULL,						   NULL}
@@ -543,6 +557,15 @@ lua_State *Megahub::newLuaState() {
 	lua_pushinteger(ls, UART2_GP7);
 	lua_setglobal(ls, "UART2_GP7");
 
+	lua_pushinteger(ls, PINMODE_INPUT);
+	lua_setglobal(ls, "PINMODE_INPUT");
+	lua_pushinteger(ls, PINMODE_INPUT_PULLUP);
+	lua_setglobal(ls, "PINMODE_INPUT_PULLUP");
+	lua_pushinteger(ls, PINMODE_INPUT_PULLDOWN);
+	lua_setglobal(ls, "PINMODE_INPUT_PULLDOWN");
+	lua_pushinteger(ls, PINMODE_OUTPUT);
+	lua_setglobal(ls, "PINMODE_OUTPUT");
+
 	// FastLED constants
 
 	lua_pushinteger(ls, NEOPIXEL_TYPE);
@@ -792,6 +815,54 @@ void Megahub::digitalWriteTo(int pin, int value) {
 			break;
 		default:
 			digitalWrite((gpio_num_t) pin, value);
+			break;
+	}
+}
+
+void Megahub::setPinMode(int pin, int mode) {
+	DEBUG("Setting mode of pin %d to %d", pin, mode);
+	switch (pin) {
+		case UART1_GP4:
+			device1_->setPinMode(4, mode);
+			break;
+		case UART1_GP5:
+			device1_->setPinMode(5, mode);
+			break;
+		case UART1_GP6:
+			device1_->setPinMode(6, mode);
+			break;
+		case UART1_GP7:
+			device1_->setPinMode(7, mode);
+			break;
+		case UART2_GP4:
+			device3_->setPinMode(4, mode);
+			break;
+		case UART2_GP5:
+			device3_->setPinMode(5, mode);
+			break;
+		case UART2_GP6:
+			device3_->setPinMode(6, mode);
+			break;
+		case UART2_GP7:
+			device3_->setPinMode(7, mode);
+			break;
+		default:
+			switch (mode) {
+				case PINMODE_INPUT:
+					pinMode(pin, INPUT);
+					break;
+				case PINMODE_INPUT_PULLUP:
+					pinMode(pin, INPUT_PULLUP);
+					break;
+				case PINMODE_INPUT_PULLDOWN:
+					pinMode(pin, INPUT_PULLDOWN);
+					break;
+				case PINMODE_OUTPUT:
+					pinMode(pin, OUTPUT);
+					break;
+				default:
+					WARN("Unsupported pin mode %d for pin %d", mode, pin);
+			}
 			break;
 	}
 }

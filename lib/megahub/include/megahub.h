@@ -26,6 +26,11 @@
 
 #define FORMAT_SIMPLE 2000
 
+#define PINMODE_INPUT		   3000
+#define PINMODE_INPUT_PULLUP   3001
+#define PINMODE_INPUT_PULLDOWN 3002
+#define PINMODE_OUTPUT		   3003
+
 struct LuaCheckResult {
 	bool success;
 	int parseTime;
@@ -53,6 +58,7 @@ public:
 	void executeLUACode(String luaCode);
 	bool stopLUACode();
 
+	void setPinMode(int pin, int mode);
 	int digitalReadFrom(int pin);
 	void digitalWriteTo(int pin, int value);
 

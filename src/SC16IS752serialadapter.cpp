@@ -1,6 +1,7 @@
 #include "SC16IS752serialadapter.h"
 
 #include "logging.h"
+#include "megahub.h"
 
 SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel channel, int m1pin, int m2pin) {
 	hardwareserial_ = hardwareserial;
@@ -70,4 +71,23 @@ int SC16IS752SerialAdapter::digitalRead(int pin) {
 
 void SC16IS752SerialAdapter::digitalWrite(int pin, int value) {
 	hardwareserial_->digitalWrite(pin, value);
+}
+
+void SC16IS752SerialAdapter::setPinMode(int pin, int mode) {
+	switch (mode) {
+		case PINMODE_INPUT:
+			hardwareserial_->pinMode(pin, INPUT);
+			break;
+		case PINMODE_INPUT_PULLUP:
+			hardwareserial_->pinMode(pin, INPUT_PULLUP);
+			break;
+		case PINMODE_INPUT_PULLDOWN:
+			hardwareserial_->pinMode(pin, INPUT_PULLDOWN);
+			break;
+		case PINMODE_OUTPUT:
+			hardwareserial_->pinMode(pin, OUTPUT);
+			break;
+		default:
+			WARN("Unsupported pin mode %d for pin %d", mode, pin);
+	}
 }

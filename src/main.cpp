@@ -2,6 +2,7 @@
 
 #include "SC16IS752.h"
 #include "SC16IS752serialadapter.h"
+#include "btcontroller.h"
 #include "configuration.h"
 #include "hubwebserver.h"
 #include "imu.h"
@@ -27,6 +28,7 @@ Megahub *megahub = NULL;
 HubWebServer *webserver = NULL;
 Configuration *configuration = NULL;
 SerialLoggingOutput *loggingOutput = NULL;
+BluetoothController *bluetoothController;
 
 #define GPIO_SPI_SS	  GPIO_NUM_4
 #define GPIO_SPI_SCK  GPIO_NUM_18
@@ -41,6 +43,8 @@ void setup() {
 	Logging::instance()->routeLoggingTo(loggingOutput);
 
 	INFO("Setup started");
+	INFO("ESP Chip model     : %s", ESP.getChipModel());
+	INFO("ESP Chip revision  : %d", ESP.getChipRevision());
 	INFO("Running on Arduino : %d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
 	INFO("Running on ESP IDF : %s", esp_get_idf_version());
 	INFO("Max  HEAP  is %d", ESP.getHeapSize());
@@ -80,6 +84,9 @@ void setup() {
 		}
 	}
 
+	INFO("Creating Bluetooth Controller interface")
+	bluetoothController = new BluetoothController();
+
 	INFO("Initializing SC16IS752 1 on I2C bus...");
 	i2cuart1 = new SC16IS752(SC16IS750_PROTOCOL_I2C, SC16IS750_ADDRESS_AA);
 	i2cuart1->begin(2400, 2400);
@@ -115,6 +122,9 @@ void setup() {
 
 	configuration->loadAndApply();
 
+	INFO("Initializing Bluetooth controller interface");
+	bluetoothController->init();
+
 	INFO("Setup completed");
 	Statusmonitor::instance()->setStatus(IDLE);
 
@@ -123,6 +133,7 @@ void setup() {
 }
 
 void loop() {
+	bluetoothController->loop();
 	megahub->loop();
 
 	if (WiFi.status() == WL_CONNECTED) {

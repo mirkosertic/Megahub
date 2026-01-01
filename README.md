@@ -15,6 +15,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 - **KiCad**: All schematics and PCB production files are available in KiCad and Gerber format
 - **WiFi Enabled**: Built-in wireless connectivity for remote control and programming
+- **SD-Card**: Built-in SD-card reader to store multiple projects (autostart possible)
 - **4 UART Ports**: Connect up to 4 LEGO&copy; WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
 - **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
 - **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
@@ -24,7 +25,13 @@ It comes with the hardware schematics, production files and the Megahub firmware
 - **ROS(Robot Operating System)**: Micro ROS support is comming soon...
 - **MQTT**: MQTT support is comming soon...
 - **Gamepad**: Bluetooth Gamepad support is comming soon...
-- **BT/WiFi switch**: Allow configuration over Bluetooth API instead of Restful HTTP API
+- **BT/WiFi switch**: Allow configuration over Bluetooth API instead of Restful HTTP API is comming soon...
+
+## Why not Micropython on existing hardware?
+
+- I wanted to learn something new
+- Designing Hard- and Software work together is fun
+- There is no truly open sysstem with the same capabilities available on the market
 
 ## How It Differs from Existing Solutions
 
@@ -38,7 +45,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ### vs. fischertechnik&copy; RX Controller
 
-- **LEGO Compatibility**: Native support for LEGO WeDo 2.0 protocol
+- **LEGO Compatibility**: Native support for LEGO&copy; WeDo 2.0 protocol
 - **Web-based Programming**: No proprietary software required
 - **Cost-effective**: Based on affordable ESP32 hardware
 - **Visual Programming**: Blockly support makes it accessible for all skill levels

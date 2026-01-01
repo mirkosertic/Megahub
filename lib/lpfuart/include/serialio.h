@@ -16,6 +16,7 @@ public:
 	virtual void setM1(bool status) = 0;
 	virtual void setM2(bool status) = 0;
 
+	virtual void setPinMode(int pin, int mode) = 0;
 	virtual int digitalRead(int pin) = 0;
 	virtual void digitalWrite(int pin, int value) = 0;
 };
