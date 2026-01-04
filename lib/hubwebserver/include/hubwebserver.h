@@ -1,6 +1,7 @@
 #ifndef HUBWEBSERVER_H
 #define HUBWEBSERVER_H
 
+#include "configuration.h"
 #include "megahub.h"
 
 #include <FS.h>
@@ -15,6 +16,7 @@ private:
 	PsychicEventSource eventSource_;
 	SerialLoggingOutput *loggingOutput_;
 	TaskHandle_t logforwarderTaskHandle_;
+	Configuration *configuration_;
 
 	WiFiUDP *udp_;
 	long lastSSDPNotify_;
@@ -30,8 +32,10 @@ private:
 
 	String getSSDPDescription();
 
+	String urlDecode(const String& text);
+
 public:
-	HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput);
+	HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
 	virtual ~HubWebServer();
 
 	bool isStarted();

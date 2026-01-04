@@ -10,7 +10,8 @@
 #include <ESPmDNS.h>
 #include <WiFi.h>
 
-#define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
+//#define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
+#define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "no-cache, no-store, must-revalidate"
 
 void logForwarderTask(void *param) {
 	HubWebServer *server = (HubWebServer *) param;
@@ -20,7 +21,8 @@ void logForwarderTask(void *param) {
 	}
 }
 
-HubWebServer::HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput) {
+HubWebServer::HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration) {
+	configuration_ = configuration;
 	server_ = new PsychicHttpServer();
 	loggingOutput_ = loggingOutput;
 	lastSSDPNotify_ = millis();
@@ -230,7 +232,7 @@ void HubWebServer::start() {
 					if (uri.endsWith("/model.xml")) {
 
 						int p = uri.indexOf('/');
-						String projectId = uri.substring(0, p);
+						String projectId = this->urlDecode(uri.substring(0, p));
 
 						String path = "/project/" + projectId + "/model.xml";
 
@@ -277,38 +279,16 @@ void HubWebServer::start() {
 	PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
 	projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
-		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
+		INFO("webserver() - got data chunk with position %llu and length %u", position, length);
 
 		String uri = request->uri().substring(9);
 		int p = uri.indexOf('/');
-		String projectId = uri.substring(0, p);
+		String projectId = this->urlDecode(uri.substring(0, p));
 		String fname = uri.substring(p + 1);
 
-		fs_->mkdir("/project");
-		fs_->mkdir("/project/" + projectId);
-
-		String file = "/project/" + projectId + "/" + fname;
-		File content;
-
-		if (position == 0) {
-			DEBUG("webserver() - creating file %s", file.c_str());
-			content = fs_->open(file, FILE_WRITE, true);
-		} else {
-			DEBUG("webserver() - opening file %s for append", file.c_str());        
-			content = fs_->open(file, FILE_APPEND);
-		}
-
-		if (!content) {
-			WARN("webserver() - failed to access file");
-			return ESP_FAIL;
-		} 
-
-		if (!content.write(data, length)) {
-			WARN("webserver() - Failed wo write data");
+		if (!configuration_->writeFileChunkToProject(projectId, fname, position, data, length)) {
 			return ESP_FAIL;
 		}
-
-		content.close();
 
 		return ESP_OK; });
 
@@ -317,13 +297,10 @@ void HubWebServer::start() {
 
 		String uri = request->uri().substring(9);
 		int p = uri.indexOf('/');
-		String projectId = uri.substring(0, p);
+		String projectId = this->urlDecode(uri.substring(0, p));
 		String fname = uri.substring(p + 1);
 
 		INFO("webserver() - /project/%s/%s PUT received", projectId.c_str(), fname.c_str());
-
-		fs_->mkdir("/project");
-		fs_->mkdir("/project/" + projectId);
 
 		response.setCode(201);
 		response.addHeader("Cache-Control","no-cache, must-revalidate");      
@@ -331,6 +308,27 @@ void HubWebServer::start() {
 
 		return response.send(); });
 	server_->on("/project/*", HTTP_PUT, projectPutHandler);
+
+	server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest *request, PsychicResponse *resp) {
+		INFO("webserver() - /autostart DELETE");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		String projectName = this->urlDecode(request->uri().substring(9));
+
+		// TODO: Delete directory from filesystem
+		JsonDocument root;
+
+		String strContent;
+		serializeJson(root, strContent);
+
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend(); });
 
 	PsychicUploadHandler *projectSyntaxCheckHandler = new PsychicUploadHandler();
 	projectSyntaxCheckHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
@@ -462,6 +460,79 @@ void HubWebServer::start() {
 		return response.endSend(); });
 	server_->on("/execute", HTTP_PUT, executeHandler);
 
+	server_->on("/projects", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+
+		INFO("webserver() - /projects GET");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		JsonDocument root;
+		JsonArray projectList = root["projects"].to<JsonArray>();
+
+		std::vector<String> foundProjects = configuration_->getProjects();
+		INFO("%d projects found", foundProjects.size());
+		for (int i = 0; i < foundProjects.size(); i++) {
+			JsonObject entry = projectList.add<JsonObject>();
+			entry["name"] = String(foundProjects[i]);
+
+		}
+
+		String strContent;
+		serializeJson(root, strContent);
+
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend(); });
+
+	server_->on("/autostart", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+		INFO("webserver() - /autostart GET");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		JsonDocument root;
+		JsonObject re = root.to<JsonObject>();
+
+		String autostartProject = configuration_->getAutostartProject();
+		if (autostartProject.length() > 0) {
+			re["project"] = autostartProject;
+		} else {
+			WARN("No autostart project found");
+		}
+
+		String strContent;
+		serializeJson(root, strContent);
+
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend(); });
+
+	server_->on("/autostart", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp, JsonVariant &json) {
+
+		INFO("webserver() - /autostart PUT");
+
+		JsonObject input = json.as<JsonObject>();
+
+		if (configuration_->setAutostartProject(json["project"].as<String>())) {
+			resp->setCode(201);
+		} else {
+			WARN("Could not set autostart project!");
+
+			resp->setCode(501);
+		}
+		
+		resp->setContentLength(0);
+		resp->addHeader("Cache-Control", "no-cache, must-revalidate");
+		return resp->send(); });
+
+	// General Event handlng
 	eventSource_.onOpen([](PsychicEventSourceClient *client) {
 		INFO("[eventsource] connection #%u connected from %s\n", client->socket(), client->remoteIP().toString().c_str());
 	});
@@ -632,4 +703,30 @@ void HubWebServer::loop() {
 		}
 	}
 	// Server runs async...
+}
+
+String HubWebServer::urlDecode(const String& text) {
+    String decoded = "";
+    char temp[] = "0x00";
+    unsigned int len = text.length();
+    unsigned int i = 0;
+    while (i < len) {
+        char decodedChar;
+        char encodedChar = text.charAt(i++);
+        if ((encodedChar == '%') && (i + 1 < len)) {
+            temp[2] = text.charAt(i++);
+            temp[3] = text.charAt(i++);
+            decodedChar = strtol(temp, NULL, 16);
+        }
+        else {
+            if (encodedChar == '+') {
+                decodedChar = ' ';
+            }
+            else {
+                decodedChar = encodedChar;  // normal ascii char
+            }
+        }
+        decoded += decodedChar;
+    }
+    return decoded;
 }

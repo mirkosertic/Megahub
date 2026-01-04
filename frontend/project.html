@@ -2,7 +2,8 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Megahub Dev Environment</title>
+    <title>Megahub IDE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/src/styles.css" />
 </head>
 
@@ -11,10 +12,10 @@
         <custom-header id="header" class="layout-header"></custom-header>
         <custom-blockly id="blockly" class="layout-content"></custom-blockly>
         <div class="layout-sidebar">
-            <button class="reset" id="reset">Reset workspace</button>
-            <button class="syntaxcheck" id="syntaxcheck">Perform a syntax check</button>
-            <button class="execute" id="execute">Execute!</button>
-            <button class="stop" id="stop">Stop!</button>
+            <button class="btn btn-success reset" id="reset">Reset workspace</button>
+            <button class="btn btn-success btn syntaxcheck" id="syntaxcheck">Syntax check</button>
+            <button class="btn btn-primary execute" id="execute">Execute!</button>
+            <button class="btn btn-success stop" id="stop">Stop!</button>
             <custom-lua-preview id="luapreview"></custom-lua-preview>
             <custom-ui id="uicomponents"></custom-ui>
         </div>

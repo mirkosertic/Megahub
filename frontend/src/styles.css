@@ -1,3 +1,19 @@
+button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+button:hover {
+    background: #2980b9;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -12,7 +28,7 @@ body {
 
     display: grid;
     grid-template-columns: 25% 25% 25% 25%;
-    grid-template-rows: 6rem auto;
+    grid-template-rows: 4rem auto;
     grid-template-areas:
         "button1 button2 button3 button4"
         "editor editor editor editor"
@@ -42,22 +58,6 @@ body {
 
 #uicomponents {
     grid-area: ui;
-}
-
-button {
-    background: #3498db;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    margin-right: 10px;
-    margin-bottom: 10px;
-}
-
-button:hover {
-    background: #2980b9;
 }
 
 #sendStatus {
@@ -147,4 +147,46 @@ custom-header {
     font-weight: bold;
     font-family: Arial, Helvetica, sans-serif;
     vertical-align: middle;
+}
+
+.btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #0e639c;
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background-color: #1177bb;
+}
+
+.btn-danger {
+    background-color: #5a1d1d;
+    color: #f48771;
+}
+
+.btn-danger:hover {
+    background-color: #6e2626;
+}
+
+.btn-success {
+    background-color: #0e639c;
+    color: #ffffff;
+}
+
+.btn-success:hover {
+    background-color: #1177bb;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }

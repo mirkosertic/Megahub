@@ -3,9 +3,9 @@
 #include "logging.h"
 #include "statusmonitor.h"
 
+#include <ArduinoJson.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
-#include <ArduinoJson.h>
 
 const char *TEST_LUA_LUA = "hub.init(function()\n  print('Initializing this')\n  hub.setmotorspeed(PORT1,0)\n  print('This is a very cool example of Lua in Action!')\nend)\n\nhub.main_control_loop(function()\n  print('Main control loop')\n  hub.setmotorspeed(PORT1,255)\n  wait(1000)\n  hub.setmotorspeed(PORT1,(-255))\n  wait(1000)\nend)";
 
@@ -20,36 +20,36 @@ void Configuration::enterWiFiConfiguration() {
 	WiFiManager wm;
 
 	Statusmonitor::instance()->setStatus(CONFIGURATION_ACTIVE);
-    
-    // Reset settings for testing (comment out in production)
-    wm.resetSettings();
+
+	// Reset settings for testing (comment out in production)
+	wm.resetSettings();
 
 	INFO("Entering configuration portal mode");
-    
-    // Set custom AP name and password (optional)
-    wm.setConfigPortalTimeout(180); // 3 minutes timeout
-    
-    // Callback when entering config mode
-    wm.setAPCallback([](WiFiManager* myWiFiManager) {
+
+	// Set custom AP name and password (optional)
+	wm.setConfigPortalTimeout(180); // 3 minutes timeout
+
+	// Callback when entering config mode
+	wm.setAPCallback([](WiFiManager *myWiFiManager) {
 		INFO("Entered config mode SSID %s IP %s", myWiFiManager->getConfigPortalSSID().c_str(), WiFi.softAPIP().toString().c_str());
-    });
-    
-    // Callback when WiFi is configured
-    wm.setSaveConfigCallback([]() {
-        INFO("Configuration saved!");
-		Statusmonitor::instance()->setStatus(IDLE);		
-    });
+	});
+
+	// Callback when WiFi is configured
+	wm.setSaveConfigCallback([]() {
+		INFO("Configuration saved!");
+		Statusmonitor::instance()->setStatus(IDLE);
+	});
 
 	wm.setTitle(String("Megahub Configuration"));
-    
-    // Start portal with custom name
+
+	// Start portal with custom name
 	String apName = String("Megahub_") + hub_->deviceUid();
-    if (wm.autoConnect(apName.c_str(), "12345678")) {
+	if (wm.autoConnect(apName.c_str(), "12345678")) {
 		INFO("Connected wo WiFi, my IP is %s", WiFi.localIP().toString().c_str());
-        
+
 		Statusmonitor::instance()->setStatus(IDLE);
 
-        // Save credentials to SD card
+		// Save credentials to SD card
 		JsonDocument doc;
 		doc["ssid"] = WiFi.SSID().c_str();
 		doc["pwd"] = WiFi.psk().c_str();
@@ -62,10 +62,10 @@ void Configuration::enterWiFiConfiguration() {
 			configFile.close();
 		}
 
-    } else {
-        Serial.println("Failed to configure WiFi");
-        ESP.restart();
-    }
+	} else {
+		Serial.println("Failed to configure WiFi");
+		ESP.restart();
+	}
 }
 
 void Configuration::loadAndApply() {
@@ -96,11 +96,100 @@ void Configuration::loadAndApply() {
 		}
 	}
 
-
 	enterWiFiConfiguration();
 
-	//hub_->loadLUA(TEST_LUA_LUA);
+	// hub_->loadLUA(TEST_LUA_LUA);
 }
 
 Configuration::~Configuration() {
+}
+
+String Configuration::getAutostartProject() {
+	String result = "";
+	File configFile = fs_->open("/autostart.json", FILE_READ);
+	if (!configFile) {
+		WARN("No autostart configuration file detected!");
+	} else {
+		JsonDocument document;
+		DeserializationError error = deserializeJson(document, configFile);
+
+		configFile.close();
+
+		if (error) {
+			WARN("Could not read autostart configuration file!");
+		} else {
+			if (document["project"].is<String>()) {
+				INFO("Got configured autostart project")
+				result = String(document["project"].as<String>());
+			} else {
+				WARN("project key does not exist in configuration. No autostart configured");
+			}
+		}
+	}
+	return result;
+}
+
+bool Configuration::setAutostartProject(String projectName) {
+	JsonDocument newAutostartConfig;
+	newAutostartConfig["project"] = projectName;
+
+	File configFile = fs_->open("/autostart.json", FILE_WRITE, true);
+	if (!configFile) {
+		WARN("Could not create autostart configuration file!");
+		return false;
+	}
+	serializeJson(newAutostartConfig, configFile);
+	configFile.close();
+
+	return true;
+}
+
+std::vector<String> Configuration::getProjects() {
+	std::vector<String> result;
+
+	File sp = fs_->open("/project");
+	File entry = sp.openNextFile();
+	while (entry) {
+		if (entry.isDirectory()) {
+			INFO("Found project directory %s", entry.name());
+			// Use Copy Constructor due to how FS works...
+			result.push_back(String(entry.name()));
+		}
+		entry.close();
+		entry = sp.openNextFile();
+	}
+	sp.close();
+
+	return result;
+}
+
+bool Configuration::writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t *data, size_t length) {
+	fs_->mkdir("/project");
+	fs_->mkdir("/project/" + projectId);
+
+	String file = "/project/" + projectId + "/" + fileName;
+	File content;
+
+	if (position == 0) {
+		INFO("Creating file %s", file.c_str());
+		content = fs_->open(file, FILE_WRITE, true);
+	} else {
+		INFO("Opening file %s for append", file.c_str());
+		content = fs_->open(file, FILE_APPEND);
+	}
+
+	if (!content) {
+		WARN("Failed to access file");
+		return false;
+	}
+
+	if (!content.write(data, length)) {
+		WARN("Failed wo write data");
+		content.close();
+		return false;
+	}
+
+	content.close();
+
+	return true;
 }

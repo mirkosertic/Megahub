@@ -17,10 +17,6 @@
 #include <WiFi.h>
 #include <Wire.h>
 
-#define RXD2	  16
-#define TXD2	  17
-#define BAUD_RATE 2400
-
 SC16IS752 *i2cuart1 = NULL;
 SC16IS752 *i2cuart2 = NULL;
 IMU *imu = NULL;
@@ -118,7 +114,7 @@ void setup() {
 	configuration = new Configuration(&SD, megahub);
 
 	INFO("Initializing WebServer instance")
-	webserver = new HubWebServer(80, &SD, megahub, loggingOutput);
+	webserver = new HubWebServer(80, &SD, megahub, loggingOutput, configuration);
 
 	configuration->loadAndApply();
 
@@ -138,7 +134,7 @@ void loop() {
 
 	if (WiFi.status() == WL_CONNECTED) {
 		if (!webserver->isStarted()) {
-			INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP: %s", WiFi.localIP().toString().c_str());
+			INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP / URL: http://%s:80/", WiFi.localIP().toString().c_str());
 			webserver->start();
 		} else {
 			webserver->loop();

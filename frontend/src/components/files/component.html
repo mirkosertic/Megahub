@@ -1,1 +1,40 @@
-<a link href="/project/lala/" rel="noopener noreferrer">Example project</a>
+<!-- Template for project list items -->
+<template id="projectItemTemplate">
+    <div class="project-item">
+        <svg class="project-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path
+                d="M1.5 1h13l.5.5v13l-.5.5h-13l-.5-.5v-13l.5-.5zM2 2v12h12V2H2zm2 2h8v1H4V4zm0 2h8v1H4V6zm0 2h6v1H4V8z" />
+        </svg>
+        <span class="project-name">{name}</span>
+        <div class="project-actions">
+            <button class="icon-btn autostart-button" title="Set as autostart">☆</button>
+            <button class="icon-btn delete-button">Delete</button>
+        </div>
+    </div>
+</template>
+
+<div class="dialog">
+    <div class="dialog-header">
+        <div class="dialog-title">Project Manager</div>
+    </div>
+
+    <div class="dialog-body">
+        <div class="section">
+            <div class="section-title">Create New Project</div>
+            <div class="input-group">
+                <input type="text" id="newProjectName" placeholder="Enter project name...">
+                <button class="btn btn-primary" id="createbutton">Create</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Available Projects</div>
+            <div class="project-list" id="projectList">
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-footer">
+        <button id="openbutton" class="btn btn-success">Open Selected Project</button>
+    </div>
+</div>
