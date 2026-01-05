@@ -45,19 +45,22 @@ public:
 	void initialize();
 	void loop();
 
+	std::string name();
+	int numModes();
+
 private:
-	long serialSpeed;
-	Mode **modes;
-	int numModes;
-	std::string name;
-	int deviceId;
-	std::string fwVersion;
-	std::string hwVersion;
-	ProtocolState *protocolState;
+	long serialSpeed_;
+	Mode **modes_;
+	int numModes_;
+	std::string name_;
+	int deviceId_;
+	std::string fwVersion_;
+	std::string hwVersion_;
+	ProtocolState *protocolState_;
 	std::unique_ptr<SerialIO> serialIO_;
-	bool handshakeComplete;
-	unsigned long lastKeepAliveCheck;
-	bool inDataMode;
+	bool handshakeComplete_;
+	unsigned long lastKeepAliveCheck_;
+	bool inDataMode_;
 };
 
 #endif // LEGODEVICE_H

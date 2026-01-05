@@ -5,12 +5,13 @@
 #include "commands.h"
 #include "embedded_files.h"
 #include "logging.h"
+#include "portstatus.h"
 
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 
-//#define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
+// #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
 #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "no-cache, no-store, must-revalidate"
 
 void logForwarderTask(void *param) {
@@ -18,6 +19,7 @@ void logForwarderTask(void *param) {
 	while (true) {
 		server->publishLogMessages();
 		server->publishCommands();
+		server->publishPortstatus();
 	}
 }
 
@@ -233,28 +235,18 @@ void HubWebServer::start() {
 
 						int p = uri.indexOf('/');
 						String projectId = this->urlDecode(uri.substring(0, p));
+						String filename = "model.xml";
 
-						String path = "/project/" + projectId + "/model.xml";
-
-						File content = fs_->open(path, FILE_READ);
-						
 						PsychicStreamResponse response(resp, "application/octet-stream");
-						INFO("webserver() - content %s requested for download, file size is %d", path.c_str(), content.size());
+						INFO("webserver() - content %S/%s requested for download", projectId.c_str(), filename.c_str());
 						response.setCode(200);
 						response.addHeader("Cache-Control","no-cache, must-revalidate");      
 						response.beginSend();
 
-						INFO("webserver() - start sending data to client");
-						char buffer[512];
-						size_t read = content.readBytes(&buffer[0], sizeof(buffer));
-						while (read > 0) {
-							INFO("Sending chunk of %d bytes", read);
-							response.write((uint8_t *)&buffer[0], read);
-							read = content.readBytes(&buffer[0], sizeof(buffer));
-						}
-						INFO("webserver() - transfer finished");
-
-						content.close();                    
+						configuration_->streamProjectFileTo(projectId, filename, [&response](char *buffer, int size) {
+							DEBUG("Got data chunk of size %d for streaming", size);
+							response.write(&buffer[0], size);
+						});
 
 						return response.endSend(); 						
 
@@ -315,6 +307,8 @@ void HubWebServer::start() {
 		PsychicStreamResponse response(resp, "application/json");
 
 		String projectName = this->urlDecode(request->uri().substring(9));
+
+		configuration_->deleteProject(projectName);
 
 		// TODO: Delete directory from filesystem
 		JsonDocument root;
@@ -582,6 +576,17 @@ void HubWebServer::publishCommands() {
 	}
 }
 
+void HubWebServer::publishPortstatus() {
+	String command = Portstatus::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	while (command.length() > 0) {
+		if (eventSource_.count() > 0) {
+			eventSource_.send(command.c_str(), "portstatus", millis());
+		}
+
+		command = Portstatus::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	}
+}
+
 bool HubWebServer::isStarted() {
 	return started_;
 }
@@ -705,28 +710,26 @@ void HubWebServer::loop() {
 	// Server runs async...
 }
 
-String HubWebServer::urlDecode(const String& text) {
-    String decoded = "";
-    char temp[] = "0x00";
-    unsigned int len = text.length();
-    unsigned int i = 0;
-    while (i < len) {
-        char decodedChar;
-        char encodedChar = text.charAt(i++);
-        if ((encodedChar == '%') && (i + 1 < len)) {
-            temp[2] = text.charAt(i++);
-            temp[3] = text.charAt(i++);
-            decodedChar = strtol(temp, NULL, 16);
-        }
-        else {
-            if (encodedChar == '+') {
-                decodedChar = ' ';
-            }
-            else {
-                decodedChar = encodedChar;  // normal ascii char
-            }
-        }
-        decoded += decodedChar;
-    }
-    return decoded;
+String HubWebServer::urlDecode(const String &text) {
+	String decoded = "";
+	char temp[] = "0x00";
+	unsigned int len = text.length();
+	unsigned int i = 0;
+	while (i < len) {
+		char decodedChar;
+		char encodedChar = text.charAt(i++);
+		if ((encodedChar == '%') && (i + 1 < len)) {
+			temp[2] = text.charAt(i++);
+			temp[3] = text.charAt(i++);
+			decodedChar = strtol(temp, NULL, 16);
+		} else {
+			if (encodedChar == '+') {
+				decodedChar = ' ';
+			} else {
+				decodedChar = encodedChar; // normal ascii char
+			}
+		}
+		decoded += decodedChar;
+	}
+	return decoded;
 }

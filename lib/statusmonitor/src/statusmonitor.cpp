@@ -1,6 +1,7 @@
+#include <Arduino.h>
+
 #include "statusmonitor.h"
 
-#include <Arduino.h>
 #include "logging.h"
 
 Statusmonitor *GLOBAL_STATUS_INSTANCE = nullptr;

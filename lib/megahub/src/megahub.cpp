@@ -6,6 +6,7 @@
 #include "commands.h"
 #include "gitrevision.h"
 #include "i2csync.h"
+#include "portstatus.h"
 
 #include <ArduinoJson.h>
 #include <FastLED.h>
@@ -24,12 +25,107 @@ struct MainControlLoopTaskParams {
 };
 
 TaskHandle_t mainControlLoopTaskHandle = NULL;
+TaskHandle_t statusReporterTaskHandle = NULL;
+
+void status_reporter_task(void *parameters) {
+	Megahub* hub = (Megahub *) parameters;
+	INFO("Starting task reporter task");
+	while (true) {
+		INFO("Sending Portstatus");
+
+		i2c_lock();
+		JsonDocument status;
+
+		// TODO: Update icons and other stuff here
+		JsonArray ports = status["ports"].to<JsonArray>();
+
+		LegoDevice* device1 = hub->port(PORT1);
+		JsonObject port1 = ports.add<JsonObject>();
+		port1["id"] = 1;
+		if (device1->fullyInitialized()) {
+			port1["connected"] = true;
+			JsonObject device = port1["device"].to<JsonObject>();
+			device["type"] = device1->name();
+			device["icon"] = "⚙️";
+			JsonArray modes = device["modes"].to<JsonArray>();
+			for (int i = 0; i < device1->numModes(); i++) {
+				Mode *mode = device1->getMode(i);
+				modes.add(String(mode->getName().c_str()));
+			}
+		} else {
+			port1["connected"] = false;
+		}
+
+		LegoDevice* device2 = hub->port(PORT2);		
+		JsonObject port2 = ports.add<JsonObject>();
+		port2["id"] = 2;
+		if (device2->fullyInitialized()) {
+			port2["connected"] = true;
+			JsonObject device = port2["device"].to<JsonObject>();
+			device["type"] = device2->name();
+			device["icon"] = "⚙️";
+			JsonArray modes = device["modes"].to<JsonArray>();
+			for (int i = 0; i < device2->numModes(); i++) {
+				Mode *mode = device2->getMode(i);
+				modes.add(String(mode->getName().c_str()));
+			}
+		} else {
+			port2["connected"] = false;
+		}
+
+		LegoDevice* device3 = hub->port(PORT3);		
+		JsonObject port3 = ports.add<JsonObject>();
+		port3["id"] = 3;
+		if (device3->fullyInitialized()) {
+			port3["connected"] = true;
+			JsonObject device = port3["device"].to<JsonObject>();
+			device["type"] = device3->name();
+			device["icon"] = "⚙️";
+			JsonArray modes = device["modes"].to<JsonArray>();
+			for (int i = 0; i < device3->numModes(); i++) {
+				Mode *mode = device3->getMode(i);
+				modes.add(String(mode->getName().c_str()));
+			}
+		} else {
+			port3["connected"] = false;
+		}
+
+		LegoDevice* device4 = hub->port(PORT4);		
+		JsonObject port4 = ports.add<JsonObject>();
+		port4["id"] = 4;
+		if (device4->fullyInitialized()) {
+			port4["connected"] = true;
+			JsonObject device = port4["device"].to<JsonObject>();
+			device["type"] = device4->name();
+			device["icon"] = "⚙️";
+			JsonArray modes = device["modes"].to<JsonArray>();
+			for (int i = 0; i < device4->numModes(); i++) {
+				Mode *mode = device4->getMode(i);
+				modes.add(String(mode->getName().c_str()));
+			}
+		} else {
+			port4["connected"] = false;
+		}
+
+		i2c_unlock();
+
+		String strContent;
+		serializeJson(status, strContent);
+
+		Portstatus::instance()->queue(strContent);
+
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+	INFO("Done with task reporter task");
+	vTaskDelete(NULL);
+
+}
 
 void main_control_loop_task(void *parameters) {
 	MainControlLoopTaskParams *params = (MainControlLoopTaskParams *) parameters;
 
 	lua_State *threadState = params->threadstate;
-	INFO("Starting main control loop wask");
+	INFO("Starting main control loop task");
 	while (true) {
 		// Check for cancelation
 		uint32_t notificationValue = 0;
@@ -595,6 +691,17 @@ Megahub::Megahub(LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, 
 	device4->initialize();
 
 	currentprogramstate_ = nullptr;
+
+	// Create the task
+	xTaskCreate(
+		status_reporter_task,
+		"PortStatus",
+		4096,
+		(void *) this,
+		1,
+		&statusReporterTaskHandle // Store task handle for cancellation
+	);
+
 }
 
 Megahub::~Megahub() {

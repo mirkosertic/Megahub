@@ -1,8 +1,8 @@
 #include "parseinfostate.h"
 
-#include "logging.h"
 #include "format.h"
 #include "legodevice.h"
+#include "logging.h"
 #include "mode.h"
 #include "waitingstate.h"
 

@@ -4,22 +4,23 @@
 #include <Arduino.h>
 
 enum StatusmonitorStatus {
-    BOOTING,
-    SD_ERROR,
-    CONFIGURATION_ACTIVE,
-    IDLE
+	BOOTING,
+	SD_ERROR,
+	CONFIGURATION_ACTIVE,
+	IDLE
 };
 
 class Statusmonitor {
 private:
 	Statusmonitor();
-    StatusmonitorStatus status_;
-    TaskHandle_t taskHandle_;
+	StatusmonitorStatus status_;
+	TaskHandle_t taskHandle_;
+
 public:
 	static Statusmonitor *instance();
 
-    void setStatus(StatusmonitorStatus status);
-    StatusmonitorStatus status();
+	void setStatus(StatusmonitorStatus status);
+	StatusmonitorStatus status();
 };
 
 #endif

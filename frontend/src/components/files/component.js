@@ -172,10 +172,10 @@ class FilesHTMLElement extends HTMLElement {
 				});
 
 		} else {
-			let projectArray = {'projects': [
+			let projectArray = [
 				{name : 'dummy'},
 				{name : 'testproject'},
-			]};
+			];
 
 			this.initProjectListWith(projectArray);
 			this.setAutoStartProject("testproject");

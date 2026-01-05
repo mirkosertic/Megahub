@@ -32,7 +32,7 @@ private:
 
 	String getSSDPDescription();
 
-	String urlDecode(const String& text);
+	String urlDecode(const String &text);
 
 public:
 	HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
@@ -45,6 +45,7 @@ public:
 
 	void publishLogMessages();
 	void publishCommands();
+	void publishPortstatus();
 };
 
 #endif // HUBWEBSERVER_H

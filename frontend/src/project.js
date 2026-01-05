@@ -4,7 +4,7 @@ import './components/blockly/component.js';
 import './components/luapreview/component.js';
 import './components/ui/component.js';
 import './components/logger/component.js';
-
+import './components/portstatus/component.js';
 
 var blocklyEditor = null;
 var luaPreview = null;
@@ -13,177 +13,183 @@ var uiComponents = null;
 // Functions
 
 function generateCode() {
-    const code = blocklyEditor.generateLUAPreview();
+	const code = blocklyEditor.generateLUAPreview();
 
-    luaPreview.highlightCode(code);
-    return code;
+	luaPreview.highlightCode(code);
+	return code;
 };
 
 function syntaxCheck() {
-    const luaCode = generateCode();
+	const luaCode = generateCode();
 
-    fetch("/syntaxcheck", {
-        method: "PUT",
-        body: luaCode,
-        headers: {
-            "Content-type": "text/x-lua; charset=UTF-8",
-        },
-    })
-    .then((response) => response.json())
-    .then((response) => {
-        alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-    });
+	fetch("/syntaxcheck", {
+		method : "PUT",
+		body : luaCode,
+		headers : {
+				   "Content-type" : "text/x-lua; charset=UTF-8",
+				   },
+	})
+		.then((response) => response.json())
+		.then((response) => {
+			alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
+		});
 };
 
 function executeCode() {
-    const luaCode = generateCode();
+	const luaCode = generateCode();
 
-    fetch("/execute", {
-        method: "PUT",
-        body: luaCode,
-        headers: {
-            "Content-type": "text/x-lua; charset=UTF-8",
-        },
-    })
-    .then((response) => response.json())
-        .then((response) => {
-        uiComponents.clear();
-        alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-    });
+	fetch("/execute", {
+		method : "PUT",
+		body : luaCode,
+		headers : {
+				   "Content-type" : "text/x-lua; charset=UTF-8",
+				   },
+	})
+		.then((response) => response.json())
+		.then((response) => {
+			uiComponents.clear();
+			alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
+		});
 };
 
 function stopCode() {
 
-    fetch("/stop", {
-        method: "PUT",
-        body: '',
-        headers: {
-            "Content-type": "text/x-lua; charset=UTF-8",
-        },
-    })
-    .then((response) => response.json())
-    .then((response) => {
-        console.log("Stop command sent, response: " + JSON.stringify(response));
-    });
+	fetch("/stop", {
+		method : "PUT",
+		body : '',
+		headers : {
+				   "Content-type" : "text/x-lua; charset=UTF-8",
+				   },
+	})
+		.then((response) => response.json())
+		.then((response) => {
+			console.log("Stop command sent, response: " + JSON.stringify(response));
+		});
 }
 
 document.getElementById("reset").addEventListener("click", () => {
-    blocklyEditor.clearWorkspace();
+	blocklyEditor.clearWorkspace();
 });
 
 document.getElementById("syntaxcheck").addEventListener("click", () => {
-    syntaxCheck();
+	syntaxCheck();
 });
 
 document.getElementById("execute").addEventListener("click", () => {
-    executeCode();
+	executeCode();
 });
 
 document.getElementById("stop").addEventListener("click", () => {
-    stopCode();
+	stopCode();
 });
 
 const STRORAGE_KEY = 'blockly_robot_workspace';
 
 // Workspace als XML speichern
 function saveToLocalStorage(key) {
-    try {
-        const xmlText = blocklyEditor.generateXML();
+	try {
+		const xmlText = blocklyEditor.generateXML();
 
-        localStorage.setItem(key, xmlText);
-        console.log('Workspace saved to localStorage, sending backup to backend');
+		localStorage.setItem(key, xmlText);
+		console.log('Workspace saved to localStorage, sending backup to backend');
 
-        if (!import.meta.env.DEV) {
-            // Write model to backend
-            fetch("model.xml", {
-                method: "PUT",
-                body: xmlText,
-                headers: {
-                    "Content-type": "application/xml; charset=UTF-8",
-                },
-            })
-            .then((response) => {
-                console.log("Got response from backend : " + JSON.stringify(response));
-            });
+		if (!import.meta.env.DEV) {
+			// Write model to backend
+			fetch("model.xml", {
+				method : "PUT",
+				body : xmlText,
+				headers : {
+						   "Content-type" : "application/xml; charset=UTF-8",
+						   },
+			})
+				.then((response) => {
+					console.log("Got response from backend : " + JSON.stringify(response));
+				});
 
-            const luaCode = generateCode();
-            // Write code to backend
-            fetch("program.lua", {
-                method: "PUT",
-                body: luaCode,
-                headers: {
-                    "Content-type": "text/x-lua; charset=UTF-8",
-                },
-            })
-            .then((response) => {
-                console.log("Got response from backend : " + JSON.stringify(response));
-            });
-        }
+			const luaCode = generateCode();
+			// Write code to backend
+			fetch("program.lua", {
+				method : "PUT",
+				body : luaCode,
+				headers : {
+						   "Content-type" : "text/x-lua; charset=UTF-8",
+						   },
+			})
+				.then((response) => {
+					console.log("Got response from backend : " + JSON.stringify(response));
+				});
+		}
 
-        return true;
-    } catch (error) {
-        console.error('Error while saving project:', error);
-        return false;
-    }
+		return true;
+	} catch (error) {
+		console.error('Error while saving project:', error);
+		return false;
+	}
 };
 
 // Workspace aus LocalStorage laden
 function loadFromLocalStorage(key) {
-    try {
-        console.info("Trying to load from localStorage");
-        const xmlText = localStorage.getItem(key);
-        if (!xmlText) {
-            console.log('No data found in localStorage');
-            return false;
-        }
+	try {
+		console.info("Trying to load from localStorage");
+		const xmlText = localStorage.getItem(key);
+		if (!xmlText) {
+			console.log('No data found in localStorage');
+			return false;
+		}
 
-        blocklyEditor.loadXML(xmlText);
+		blocklyEditor.loadXML(xmlText);
 
-        return true;
-    } catch (error) {
-        console.error('Error while loading workspace:', error);
-        return false;
-    }
+		return true;
+	} catch (error) {
+		console.error('Error while loading workspace:', error);
+		return false;
+	}
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+	blocklyEditor = document.getElementById('blockly');
+	blocklyEditor.addChangeListener(() => {
+		generateCode();
+	});
+	luaPreview = document.getElementById('luapreview');
+	uiComponents = document.getElementById('uicomponents');
+	portstatus = document.getElementById("portstatus");
 
-    blocklyEditor = document.getElementById('blockly');
-    blocklyEditor.addChangeListener(() => {
-        generateCode();
-    });
-    luaPreview = document.getElementById('luapreview');
-    uiComponents = document.getElementById('uicomponents');
+	// Enable autp save every 10 seconds
+	setInterval(() => {
+		saveToLocalStorage(STRORAGE_KEY);
+	}, 10000);
 
-    // Enable autp save every 10 seconds
-    setInterval(() => {
-        saveToLocalStorage(STRORAGE_KEY);
-    }, 10000);
+	portstatus.initialize();
 
-    if (!import.meta.env.DEV) {
-        fetch("model.xml")
-            .then((response) => response.text())
-            .then((text) => {
-                if (!blocklyEditor.loadXML(text)) {
-                    // Load last known workspace version
-                    loadFromLocalStorage(STRORAGE_KEY);
-                }
-        })
-        .catch((error) => {
-                console.error('Error loading model.xml:', error);
-        });
+	if (!import.meta.env.DEV) {
+		// TODO: Move this to the blockly editor initialization
+		fetch("model.xml")
+			.then((response) => response.text())
+			.then((text) => {
+				if (!blocklyEditor.loadXML(text)) {
+					// Load last known workspace version
+					loadFromLocalStorage(STRORAGE_KEY);
+				}
+			})
+			.catch((error) => {
+				console.error('Error loading model.xml:', error);
+			});
 
-        const logger = document.getElementById('logger');
-        const eventSource = new EventSource('/events');
+		const logger = document.getElementById('logger');
+		const eventSource = new EventSource('/events');
 
-        eventSource.onerror = (event) => {
-            console.error("EventSource failed:", event);
-        };
-        eventSource.addEventListener("log", (event) => {
-            logger.addToLog(JSON.parse(event.data).message);            
-        });
-        eventSource.addEventListener("command", (event) => {
-            uiComponents.processUIEvent(JSON.parse(event.data));
-        });
-    }
+		eventSource.onerror = (event) => {
+			console.error("EventSource failed:", event);
+		};
+		eventSource.addEventListener("log", (event) => {
+			logger.addToLog(JSON.parse(event.data).message);
+		});
+		eventSource.addEventListener("command", (event) => {
+			uiComponents.processUIEvent(JSON.parse(event.data));
+		});
+		eventSource.addEventListener("portstatus", (event) => {
+			portstatus.setStatus(JSON.parse(event.data));
+		});
+	}
 });

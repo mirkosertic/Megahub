@@ -5,91 +5,91 @@
 #include "waitingstate.h"
 
 LegoDevice::LegoDevice(SerialIO *serialIO)
-	: serialSpeed(2400)
-	, numModes(-1)
-	, deviceId(-1)
-	, fwVersion("")
-	, hwVersion("")
+	: serialSpeed_(2400)
+	, numModes_(-1)
+	, deviceId_(-1)
+	, fwVersion_("")
+	, hwVersion_("")
 	, serialIO_(serialIO)
-	, handshakeComplete(false)
-	, lastKeepAliveCheck(0)
-	, inDataMode(false) {
-	protocolState = new WaitingState(this);
+	, handshakeComplete_(false)
+	, lastKeepAliveCheck_(0)
+	, inDataMode_(false) {
+	protocolState_ = new WaitingState(this);
 
-	modes = new Mode *[16];
+	modes_ = new Mode *[16];
 	for (int i = 0; i < 16; i++) {
-		modes[i] = new Mode();
+		modes_[i] = new Mode();
 	}
 }
 
 LegoDevice::~LegoDevice() {
-	if (modes != nullptr) {
-		for (int i = 0; i < numModes; i++) {
-			delete modes[i];
+	if (modes_ != nullptr) {
+		for (int i = 0; i < numModes_; i++) {
+			delete modes_[i];
 		}
-		delete[] modes;
+		delete[] modes_;
 	}
-	if (protocolState != nullptr) {
-		delete protocolState;
+	if (protocolState_ != nullptr) {
+		delete protocolState_;
 	}
 }
 
 bool LegoDevice::fullyInitialized() {
-	return deviceId != -1 && numModes != -1;
+	return deviceId_ != -1 && numModes_ != -1;
 }
 
 bool LegoDevice::isHandshakeComplete() {
-	return handshakeComplete;
+	return handshakeComplete_;
 }
 
 void LegoDevice::markAsHandshakeComplete() {
-	handshakeComplete = true;
+	handshakeComplete_ = true;
 }
 
 void LegoDevice::parseIncomingData() {
 	while (serialIO_->available() > 0) {
 		int datapoint = serialIO_->readByte();
-		ProtocolState *newState = protocolState->parse(datapoint);
-		if (newState != protocolState) {
-			delete protocolState;
-			protocolState = newState;
+		ProtocolState *newState = protocolState_->parse(datapoint);
+		if (newState != protocolState_) {
+			delete protocolState_;
+			protocolState_ = newState;
 		}
 	}
 }
 
 void LegoDevice::setDeviceIdAndName(int deviceId, std::string &name) {
-	this->deviceId = deviceId;
-	this->name = name;
+	this->deviceId_ = deviceId;
+	this->name_ = name;
 	INFO("Connected to device ID %d with name '%s'", deviceId, name.c_str());
 }
 
 void LegoDevice::initNumberOfModes(int numModes) {
-	this->numModes = numModes;
+	this->numModes_ = numModes;
 	INFO("Device has %d modes", numModes);
 }
 
 void LegoDevice::setSerialSpeed(long serialSpeed) {
-	this->serialSpeed = serialSpeed;
+	this->serialSpeed_ = serialSpeed;
 	INFO("Device requests serial speed %ld", serialSpeed);
 }
 
 void LegoDevice::setVersions(std::string &fwVersion, std::string &hwVersion) {
-	this->fwVersion = fwVersion;
-	this->hwVersion = hwVersion;
+	this->fwVersion_ = fwVersion;
+	this->hwVersion_ = hwVersion;
 	INFO("Device firmware version: %s", fwVersion.c_str());
 	INFO("Device hardware version: %s", hwVersion.c_str());
 }
 
 Mode *LegoDevice::getMode(int index) {
-	return modes[index];
+	return modes_[index];
 }
 
 void LegoDevice::finishHandshake() {
-	INFO("Finishing handshake and switching to %ld baud", serialSpeed);
+	INFO("Finishing handshake and switching to %ld baud", serialSpeed_);
 
 	sendAck();
 	delay(10);
-	serialIO_->switchToBaudrate(serialSpeed);
+	serialIO_->switchToBaudrate(serialSpeed_);
 	delay(10);
 }
 
@@ -110,13 +110,13 @@ void LegoDevice::sendSync() {
 
 void LegoDevice::needsKeepAlive() {
 	unsigned long now = millis();
-	if (lastKeepAliveCheck == 0) {
-		lastKeepAliveCheck = now;
+	if (lastKeepAliveCheck_ == 0) {
+		lastKeepAliveCheck_ = now;
 		return;
 	}
 
-	if (now - lastKeepAliveCheck > 50) {
-		lastKeepAliveCheck = now;
+	if (now - lastKeepAliveCheck_ > 50) {
+		lastKeepAliveCheck_ = now;
 		DEBUG("Sending keep alive message to Lego device");
 		sendNack();
 	}
@@ -154,10 +154,10 @@ void LegoDevice::selectSpeed(long speed) {
 }
 
 bool LegoDevice::isInDataMode() {
-	return inDataMode;
+	return inDataMode_;
 }
 void LegoDevice::switchToDataMode() {
-	inDataMode = true;
+	inDataMode_ = true;
 }
 
 void LegoDevice::setM1(bool status) {
@@ -218,4 +218,12 @@ void LegoDevice::digitalWrite(int pin, int value) {
 	i2c_lock();
 	serialIO_->digitalWrite(pin, value);
 	i2c_unlock();
+}
+
+std::string LegoDevice::name() {
+	return name_;
+}
+
+int LegoDevice::numModes() {
+	return numModes_;
 }

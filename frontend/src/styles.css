@@ -28,9 +28,10 @@ body {
 
     display: grid;
     grid-template-columns: 25% 25% 25% 25%;
-    grid-template-rows: 4rem auto;
+    grid-template-rows: 4rem auto auto auto;
     grid-template-areas:
         "button1 button2 button3 button4"
+        "portstatus portstatus portstatus portstatus"
         "editor editor editor editor"
         "ui ui ui ui";
 
@@ -65,6 +66,10 @@ body {
     padding: 10px;
     border-radius: 5px;
     display: none;
+}
+
+#portstatus {
+    grid-area: portstatus;
 }
 
 .success {
@@ -189,4 +194,14 @@ custom-header {
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+custom-lua-preview {
+    code.language-lua {
+        font-size: 0.8rem !important;
+    }
+
+    pre.language-lua {
+        padding-left: 3em !important;
+    }
 }

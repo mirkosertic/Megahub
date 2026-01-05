@@ -1,7 +1,7 @@
 #include "commands.h"
 
 #define COMMAND_MESSAGE_SIZE 512
-#define COMMAND_QUEUE_LENGTH 50
+#define COMMAND_QUEUE_LENGTH 20
 
 Commands *GLOBAL_COMMANDS_INSTANCE = nullptr;
 

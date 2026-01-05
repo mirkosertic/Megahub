@@ -129,9 +129,9 @@ String Configuration::getAutostartProject() {
 	return result;
 }
 
-bool Configuration::setAutostartProject(String projectName) {
+bool Configuration::setAutostartProject(String projectId) {
 	JsonDocument newAutostartConfig;
-	newAutostartConfig["project"] = projectName;
+	newAutostartConfig["project"] = projectId;
 
 	File configFile = fs_->open("/autostart.json", FILE_WRITE, true);
 	if (!configFile) {
@@ -192,4 +192,77 @@ bool Configuration::writeFileChunkToProject(String projectId, String fileName, u
 	content.close();
 
 	return true;
+}
+
+void Configuration::streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget &streamTarget) {
+	INFO("webserver() - start sending data to client");
+
+	String path = "/project/" + projectId + "/" + fileName;
+
+	File content = fs_->open(path, FILE_READ);
+	if (content) {
+		DEBUG("Reading file %s", path.c_str());
+		char buffer[512];
+		size_t read = content.readBytes(&buffer[0], sizeof(buffer));
+		while (read > 0) {
+			DEBUG("Sending chunk of %d bytes", read);
+			streamTarget(&buffer[0], read);
+			read = content.readBytes(&buffer[0], sizeof(buffer));
+		}
+		content.close();
+	} else {
+		WARN("Cannot open file %s to read", path.c_str());
+	}
+}
+
+bool Configuration::deleteDirectory(String directory) {
+	File dir = this->fs_->open(directory);
+
+	if (!dir) {
+		WARN("Failed to open directory: %s", directory.c_str());
+		return false;
+	}
+
+	if (!dir.isDirectory()) {
+		WARN("Not a directory: %s", directory.c_str());
+		dir.close();
+		return false;
+	}
+
+	// Iterate through all files and subdirectories
+	File file = dir.openNextFile();
+	while (file) {
+		String filePath = directory + "/" + String(file.name());
+
+		if (file.isDirectory()) {
+			// Recursively delete subdirectory
+			if (!deleteDirectory(filePath.c_str())) {
+				return false;
+			}
+		} else {
+			// Delete file
+			this->fs_->remove(filePath.c_str());
+			INFO("Deleted file: %s", filePath.c_str());
+		}
+
+		file.close();
+		file = dir.openNextFile();
+	}
+
+	dir.close();
+
+	// Finally, remove the directory itself
+	if (this->fs_->rmdir(directory)) {
+		INFO("Deleted directory: %s", directory.c_str());
+		return true;
+	}
+
+	WARN("Failed to delete directory: %s", directory.c_str());
+	return false;
+}
+
+void Configuration::deleteProject(String projectId) {
+	String path = "/project/" + projectId;
+
+	deleteDirectory(path);
 }

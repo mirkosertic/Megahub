@@ -1,7 +1,7 @@
 #include "parsecommandstate.h"
 
-#include "logging.h"
 #include "legodevice.h"
+#include "logging.h"
 #include "waitingstate.h"
 
 #include <string>

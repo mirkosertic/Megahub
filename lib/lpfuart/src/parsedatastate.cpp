@@ -1,8 +1,8 @@
 #include "parsedatastate.h"
 
-#include "logging.h"
 #include "format.h"
 #include "legodevice.h"
+#include "logging.h"
 #include "mode.h"
 #include "waitingstate.h"
 
@@ -43,7 +43,9 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 		int v = messagePayload[i] & 0xFF;
 		payloadHex.push_back(hexChars[(v >> 4) & 0xF]);
 		payloadHex.push_back(hexChars[v & 0xF]);
-		if (i + 1 < messageSize) payloadHex.push_back(' ');
+		if (i + 1 < messageSize) {
+			payloadHex.push_back(' ');
+		}
 	}
 
 	DEBUG("Got data %s", payloadHex.c_str());

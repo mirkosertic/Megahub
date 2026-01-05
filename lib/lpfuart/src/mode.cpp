@@ -56,18 +56,23 @@ void Mode::setFormat(Format *format) {
 std::string Mode::getName() {
 	return name;
 }
+
 std::string Mode::getUnits() {
 	return units;
 }
+
 float Mode::getPctMin() {
 	return pctMin;
 }
+
 float Mode::getPctMax() {
 	return pctMax;
 }
+
 float Mode::getSiMin() {
 	return siMin;
 }
+
 float Mode::getSiMax() {
 	return siMax;
 }
