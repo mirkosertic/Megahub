@@ -1,0 +1,10 @@
+export const colorControlFlow = 25;
+export const colorLogic = 50;
+export const colorMath = 75;
+export const colorText = 100;
+export const colorLists = 125;
+export const colorIO = 150;
+export const colorFastLED = 175;
+export const colorIMU = 200;
+export const colorUI = 225;
+export const colorDebug = 245;

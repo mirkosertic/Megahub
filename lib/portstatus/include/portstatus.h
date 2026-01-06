@@ -14,7 +14,7 @@ private:
 public:
 	static Portstatus *instance();
 
-	String waitForCommand(TickType_t ticksToWait);
+	String waitForStatus(TickType_t ticksToWait);
 	void queue(String message);
 };
 

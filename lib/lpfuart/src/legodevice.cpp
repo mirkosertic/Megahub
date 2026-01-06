@@ -13,13 +13,34 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 	, serialIO_(serialIO)
 	, handshakeComplete_(false)
 	, lastKeepAliveCheck_(0)
-	, inDataMode_(false) {
+	, inDataMode_(false)
+	, lastReceivedDataInMillis_(0) {
 	protocolState_ = new WaitingState(this);
 
 	modes_ = new Mode *[16];
 	for (int i = 0; i < 16; i++) {
 		modes_[i] = new Mode();
 	}
+}
+
+void LegoDevice::reset() {
+	INFO("Performing a device reset");
+	numModes_ = 0;
+	deviceId_ = -1;
+	fwVersion_ = "";
+	hwVersion_ = "";
+	handshakeComplete_ = false;
+	inDataMode_ = false;
+
+	delete protocolState_;
+	protocolState_ = new WaitingState(this);
+
+	for (int i = 0; i < 16; i++) {
+		modes_[i]->reset();
+	}
+
+	serialSpeed_ = 2400;
+	serialIO_->switchToBaudrate(2400);
 }
 
 LegoDevice::~LegoDevice() {
@@ -48,6 +69,7 @@ void LegoDevice::markAsHandshakeComplete() {
 
 void LegoDevice::parseIncomingData() {
 	while (serialIO_->available() > 0) {
+		lastReceivedDataInMillis_ = millis();
 		int datapoint = serialIO_->readByte();
 		ProtocolState *newState = protocolState_->parse(datapoint);
 		if (newState != protocolState_) {
@@ -199,6 +221,13 @@ void LegoDevice::loop() {
 		switchToDataMode();
 	} else if (isInDataMode()) {
 		needsKeepAlive();
+
+		unsigned long now = millis();
+		if (now - lastReceivedDataInMillis_ > 200) {
+			// We didn't receive data for more than 200 milliseconds, so we will perform a reset as we assume the device was unplugged
+			INFO("Did't receive data for some time, performing a device reset");
+			reset();
+		}
 	}
 }
 

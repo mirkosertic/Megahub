@@ -9,29 +9,29 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
-#include <FastLED.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
 #define MEGAHUBREF_NAME "MEGAHUBTHISREF"
-#define FASTLEDREF_NAME "FASTLEDREF"
 
 SemaphoreHandle_t lua_global_mutex = xSemaphoreCreateMutex();
 
-struct MainControlLoopTaskParams {
-	lua_State *mainstate;
-	lua_State *threadstate;
-	int function_ref_index;
-};
+extern TaskHandle_t mainControlLoopTaskHandle;
 
-TaskHandle_t mainControlLoopTaskHandle = NULL;
 TaskHandle_t statusReporterTaskHandle = NULL;
 
+Megahub *getMegaHubRef(lua_State *L) {
+	lua_getfield(L, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
+	void **userdata = (void **) lua_touserdata(L, -1);
+	lua_pop(L, 1); // Clean up stack
+	return (Megahub *) (userdata ? *userdata : NULL);
+}
+
 void status_reporter_task(void *parameters) {
-	Megahub* hub = (Megahub *) parameters;
+	Megahub *hub = (Megahub *) parameters;
 	INFO("Starting task reporter task");
 	while (true) {
-		INFO("Sending Portstatus");
+		DEBUG("Sending Portstatus");
 
 		i2c_lock();
 		JsonDocument status;
@@ -39,7 +39,7 @@ void status_reporter_task(void *parameters) {
 		// TODO: Update icons and other stuff here
 		JsonArray ports = status["ports"].to<JsonArray>();
 
-		LegoDevice* device1 = hub->port(PORT1);
+		LegoDevice *device1 = hub->port(PORT1);
 		JsonObject port1 = ports.add<JsonObject>();
 		port1["id"] = 1;
 		if (device1->fullyInitialized()) {
@@ -56,7 +56,7 @@ void status_reporter_task(void *parameters) {
 			port1["connected"] = false;
 		}
 
-		LegoDevice* device2 = hub->port(PORT2);		
+		LegoDevice *device2 = hub->port(PORT2);
 		JsonObject port2 = ports.add<JsonObject>();
 		port2["id"] = 2;
 		if (device2->fullyInitialized()) {
@@ -73,7 +73,7 @@ void status_reporter_task(void *parameters) {
 			port2["connected"] = false;
 		}
 
-		LegoDevice* device3 = hub->port(PORT3);		
+		LegoDevice *device3 = hub->port(PORT3);
 		JsonObject port3 = ports.add<JsonObject>();
 		port3["id"] = 3;
 		if (device3->fullyInitialized()) {
@@ -90,7 +90,7 @@ void status_reporter_task(void *parameters) {
 			port3["connected"] = false;
 		}
 
-		LegoDevice* device4 = hub->port(PORT4);		
+		LegoDevice *device4 = hub->port(PORT4);
 		JsonObject port4 = ports.add<JsonObject>();
 		port4["id"] = 4;
 		if (device4->fullyInitialized()) {
@@ -118,427 +118,17 @@ void status_reporter_task(void *parameters) {
 	}
 	INFO("Done with task reporter task");
 	vTaskDelete(NULL);
-
 }
 
-void main_control_loop_task(void *parameters) {
-	MainControlLoopTaskParams *params = (MainControlLoopTaskParams *) parameters;
+extern int hub_library(lua_State *luaState);
 
-	lua_State *threadState = params->threadstate;
-	INFO("Starting main control loop task");
-	while (true) {
-		// Check for cancelation
-		uint32_t notificationValue = 0;
-		if (xTaskNotifyWait(0, 0, &notificationValue, 0) == pdTRUE) {
-			if (notificationValue == 1) {
-				INFO("Main control loop will be canceled");
-				break;
-			}
-		}
+extern int fastled_library(lua_State *luaState);
 
-		// To be called function is argument index 1, so we push it onto the stack
-		lua_rawgeti(threadState, LUA_REGISTRYINDEX, params->function_ref_index);
+extern int imu_library(lua_State *luaState);
 
-		// Invoke the function, 0 arguments, 0 return values
-		int result = lua_pcall(threadState, 0, 0, 0);
+extern int debug_library(lua_State *luaState);
 
-		// Do some sanity checking
-		if (result != LUA_OK) {
-			const char *error_msg = lua_tostring(threadState, -1);
-			WARN("Error processing Lua function : %s", error_msg);
-			lua_pop(threadState, 1);
-
-			break;
-		}
-
-		// Give the scheduler some time - this could also be done by including a wait() call into the Lua script....
-		vTaskDelay(pdMS_TO_TICKS(1));
-	}
-
-	lua_closethread(threadState, params->mainstate);
-	delete params;
-	INFO("Done with main control loop");
-	vTaskDelete(NULL);
-}
-
-int hub_register_main_control_loop(lua_State *luaState) {
-
-	luaL_checktype(luaState, 1, LUA_TFUNCTION);
-
-	// Create new thread environment
-	MainControlLoopTaskParams *params = new MainControlLoopTaskParams();
-	params->mainstate = luaState;
-	params->function_ref_index = luaL_ref(luaState, LUA_REGISTRYINDEX);
-	params->threadstate = lua_newthread(luaState);
-
-	// Create the task
-	xTaskCreate(
-		main_control_loop_task,
-		"MainControlLoop",
-		4096,
-		(void *) params,
-		1,
-		&mainControlLoopTaskHandle // Store task handle for cancellation
-	);
-
-	return 0;
-}
-
-int hub_init(lua_State *luaState) {
-	INFO("Starting initialization block");
-
-	// To be called function is argument index 1, so we push it onto the stack
-	luaL_checktype(luaState, 1, LUA_TFUNCTION);
-
-	// Invoke the function, 0 arguments, 0 return values
-	int result = lua_pcall(luaState, 0, 0, 0);
-
-	// Do some sanity checking
-	if (result != LUA_OK) {
-		const char *error_msg = lua_tostring(luaState, -1);
-		WARN("Error processing Lua function : %s", error_msg);
-		lua_pop(luaState, 1);
-
-		return 0;
-	}
-
-	INFO("Finished with initialization block");
-
-	return 0;
-}
-
-Megahub *getMegaHubRef(lua_State *L) {
-	lua_getfield(L, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
-	void **userdata = (void **) lua_touserdata(L, -1);
-	lua_pop(L, 1); // Clean up stack
-	return (Megahub *) (userdata ? *userdata : NULL);
-}
-
-int hub_setmotorspeed(lua_State *luaState) {
-	// To be called function is argument index 1, so we push it onto the stack
-	int port = lua_tointeger(luaState, 1);
-	int speed = lua_tointeger(luaState, 2);
-
-	DEBUG("Setting motor speed of port %d to %d", port, speed);
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	LegoDevice *device = megahub->port(port);
-	device->setMotorSpeed(speed);
-
-	DEBUG("Finished with setting motor speed");
-
-	return 0;
-}
-
-int hub_digitalread(lua_State *luaState) {
-
-	int pin = lua_tointeger(luaState, 1);
-
-	DEBUG("Reading digital pin %d", pin);
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	int value = megahub->digitalReadFrom(pin);
-
-	lua_pushinteger(luaState, value);
-	DEBUG("Digital read from pin %d returned value %d", pin, value);
-
-	return 1;
-}
-
-int hub_digitalwrite(lua_State *luaState) {
-
-	int pin = lua_tointeger(luaState, 1);
-	int value = lua_tointeger(luaState, 2);
-
-	DEBUG("Writing digital pin %d with value %d", pin, value);
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	megahub->digitalWriteTo(pin, value);
-
-	return 0;
-}
-
-int hub_set_pin_mode(lua_State *luaState) {
-
-	int pin = lua_tointeger(luaState, 1);
-	int value = lua_tointeger(luaState, 2);
-
-	DEBUG("Setting pin mode of pin %d to %d", pin, value);
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	megahub->setPinMode(pin, value);
-
-	return 0;
-}
-
-int hub_library(lua_State *luaState) {
-	const luaL_Reg hubfunctions[] = {
-		{"main_control_loop", hub_register_main_control_loop},
-		{			 "init",					   hub_init},
-		{	 "setmotorspeed",			  hub_setmotorspeed},
-		{		  "pinMode",				hub_set_pin_mode},
-		{		 "digitalRead",				hub_digitalread},
-		{	 "digitalWrite",				 hub_digitalwrite},
-		{			   NULL,						   NULL}
-	};
-	luaL_newlib(luaState, hubfunctions);
-	return 1;
-}
-
-int fastled_show(lua_State *luaState) {
-	DEBUG("FastLED show");
-
-	FastLED.show();
-
-	return 0;
-}
-
-int fastled_clear(lua_State *luaState) {
-	DEBUG("FastLED clear");
-
-	FastLED.clear();
-
-	return 0;
-}
-
-int fastled_set(lua_State *luaState) {
-	DEBUG("FastLED set");
-
-	int index = lua_tointeger(luaState, 1);
-	int r = lua_tointeger(luaState, 2);
-	int g = lua_tointeger(luaState, 3);
-	int b = lua_tointeger(luaState, 4);
-
-	lua_getfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
-	void **userdata = (void **) lua_touserdata(luaState, -1);
-	lua_pop(luaState, 1);
-
-	CRGB *leds = (CRGB *) (userdata ? *userdata : nullptr);
-	if (leds != nullptr) {
-		leds[index] = CRGB(r, g, b);
-	} else {
-		WARN("FastLED set called before addleds!");
-	}
-
-	return 0;
-}
-
-int fastled_addleds(lua_State *luaState) {
-	DEBUG("FastLED addleds");
-
-	int type = lua_tointeger(luaState, 1);
-	int pin = lua_tointeger(luaState, 2);
-	int numleds = lua_tointeger(luaState, 3);
-
-	if (type == NEOPIXEL_TYPE) {
-		CRGB *leds = new CRGB[numleds];
-		switch (pin) {
-			case GPIO_NUM_13:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_13>(leds, numleds);
-				break;
-			case GPIO_NUM_16:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_16>(leds, numleds);
-				break;
-			case GPIO_NUM_17:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_17>(leds, numleds);
-				break;
-			case GPIO_NUM_25:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_25>(leds, numleds);
-				break;
-			case GPIO_NUM_26:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_26>(leds, numleds);
-				break;
-			case GPIO_NUM_27:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_27>(leds, numleds);
-				break;
-			case GPIO_NUM_32:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_32>(leds, numleds);
-				break;
-			case GPIO_NUM_33:
-				FastLED.addLeds<NEOPIXEL, GPIO_NUM_33>(leds, numleds);
-				break;
-			default:
-				WARN("Unsupported pin %d for FastLED!");
-				delete leds;
-				return 0;
-		}
-
-		void **userdata = (void **) lua_newuserdata(luaState, sizeof(void *));
-		*userdata = leds;
-		lua_setfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
-
-	} else {
-		WARN("FastLED addleds called with unknown type %d", type);
-	}
-	FastLED.clear();
-
-	return 0;
-}
-
-int fastled_library(lua_State *luaState) {
-	const luaL_Reg hubfunctions[] = {
-		{	 "show",	 fastled_show},
-		{	 "clear",	  fastled_clear},
-		{"addleds", fastled_addleds},
-		{	 "set",		fastled_set},
-		{	 NULL,			   NULL}
-	};
-	luaL_newlib(luaState, hubfunctions);
-	return 1;
-}
-
-int imu_yaw(lua_State *luaState) {
-
-	DEBUG("Getting IMU yaw");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getYaw());
-
-	return 1;
-}
-
-int imu_pitch(lua_State *luaState) {
-
-	DEBUG("Getting IMU pitch");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getPitch());
-
-	return 1;
-}
-
-int imu_roll(lua_State *luaState) {
-
-	DEBUG("Getting IMU roll");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getRoll());
-
-	return 1;
-}
-
-int imu_accelerationx(lua_State *luaState) {
-
-	DEBUG("Getting IMU acceleration x");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getAccelerationX());
-
-	return 1;
-}
-
-int imu_accelerationy(lua_State *luaState) {
-
-	DEBUG("Getting IMU acceleration y");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getAccelerationY());
-
-	return 1;
-}
-
-int imu_accelerationz(lua_State *luaState) {
-
-	DEBUG("Getting IMU acceleration z");
-
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
-
-	lua_pushnumber(luaState, imu->getAccelerationZ());
-
-	return 1;
-}
-
-int imu_library(lua_State *luaState) {
-	const luaL_Reg hubfunctions[] = {
-		{		  "yaw",			imu_yaw},
-		{		 "pitch",		  imu_pitch},
-		{		 "roll",			 imu_roll},
-		{"accelerationX", imu_accelerationx},
-		{"accelerationY", imu_accelerationy},
-		{"accelerationZ", imu_accelerationz},
-		{		   NULL,			   NULL}
-	};
-	luaL_newlib(luaState, hubfunctions);
-	return 1;
-}
-
-int debug_freeheap(lua_State *luaState) {
-
-	long value = ESP.getFreeHeap();
-	DEBUG("Free heap is %ld", value);
-
-	lua_pushnumber(luaState, value);
-
-	return 1;
-}
-
-int debug_library(lua_State *luaState) {
-	const luaL_Reg hubfunctions[] = {
-		{"freeHeap", debug_freeheap},
-		{		 NULL,		   NULL}
-	};
-	luaL_newlib(luaState, hubfunctions);
-	return 1;
-}
-
-int ui_show_value(lua_State *luaState) {
-
-	DEBUG("UI show value called");
-	JsonDocument doc;
-	doc["type"] = "show_value";
-	doc["label"] = lua_tostring(luaState, 1);
-
-	int format = lua_tointeger(luaState, 2);
-	if (format == FORMAT_SIMPLE) {
-		doc["format"] = "simple";
-	} else {
-		doc["format"] = "unknown";
-	}
-
-	if (lua_isboolean(luaState, 3)) {
-		bool boolvalue = lua_toboolean(luaState, 3);
-		doc["value"] = boolvalue;
-	} else if (lua_isnumber(luaState, 3)) {
-		double numvalue = lua_tonumber(luaState, 3);
-		doc["value"] = numvalue;
-	} else if (lua_isstring(luaState, 3)) {
-		const char *strvalue = lua_tostring(luaState, 3);
-		doc["value"] = strvalue;
-	} else {
-		WARN("ui_show_value called with unsupported value type");
-		doc["value"] = "unsupported";
-	}
-
-	String strCommand;
-	serializeJson(doc, strCommand);
-
-	DEBUG("UI show value command: %s", strCommand.c_str());
-
-	// Enqueue command
-	Commands::instance()->queue(strCommand);
-
-	return 0;
-}
-
-int ui_library(lua_State *luaState) {
-	const luaL_Reg hubfunctions[] = {
-		{"showvalue", ui_show_value},
-		{		 NULL,		   NULL}
-	};
-	luaL_newlib(luaState, hubfunctions);
-	return 1;
-}
+extern int ui_library(lua_State *luaState);
 
 int global_wait(lua_State *luaState) {
 	int delay = lua_tointeger(luaState, 1);
@@ -663,7 +253,6 @@ lua_State *Megahub::newLuaState() {
 	lua_setglobal(ls, "PINMODE_OUTPUT");
 
 	// FastLED constants
-
 	lua_pushinteger(ls, NEOPIXEL_TYPE);
 	lua_setglobal(ls, "NEOPIXEL");
 
@@ -699,9 +288,7 @@ Megahub::Megahub(LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, 
 		4096,
 		(void *) this,
 		1,
-		&statusReporterTaskHandle // Store task handle for cancellation
-	);
-
+		&statusReporterTaskHandle);
 }
 
 Megahub::~Megahub() {

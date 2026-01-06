@@ -48,6 +48,8 @@ public:
 	std::string name();
 	int numModes();
 
+	void reset();
+
 private:
 	long serialSpeed_;
 	Mode **modes_;
@@ -61,6 +63,7 @@ private:
 	bool handshakeComplete_;
 	unsigned long lastKeepAliveCheck_;
 	bool inDataMode_;
+	unsigned long lastReceivedDataInMillis_;
 };
 
 #endif // LEGODEVICE_H

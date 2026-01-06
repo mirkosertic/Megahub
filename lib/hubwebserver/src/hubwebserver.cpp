@@ -577,13 +577,13 @@ void HubWebServer::publishCommands() {
 }
 
 void HubWebServer::publishPortstatus() {
-	String command = Portstatus::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	String command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
 	while (command.length() > 0) {
 		if (eventSource_.count() > 0) {
 			eventSource_.send(command.c_str(), "portstatus", millis());
 		}
 
-		command = Portstatus::instance()->waitForCommand(pdMS_TO_TICKS(5));
+		command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
 	}
 }
 

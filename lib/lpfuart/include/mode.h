@@ -35,16 +35,18 @@ public:
 	float getSiMin();
 	float getSiMax();
 
+	void reset();
+
 private:
-	std::string name;
-	std::string units;
-	float pctMin;
-	float pctMax;
-	float siMin;
-	float siMax;
-	Format *format;
-	bool inputTypes[5];
-	bool outputTypes[5];
+	std::string name_;
+	std::string units_;
+	float pctMin_;
+	float pctMax_;
+	float siMin_;
+	float siMax_;
+	Format *format_;
+	bool inputTypes_[5];
+	bool outputTypes_[5];
 };
 
 #endif // MODE_H

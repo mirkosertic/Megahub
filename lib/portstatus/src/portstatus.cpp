@@ -17,7 +17,7 @@ void Portstatus::queue(String command) {
 	}
 }
 
-String Portstatus::waitForCommand(TickType_t ticksToWait) {
+String Portstatus::waitForStatus(TickType_t ticksToWait) {
 	char buffer[STATUS_MESSAGE_SIZE];
 	if (xQueueReceive(statusQueue_, buffer, ticksToWait) == pdTRUE) {
 		return String(buffer);

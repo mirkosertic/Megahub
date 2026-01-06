@@ -10,752 +10,270 @@ import {registerFieldColour} from '@blockly/field-colour';
 // Import a message file.
 import * as En from 'blockly/msg/en';
 
-const commandGenerator = luaGenerator;
+import {definition as mh_main_control_loop} from './mh_main_control_loop.js'
+import {definition as mh_init} from './mh_init.js'
+import {definition as mh_wait} from './mh_wait.js'
+import {definition as mh_digitalwrite} from './mh_digitalwrite.js'
+import {definition as mh_pinmode} from './mh_pinmode.js'
+import {definition as mh_digitalread} from './mh_digitalread.js'
+import {definition as mh_set_motor_speed} from './mh_set_motor_speed.js'
+import {definition as mh_fastled_addleds} from './mh_fastled_addleds.js'
+import {definition as mh_fastled_show} from './mh_fastled_show.js'
+import {definition as mh_fastled_clear} from './mh_fastled_clear.js'
+import {definition as mh_fastled_set} from './mh_fastled_set.js'
+import {definition as mh_imu_yaw} from './mh_imu_yaw.js'
+import {definition as mh_imu_pitch} from './mh_imu_pitch.js'
+import {definition as mh_imu_roll} from './mh_imu_roll.js'
+import {definition as mh_imu_acceleration_x} from './mh_imu_acceleration_x.js'
+import {definition as mh_imu_acceleration_y} from './mh_imu_acceleration_y.js'
+import {definition as mh_imu_acceleration_z} from './mh_imu_acceleration_z.js'
+import {definition as ui_show_value} from './ui_show_value.js'
+import {definition as mh_debug_free_heap} from './mh_debug_free_heap.js'
 
+import {colorLogic,
+	colorMath,
+	colorText,
+	colorLists} from './colors.js'
+
+// clang-format off
 const customBlocks = {
-	"mh_main_control_loop" : {
-							  category : 'Control flow',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_main_control_loop",
-			"message0" : "Main control loop do %1",
-			"args0" : [
-				{
-					"type" : "input_statement",
-					"name" : "DO"
-				}
-			],
-			"colour" : 120,
-			"tooltip" : "Main control loop",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const doCode = generator.statementToCode(block, 'DO');
+	"mh_main_control_loop" : mh_main_control_loop,
 
-			return "hub.main_control_loop(function()\n" + doCode + "end)";
-		}
-	},
-	"mh_init" : {
-							  category : 'Control flow',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_init",
-			"message0" : "Initialization do %1",
-			"args0" : [
-				{
-					"type" : "input_statement",
-					"name" : "DO"
-				}
-			],
-			"colour" : 120,
-			"tooltip" : "Initialization",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			var statements = generator.statementToCode(block, 'DO');
-
-			return "hub.init(function()\n" + statements + "end)\n";
-		}
-	},
-	"mh_wait" : {
-							  category : 'Control flow',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_wait",
-			"message0" : "Wait %1ms",
-			"args0" : [
-				{
-					"type" : "input_value",
-					"name" : "VALUE"
-				}
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const valueCode = generator.valueToCode(block, 'VALUE', 0);
-
-			return "wait(" + valueCode + ")\n";
-		}
-	},
+	"mh_init": mh_init,
+		
+	"mh_wait" : mh_wait,
 
 	"controls_if" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_compare" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_operation" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_negate" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_boolean" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_null" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_ternary" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"logic_null" : {
-							  category : 'Logic',
-							  colour : 210,
-							  },
-
+		category : 'Logic',
+		colour : colorLogic,
+	},
 	"controls_repeat_ext" : {
-							  category : 'Loop',
-							  colour : 120,
-							  },
+		category : 'Loop',
+		colour : colorLogic,
+	},
 	"controls_for" : {
-							  category : 'Loop',
-							  colour : 120,
-							  },
+		category : 'Loop',
+		colour : colorLogic,
+	},
 	"controls_flow_statements" : {
-							  category : 'Loop',
-							  colour : 120,
-							  },
+		category : 'Loop',
+		colour : colorLogic,
+	},
 
 	"math_number" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_arithmetic" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_single" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_trig" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_constant" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_number_property" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_round" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_on_list" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_modulo" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_constrain" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_random_int" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_random_float" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 	"math_atan2" : {
-							  category : 'Math',
-							  colour : 230,
-							  },
+		category : 'Math',
+		colour : colorMath,
+	},
 
 	"text" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_join" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_append" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_length" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_isEmpty" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_indexOf" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_charAt" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_getSubstring" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_changeCase" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_trim" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_count" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_replace" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 	"text_print" : {
-							  category : 'Text',
-							  colour : 160,
-							  },
+		category : 'Text',
+		colour : colorText,
+	},
 
 	"lists_create_empty" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_create_with" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_repeat" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_length" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_isEmpty" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_indexOf" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_getIndex" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_setIndex" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_getSublist" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_split" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_sort" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
+		category : 'Lists',
+		colour : colorLists,
+	},
 	"lists_reverse" : {
-							  category : 'Lists',
-							  colour : 160,
-							  },
-
-	"mh_digitalwrite" : {
-							  category : 'I/O',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_digitalwrite",
-			"message0" : "Digital write %1 to %2",
-			"args0" : [
-				{
-					"type" : "field_dropdown",
-					"name" : "PIN",
-					"options" : [
-						[ "GPIO13", "GPIO13" ],
-						[ "GPIO16", "GPIO16" ],
-						[ "GPIO17", "GPIO17" ],
-						[ "GPIO25", "GPIO25" ],
-						[ "GPIO26", "GPIO26" ],
-						[ "GPIO27", "GPIO27" ],
-						[ "GPIO32", "GPIO32" ],
-						[ "GPIO33", "GPIO33" ],
-						[ "UART1_GP4", "UART1_GP4" ],
-						[ "UART1_GP5", "UART1_GP5" ],
-						[ "UART1_GP6", "UART1_GP6" ],
-						[ "UART1_GP7", "UART1_GP7" ],
-						[ "UART2_GP4", "UART2_GP4" ],
-						[ "UART2_GP5", "UART2_GP5" ],
-						[ "UART2_GP6", "UART2_GP6" ],
-						[ "UART2_GP7", "UART2_GP7" ]
-					]
-				},
-				{
-					"type" : "input_value",
-					"name" : "VALUE"
-				}
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Set the state of a GPIO pin",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const pin = block.getFieldValue('PIN');
-
-			const valueCode = generator.valueToCode(block, 'VALUE', 0);
-
-			return "hub.digitalWrite(" + pin + "," + valueCode + ")\n";
-		}
-	},
-	"mh_pinmode" : {
-							  category : 'I/O',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_pinmode",
-			"message0" : "Set pin mode of %1 to %2",
-			"args0" : [
-				{
-					"type" : "field_dropdown",
-					"name" : "PIN",
-					"options" : [
-						[ "GPIO13", "GPIO13" ],
-						[ "GPIO16", "GPIO16" ],
-						[ "GPIO17", "GPIO17" ],
-						[ "GPIO25", "GPIO25" ],
-						[ "GPIO26", "GPIO26" ],
-						[ "GPIO27", "GPIO27" ],
-						[ "GPIO32", "GPIO32" ],
-						[ "GPIO33", "GPIO33" ],
-						[ "UART1_GP4", "UART1_GP4" ],
-						[ "UART1_GP5", "UART1_GP5" ],
-						[ "UART1_GP6", "UART1_GP6" ],
-						[ "UART1_GP7", "UART1_GP7" ],
-						[ "UART2_GP4", "UART2_GP4" ],
-						[ "UART2_GP5", "UART2_GP5" ],
-						[ "UART2_GP6", "UART2_GP6" ],
-						[ "UART2_GP7", "UART2_GP7" ]
-					]
-				},
-				{
-					"type" : "field_dropdown",
-					"name" : "MODE",
-					"options" : [
-						[ "PINMODE_INPUT", "PINMODE_INPUT" ],
-						[ "PINMODE_INPUT_PULLUP", "PINMODE_INPUT_PULLUP" ],
-						[ "PINMODE_INPUT_PULLDOWN", "PINMODE_INPUT_PULLDOWN" ],
-						[ "PINMODE_OUTPUT", "PINMODE_OUTPUT" ]
-					]
-				}
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Set the mode of a GPIO pin",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const pin = block.getFieldValue('PIN');
-			const mode = block.getFieldValue('MODE');
-
-			return "hub.pinMode(" + pin + "," + mode + ")\n";
-		}
-	},
-	"mh_digitalread" : {
-							  category : 'I/O',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_digitalread",
-			"message0" : "Digital Read %1",
-			"args0" : [
-				{
-					"type" : "field_dropdown",
-					"name" : "PIN",
-					"options" : [
-						[ "GPIO13", "GPIO13" ],
-						[ "GPIO16", "GPIO16" ],
-						[ "GPIO17", "GPIO17" ],
-						[ "GPIO25", "GPIO25" ],
-						[ "GPIO26", "GPIO26" ],
-						[ "GPIO27", "GPIO27" ],
-						[ "GPIO32", "GPIO32" ],
-						[ "GPIO33", "GPIO33" ],
-						[ "GPIO34", "GPIO34" ],
-						[ "GPIO35", "GPIO35" ],
-						[ "GPIO36", "GPIO36" ],
-						[ "GPIO39", "GPIO39" ],
-						[ "UART1_GP4", "UART1_GP4" ],
-						[ "UART1_GP5", "UART1_GP5" ],
-						[ "UART1_GP6", "UART1_GP6" ],
-						[ "UART1_GP7", "UART1_GP7" ],
-						[ "UART2_GP4", "UART2_GP4" ],
-						[ "UART2_GP5", "UART2_GP5" ],
-						[ "UART2_GP6", "UART2_GP6" ],
-						[ "UART2_GP7", "UART2_GP7" ]
-					]
-				},
-			],
-			"output" : null,
-			"colour" : 230,
-			"tooltip" : "Liest den Zustand eines GPIO-Pins",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const pin = block.getFieldValue('PIN');
-
-			const command = "hub.digitalRead(" + pin + ")";
-
-			return [ command, 0 ];
-		}
-	},
-	"mh_set_motor_speed" : {
-							  category : 'I/O',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_set_motor_speed",
-			"message0" : "Set Motor %1 to %2",
-			"args0" : [
-				{
-					"type" : "field_dropdown",
-					"name" : "PORT",
-					"options" : [
-						[ "PORT1", "PORT1" ],
-						[ "PORT2", "PORT2" ],
-						[ "PORT3", "PORT3" ],
-						[ "PORT4", "PORT4" ]
-					]
-				},
-				{
-					"type" : "input_value",
-					"name" : "VALUE"
-				}
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Set the speed of a connected motor",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const port = block.getFieldValue('PORT');
-
-			const valueCode = generator.valueToCode(block, 'VALUE', 0);
-
-			return "hub.setmotorspeed(" + port + "," + valueCode + ")\n";
-		}
+		category : 'Lists',
+		colour : colorLists,
 	},
 
-	"mh_fastled_addleds" : {
-							  category : 'FastLED',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_fastled_addleds",
-			"message0" : "Initialize FastLED of type %1 on pin %2 with %3 LEDs",
-			"args0" : [
-				{
-					"type" : "field_dropdown",
-					"name" : "TYPE",
-					"options" : [
-						[ "NEOPIXEL", "NEOPIXEL" ],
-					]
-				},
-				{
-					"type" : "field_dropdown",
-					"name" : "PIN",
-					"options" : [
-						[ "GPIO13", "GPIO13" ],
-						[ "GPIO16", "GPIO16" ],
-						[ "GPIO17", "GPIO17" ],
-						[ "GPIO25", "GPIO25" ],
-						[ "GPIO26", "GPIO26" ],
-						[ "GPIO27", "GPIO27" ],
-						[ "GPIO32", "GPIO32" ],
-						[ "GPIO33", "GPIO33" ],
-					]
-				},
-				{
-					"type" : "input_value",
-					"name" : "NUM_LEDS"
-				}
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Initialize FastLED",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const type = block.getFieldValue('TYPE');
-			const pin = block.getFieldValue('PIN');
-			const valueCode = generator.valueToCode(block, 'NUM_LEDS', 0);
+	"mh_digitalwrite": mh_digitalwrite,
+	
+	"mh_pinmode": mh_pinmode,
+	
+	"mh_digitalread": mh_digitalread,
+	
+	"mh_set_motor_speed" : mh_set_motor_speed,
 
-			return "fastled.addleds(" + type + "," + pin + "," + valueCode + ")\n";
-		}
-	},
-	"mh_fastled_show" : {
-							  category : 'FastLED',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_fastled_show",
-			"message0" : "FastLED show",
-			"args0" : [
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Shop current FastLED values to the LED strip",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			return "fastled.show()\n";
-		}
-	},
-	"mh_fastled_clear" : {
-							  category : 'FastLED',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_fastled_clear",
-			"message0" : "FastLED clear",
-			"args0" : [
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Clear current FastLED values and sent them to the LED strip",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			return "fastled.clear()\n";
-		}
-	},
-	"mh_fastled_set" : {
-							  category : 'FastLED',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_fastled_set",
-			"message0" : "Set LED #%1 to color %2",
-			"args0" : [
-				{
-					"type" : "input_value",
-					"name" : "INDEX"
-				},
-				{
-					"type" : "field_colour",
-					"name" : "COLOR",
-					"colour" : "#00a000"
-				},
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 230,
-			"tooltip" : "Set LED color",
-			"helpUrl" : "",
-			"inputsInline" : true
-		},
-							  generator : (block, generator) => {
-			const index = generator.valueToCode(block, 'INDEX', 0);
-			const color = block.getFieldValue('COLOR');
+	"mh_fastled_addleds": mh_fastled_addleds,
+	
+	"mh_fastled_show": mh_fastled_show,
+	
+	"mh_fastled_clear": mh_fastled_clear,
+	
+	"mh_fastled_set" : mh_fastled_set,
 
-			const num = parseInt(color.replace('#', ''), 16);
+	"mh_imu_yaw": mh_imu_yaw,
+	
+	"mh_imu_pitch": mh_imu_pitch,
+	
+	"mh_imu_roll": mh_imu_roll,
+	
+	"mh_imu_acceleration_x": mh_imu_acceleration_x,
+	
+	"mh_imu_acceleration_y": mh_imu_acceleration_y,
+	
+	"mh_imu_acceleration_z" : mh_imu_acceleration_z,
 
-			const r = (num >> 16) & 255;
-			const g = (num >> 8) & 255;
-			const b = num & 255
+	"ui_show_value" : ui_show_value,
 
-			return "fastled.set(" + index + " ," + r + ", " + g + "," + b + ")\n";
-		}
-	},
-
-	"mh_imu_yaw" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_yaw",
-			"message0" : "Get IMU Yaw",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.yaw()";
-			return [ command, 0 ];
-		}
-	},
-	"mh_imu_pitch" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_pitch",
-			"message0" : "Get IMU Pitch",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.pitch()";
-			return [ command, 0 ];
-		}
-	},
-	"mh_imu_roll" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_roll",
-			"message0" : "Get IMU Roll",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.roll()";
-			return [ command, 0 ];
-		}
-	},
-	"mh_imu_acceleration_x" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_acceleration_x",
-			"message0" : "Get IMU Acceleration X",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.accelerationX()";
-			return [ command, 0 ];
-		}
-	},
-	"mh_imu_acceleration_y" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_acceleration_y",
-			"message0" : "Get IMU Acceleration Y",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.accelerationY()";
-			return [ command, 0 ];
-		}
-	},
-	"mh_imu_acceleration_z" : {
-							  category : 'IMU',
-							  colour : 120,
-							  blockdefinition : {
-			"type" : "mh_imu_acceleration_z",
-			"message0" : "Get IMU Acceleration Z",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 120,
-			"tooltip" : "Wait",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "imu.accelerationZ()";
-			return [ command, 0 ];
-		}
-	},
-
-	"ui_show_value" : {
-							  category : 'UI',
-							  colour : 10,
-							  blockdefinition : {
-			"type" : "ui_show_value",
-			"message0" : "Show value %1: %2 with style %3",
-			"args0" : [
-				{
-					"type" : "field_input",
-					"name" : "LABEL",
-					"text" : "Label"
-				},
-				{
-					"type" : "input_value",
-					"name" : "VALUE"
-				},
-				{
-					"type" : "field_dropdown",
-					"name" : "STYLE",
-					"options" : [
-						[ "FORMAT_SIMPLE", "FORMAT_SIMPLE" ],
-					]
-				},
-			],
-			"previousStatement" : true,
-			"nextStatement" : true,
-			"colour" : 10,
-			"tooltip" : "Show value on the UI",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const labelCode = block.getFieldValue('LABEL');
-			const valueCode = generator.valueToCode(block, 'VALUE', 0);
-			const styleCode = block.getFieldValue('STYLE');
-
-			return "ui.showvalue(\"" + labelCode + "\", " + styleCode + ", " + valueCode + ")\n";
-		}
-	},
-
-	"mh_debug_free_heap" : {
-							  category : 'Debug',
-							  colour : 230,
-							  blockdefinition : {
-			"type" : "mh_debug_free_heap",
-			"message0" : "Get free HEAP memory",
-			"args0" : [
-			],
-			"output" : null,
-			"colour" : 230,
-			"tooltip" : "Get free HEAP memory",
-			"helpUrl" : ""
-		},
-							  generator : (block, generator) => {
-			const command = "deb.freeHeap()";
-
-			return [ command, 0 ];
-		}
-	},
+	"mh_debug_free_heap" : mh_debug_free_heap,
 };
 
 function generateToolbox(definitions) {
@@ -797,9 +315,9 @@ function generateToolbox(definitions) {
 
 	return box;
 };
+// clang-format on
 
 class BlocklyHTMLElement extends HTMLElement {
-
 	workspace = null;
 
 	connectedCallback() {
@@ -811,12 +329,18 @@ class BlocklyHTMLElement extends HTMLElement {
 		Blockly.ContextMenuItems.registerCommentOptions();
 
 		// Register Blocks
-		Object.values(customBlocks).forEach(def => {
+		Object.entries(customBlocks).forEach(([ type, def ]) => {
 			if (def.blockdefinition) {
 				Blockly.Blocks[def.blockdefinition.type] = {
 					init : function() {
 						this.jsonInit(def.blockdefinition);
 					}
+				};
+			} else {
+				const originalInit = Blockly.Blocks[type].init;
+				Blockly.Blocks[type].init = function() {
+					originalInit.call(this);
+					this.setColour(def.colour);
 				};
 			}
 		});
@@ -824,8 +348,8 @@ class BlocklyHTMLElement extends HTMLElement {
 		// Register Generators
 		Object.entries(customBlocks).forEach(([ type, def ]) => {
 			if (def.generator) {
-				commandGenerator.forBlock[type] = function(block) {
-					return def.generator(block, commandGenerator);
+				luaGenerator.forBlock[type] = function(block) {
+					return def.generator(block, luaGenerator);
 				};
 			}
 		});
@@ -870,7 +394,7 @@ class BlocklyHTMLElement extends HTMLElement {
 	};
 
 	generateLUAPreview() {
-		const code = commandGenerator.workspaceToCode(this.workspace);
+		const code = luaGenerator.workspaceToCode(this.workspace);
 		return code;
 	};
 

@@ -31,6 +31,9 @@ class PortstatusElement extends HTMLElement {
 
 	render() {
 		if (this.status && this.status.ports) {
+
+			console.log(JSON.stringify(this.status));
+
 			const grid = this.shadowRoot.getElementById('portsGrid');
 
 			grid.innerHTML = '';
