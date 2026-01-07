@@ -86,12 +86,9 @@ document.getElementById("stop").addEventListener("click", () => {
 const STRORAGE_KEY = 'blockly_robot_workspace';
 
 // Workspace als XML speichern
-function saveToLocalStorage(key) {
+function saveWorkspace() {
 	try {
 		const xmlText = blocklyEditor.generateXML();
-
-		localStorage.setItem(key, xmlText);
-		console.log('Workspace saved to localStorage, sending backup to backend');
 
 		if (!import.meta.env.DEV) {
 			// Write model to backend
@@ -118,6 +115,9 @@ function saveToLocalStorage(key) {
 				.then((response) => {
 					console.log("Got response from backend : " + JSON.stringify(response));
 				});
+		} else {
+			localStorage.setItem(STRORAGE_KEY, xmlText);
+			console.log('Workspace saved to localStorage, sending backup to backend');
 		}
 
 		return true;
@@ -127,7 +127,6 @@ function saveToLocalStorage(key) {
 	}
 };
 
-// Workspace aus LocalStorage laden
 function loadFromLocalStorage(key) {
 	try {
 		console.info("Trying to load from localStorage");
@@ -157,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Enable autp save every 10 seconds
 	setInterval(() => {
-		saveToLocalStorage(STRORAGE_KEY);
+		saveWorkspace();
 	}, 10000);
 
 	portstatus.initialize();
@@ -168,8 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			.then((response) => response.text())
 			.then((text) => {
 				if (!blocklyEditor.loadXML(text)) {
-					// Load last known workspace version
-					loadFromLocalStorage(STRORAGE_KEY);
+					console.log("Error loading workspace! Blockly failed to parse?");
 				}
 			})
 			.catch((error) => {

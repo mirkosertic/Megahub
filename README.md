@@ -50,15 +50,15 @@ It comes with the hardware schematics, production files and the Megahub firmware
 - **Cost-effective**: Based on affordable ESP32 hardware
 - **Visual Programming**: Blockly support makes it accessible for all skill levels
 
-## Hardware Photos
-
-![Ordered PCB prototype](docs/pcb_iteration1.jpg)
-
-![Assembled prototype](docs/prototype_iteration1.jpg)
-
 ## WebUI Screenshots
 
-_Screenshots of the WebUI in action will be added here_
+![Project Management](docs/screenshot_ide.jpg)
+
+![Example Project](docs/screenshot_project.jpg)
+
+## Hardware Photos
+
+![Assembled prototype](docs/prototype_iteration1.jpg)
 
 ## Getting Started
 
