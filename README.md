@@ -52,9 +52,9 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ## WebUI Screenshots
 
-![Project Management](docs/screenshot_ide.jpg)
+![Project Management](docs/screenshot_ide.png)
 
-![Example Project](docs/screenshot_project.jpg)
+![Example Project](docs/screenshot_project.png)
 
 ## Hardware Photos
 
