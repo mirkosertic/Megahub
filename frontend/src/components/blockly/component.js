@@ -29,6 +29,8 @@ import {definition as mh_imu_acceleration_y} from './mh_imu_acceleration_y.js'
 import {definition as mh_imu_acceleration_z} from './mh_imu_acceleration_z.js'
 import {definition as ui_show_value} from './ui_show_value.js'
 import {definition as mh_debug_free_heap} from './mh_debug_free_heap.js'
+import {definition as lego_get_mode_dataset} from './lego_get_mode_dataset.js'
+import {definition as lego_select_mode} from './lego_select_mode.js'
 
 import {colorLogic,
 	colorMath,
@@ -251,6 +253,10 @@ const customBlocks = {
 	
 	"mh_set_motor_speed" : mh_set_motor_speed,
 
+	"lego_get_mode_dataset": lego_get_mode_dataset,
+
+	"lego_select_mode": lego_select_mode,
+
 	"mh_fastled_addleds": mh_fastled_addleds,
 	
 	"mh_fastled_show": mh_fastled_show,
@@ -273,7 +279,7 @@ const customBlocks = {
 
 	"ui_show_value" : ui_show_value,
 
-	"mh_debug_free_heap" : mh_debug_free_heap,
+	"mh_debug_free_heap": mh_debug_free_heap,
 };
 
 function generateToolbox(definitions) {

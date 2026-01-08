@@ -1,0 +1,99 @@
+{
+    "ports": [
+        {
+            "id": 1,
+            "connected": true,
+            "device": {
+                "type": "BOOST Color and Distance Sensor",
+                "deviceId": 37,
+                "icon": "⚙️",
+                "modes": [
+                    {
+                        "id": 0,
+                        "name": "COLOR",
+                        "units": "IDX",
+                        "datasets": 1,
+                        "figures": 3,
+                        "decimals": 0,
+                        "type": "DATA8"
+                    },
+                    {
+                        "id": 1,
+                        "name": "PROX",
+                        "units": "DIS",
+                        "datasets": 1,
+                        "figures": 3,
+                        "decimals": 0,
+                        "type": "DATA8"
+                    },
+                    {
+                        "id": 2,
+                        "name": "COUNT",
+                        "units": "CNT",
+                        "datasets": 1,
+                        "figures": 4,
+                        "decimals": 0,
+                        "type": "DATA32"
+                    },
+                    {
+                        "id": 3,
+                        "name": "REFLT",
+                        "units": "PCT",
+                        "datasets": 1,
+                        "figures": 3,
+                        "decimals": 0,
+                        "type": "DATA8"
+                    },
+                    {
+                        "id": 4,
+                        "name": "AMBI",
+                        "units": "PCT",
+                        "datasets": 1,
+                        "figures": 3,
+                        "decimals": 0,
+                        "type": "DATA8"
+                    },
+                    {
+                        "id": 5,
+                        "name": "COL O",
+                        "units": "IDX",
+                        "datasets": 1,
+                        "figures": 3,
+                        "decimals": 0,
+                        "type": "DATA8"
+                    },
+                    {
+                        "id": 6,
+                        "name": "RGB I",
+                        "units": "RAW",
+                        "datasets": 3,
+                        "figures": 5,
+                        "decimals": 0,
+                        "type": "DATA16"
+                    },
+                    {
+                        "id": 7,
+                        "name": "IR Tx",
+                        "units": "N/A",
+                        "datasets": 1,
+                        "figures": 5,
+                        "decimals": 0,
+                        "type": "DATA16"
+                    }
+                ]
+            }
+        },
+        {
+            "id": 2,
+            "connected": false
+        },
+        {
+            "id": 3,
+            "connected": false
+        },
+        {
+            "id": 4,
+            "connected": false
+        }
+    ]
+}

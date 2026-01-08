@@ -41,7 +41,7 @@ void Dataset::readData(Format::FormatType type, int *payload) {
 			break;
 		}
 		default:
-			WARN("Ingnoring dataset of type %d as it is currently not supported", type);
+			WARN("Unsupported data format");
 			break;
 	}
 }
@@ -61,7 +61,7 @@ int Dataset::getDataAsInt() {
 			return (int) floatValue_;
 		}
 		default: {
-			WARN("Currently no data available");
+			WARN("Unsupported data format");
 			return 0;
 		}
 	}
@@ -82,7 +82,7 @@ float Dataset::getDataAsFloat() {
 			return floatValue_;
 		}
 		default: {
-			WARN("Currently no data available");
+			WARN("Unsupported data format");
 			return 0.0f;
 		}
 	}

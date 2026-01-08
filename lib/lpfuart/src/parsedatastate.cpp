@@ -35,11 +35,13 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 		return new WaitingState(legoDevice);
 	}
 
-	Mode *selectedMode = legoDevice->selectedMode();
+	int modeIndex = legoDevice->getSelectedModeIndex();
+	Mode *selectedMode = legoDevice->getMode(modeIndex);
 	if (selectedMode != nullptr) {
+		DEBUG("Processing data packet for mode %d", legoDevice->getSelectedModeIndex());
 		selectedMode->processDataPacket(messagePayload, messageSize);
 	} else {
-		WARN("Got datapacket, but no mode is selected for device!");
+		WARN("Got datapacket, but no mode for index %d", modeIndex);
 	}
 
 	return new WaitingState(legoDevice);

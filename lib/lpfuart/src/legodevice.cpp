@@ -105,14 +105,10 @@ void LegoDevice::setVersions(std::string &fwVersion, std::string &hwVersion) {
 }
 
 Mode *LegoDevice::getMode(int index) {
-	return modes_[index];
-}
-
-Mode *LegoDevice::selectedMode() {
-	if (selectedMode_ == -1) {
+	if (index == -1) {
 		return nullptr;
 	}
-	return modes_[selectedMode_];
+	return modes_[index];
 }
 
 void LegoDevice::finishHandshake() {
@@ -266,4 +262,12 @@ std::string LegoDevice::name() {
 
 int LegoDevice::numModes() {
 	return numModes_;
+}
+
+int LegoDevice::getSelectedModeIndex() {
+	return selectedMode_;
+}
+
+int LegoDevice::getDeviceId() {
+	return deviceId_;
 }

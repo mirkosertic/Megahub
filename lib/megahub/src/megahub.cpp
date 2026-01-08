@@ -46,11 +46,44 @@ void status_reporter_task(void *parameters) {
 			port1["connected"] = true;
 			JsonObject device = port1["device"].to<JsonObject>();
 			device["type"] = device1->name();
+			device["deviceId"] = device1->getDeviceId();
 			device["icon"] = "⚙️";
 			JsonArray modes = device["modes"].to<JsonArray>();
 			for (int i = 0; i < device1->numModes(); i++) {
 				Mode *mode = device1->getMode(i);
-				modes.add(String(mode->getName().c_str()));
+
+				JsonObject singleMode = modes.add<JsonObject>();
+				singleMode["id"] = i;				
+				singleMode["name"] = String(mode->getName().c_str());
+				singleMode["units"] = String(mode->getUnits().c_str());
+				Format* format = mode->getFormat();
+				if (format != nullptr) {
+					singleMode["datasets"] = format->getDatasets();
+					singleMode["figures"] = format->getFigures();
+					singleMode["decimals"] = format->getDecimals();
+
+					switch(format->getFormatType()) {
+						case Format::FormatType::DATA8: {
+							singleMode["type"] = "DATA8";
+							break;
+						}
+						case Format::FormatType::DATA16: {
+							singleMode["type"] = "DATA16";
+							break;
+						}
+						case Format::FormatType::DATA32: {
+							singleMode["type"] = "DATA32";
+							break;
+						}
+						case Format::FormatType::DATAFLOAT: {
+							singleMode["type"] = "DATAFLOAT";
+							break;
+						}
+						default: {
+							// Do nothing
+						}
+					}
+				}
 			}
 		} else {
 			port1["connected"] = false;
@@ -63,11 +96,44 @@ void status_reporter_task(void *parameters) {
 			port2["connected"] = true;
 			JsonObject device = port2["device"].to<JsonObject>();
 			device["type"] = device2->name();
+			device["deviceId"] = device2->getDeviceId();
 			device["icon"] = "⚙️";
 			JsonArray modes = device["modes"].to<JsonArray>();
 			for (int i = 0; i < device2->numModes(); i++) {
 				Mode *mode = device2->getMode(i);
-				modes.add(String(mode->getName().c_str()));
+
+				JsonObject singleMode = modes.add<JsonObject>();
+				singleMode["id"] = i;				
+				singleMode["name"] = String(mode->getName().c_str());
+				singleMode["units"] = String(mode->getUnits().c_str());
+				Format* format = mode->getFormat();
+				if (format != nullptr) {
+					singleMode["datasets"] = format->getDatasets();
+					singleMode["figures"] = format->getFigures();
+					singleMode["decimals"] = format->getDecimals();
+
+					switch(format->getFormatType()) {
+						case Format::FormatType::DATA8: {
+							singleMode["type"] = "DATA8";
+							break;
+						}
+						case Format::FormatType::DATA16: {
+							singleMode["type"] = "DATA16";
+							break;
+						}
+						case Format::FormatType::DATA32: {
+							singleMode["type"] = "DATA32";
+							break;
+						}
+						case Format::FormatType::DATAFLOAT: {
+							singleMode["type"] = "DATAFLOAT";
+							break;
+						}
+						default: {
+							// Do nothing
+						}
+					}
+				}
 			}
 		} else {
 			port2["connected"] = false;
@@ -80,11 +146,45 @@ void status_reporter_task(void *parameters) {
 			port3["connected"] = true;
 			JsonObject device = port3["device"].to<JsonObject>();
 			device["type"] = device3->name();
+			device["deviceId"] = device3->getDeviceId();
 			device["icon"] = "⚙️";
 			JsonArray modes = device["modes"].to<JsonArray>();
 			for (int i = 0; i < device3->numModes(); i++) {
 				Mode *mode = device3->getMode(i);
-				modes.add(String(mode->getName().c_str()));
+
+				JsonObject singleMode = modes.add<JsonObject>();
+				singleMode["id"] = i;
+				singleMode["name"] = String(mode->getName().c_str());
+				singleMode["units"] = String(mode->getUnits().c_str());
+				Format* format = mode->getFormat();
+				if (format != nullptr) {
+					singleMode["datasets"] = format->getDatasets();
+					singleMode["figures"] = format->getFigures();
+					singleMode["decimals"] = format->getDecimals();
+
+					switch(format->getFormatType()) {
+						case Format::FormatType::DATA8: {
+							singleMode["type"] = "DATA8";
+							break;
+						}
+						case Format::FormatType::DATA16: {
+							singleMode["type"] = "DATA16";
+							break;
+						}
+						case Format::FormatType::DATA32: {
+							singleMode["type"] = "DATA32";
+							break;
+						}
+						case Format::FormatType::DATAFLOAT: {
+							singleMode["type"] = "DATAFLOAT";
+							break;
+						}
+						default: {
+							// Do nothing
+						}
+					}
+				}
+
 			}
 		} else {
 			port3["connected"] = false;
@@ -97,11 +197,44 @@ void status_reporter_task(void *parameters) {
 			port4["connected"] = true;
 			JsonObject device = port4["device"].to<JsonObject>();
 			device["type"] = device4->name();
+			device["deviceId"] = device4->getDeviceId();
 			device["icon"] = "⚙️";
 			JsonArray modes = device["modes"].to<JsonArray>();
 			for (int i = 0; i < device4->numModes(); i++) {
 				Mode *mode = device4->getMode(i);
-				modes.add(String(mode->getName().c_str()));
+
+				JsonObject singleMode = modes.add<JsonObject>();
+				singleMode["id"] = i;				
+				singleMode["name"] = String(mode->getName().c_str());
+				singleMode["units"] = String(mode->getUnits().c_str());
+				Format* format = mode->getFormat();
+				if (format != nullptr) {
+					singleMode["datasets"] = format->getDatasets();
+					singleMode["figures"] = format->getFigures();
+					singleMode["decimals"] = format->getDecimals();
+
+					switch(format->getFormatType()) {
+						case Format::FormatType::DATA8: {
+							singleMode["type"] = "DATA8";
+							break;
+						}
+						case Format::FormatType::DATA16: {
+							singleMode["type"] = "DATA16";
+							break;
+						}
+						case Format::FormatType::DATA32: {
+							singleMode["type"] = "DATA32";
+							break;
+						}
+						case Format::FormatType::DATAFLOAT: {
+							singleMode["type"] = "DATAFLOAT";
+							break;
+						}
+						default: {
+							// Do nothing
+						}
+					}
+				}
 			}
 		} else {
 			port4["connected"] = false;
@@ -129,6 +262,8 @@ extern int imu_library(lua_State *luaState);
 extern int debug_library(lua_State *luaState);
 
 extern int ui_library(lua_State *luaState);
+
+extern int lego_library(lua_State *luaState);
 
 int global_wait(lua_State *luaState) {
 	int delay = lua_tointeger(luaState, 1);
@@ -178,6 +313,8 @@ lua_State *Megahub::newLuaState() {
 	luaL_requiref(ls, "ui", ui_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
 	luaL_requiref(ls, "deb", debug_library, 1);
+	lua_pop(ls, 1); // remove lib from stack
+	luaL_requiref(ls, "lego", lego_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
 
 	// And also global functions

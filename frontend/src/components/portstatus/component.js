@@ -57,7 +57,7 @@ class PortstatusElement extends HTMLElement {
 							<div class="modes-section">
 								<div class="modes-label">Modes</div>
 								<div class="modes-list">
-									${port.device.modes.map(mode => `<span class="mode-badge">${mode}</span>`).join('')}
+									${port.device.modes.map(mode => `<span class="mode-badge">(${mode.id}) ${mode.name}</span>`).join('')}
 								</div>
 							</div>
 						`;

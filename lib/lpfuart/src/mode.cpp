@@ -140,7 +140,7 @@ void Mode::processDataPacket(int *payload, int payloadSize) {
 			break;
 		}
 		case Format::FormatType::DATAFLOAT: {
-			datasetSize = 4; // ?
+			datasetSize = 4;
 			break;
 		}
 		default:
@@ -153,12 +153,20 @@ void Mode::processDataPacket(int *payload, int payloadSize) {
 	int expectedSize = format_->getDatasets() * datasetSize;
 	if (expectedSize != payloadSize) {
 		WARN("Got data %s, expecting %d datasets of type %d, but wrong size. Expected %d, got %d", payloadHex.c_str(), format_->getDatasets(), format_->getFormatType(), expectedSize, datasetSize);
+		return;
 	}
 
 	int *startPtr = payload;
 	for (int i = 0; i < format_->getDatasets(); i++) {
-		Dataset &ds = datasets_[i];
-		ds.readData(format_->getFormatType(), startPtr);
+		datasets_[i].readData(format_->getFormatType(), startPtr);
 		startPtr += datasetSize;
 	}
+}
+
+Dataset *Mode::getDataset(int index) {
+	return &datasets_[index];
+}
+
+Format* Mode::getFormat() {
+	return format_;
 }

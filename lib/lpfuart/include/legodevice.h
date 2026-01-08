@@ -22,7 +22,7 @@ public:
 	void setSerialSpeed(long serialSpeed);
 	void setVersions(std::string &fwVersion, std::string &hwVersion);
 	Mode *getMode(int index);
-	Mode *selectedMode();
+	int getSelectedModeIndex();
 	void finishHandshake();
 	void sendAck();
 	void sendNack();
@@ -50,6 +50,8 @@ public:
 	int numModes();
 
 	void reset();
+
+	int getDeviceId();
 
 private:
 	long serialSpeed_;

@@ -39,6 +39,8 @@ public:
 	void reset();
 
 	void processDataPacket(int *payload, int payloadSize);
+	Dataset *getDataset(int index);
+	Format* getFormat();
 
 private:
 	std::string name_;
