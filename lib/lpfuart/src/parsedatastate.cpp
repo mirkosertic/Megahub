@@ -35,20 +35,12 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 		return new WaitingState(legoDevice);
 	}
 
-	const char hexChars[] = "0123456789ABCDEF";
-	std::string payloadHex;
-	payloadHex.reserve(messageSize * 3); // 2 chars + space per byte
-
-	for (int i = 0; i < messageSize; ++i) {
-		int v = messagePayload[i] & 0xFF;
-		payloadHex.push_back(hexChars[(v >> 4) & 0xF]);
-		payloadHex.push_back(hexChars[v & 0xF]);
-		if (i + 1 < messageSize) {
-			payloadHex.push_back(' ');
-		}
+	Mode *selectedMode = legoDevice->selectedMode();
+	if (selectedMode != nullptr) {
+		selectedMode->processDataPacket(messagePayload, messageSize);
+	} else {
+		WARN("Got datapacket, but no mode is selected for device!");
 	}
-
-	DEBUG("Got data %s", payloadHex.c_str());
 
 	return new WaitingState(legoDevice);
 }

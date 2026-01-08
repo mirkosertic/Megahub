@@ -22,6 +22,7 @@ public:
 	void setSerialSpeed(long serialSpeed);
 	void setVersions(std::string &fwVersion, std::string &hwVersion);
 	Mode *getMode(int index);
+	Mode *selectedMode();
 	void finishHandshake();
 	void sendAck();
 	void sendNack();
@@ -64,6 +65,7 @@ private:
 	unsigned long lastKeepAliveCheck_;
 	bool inDataMode_;
 	unsigned long lastReceivedDataInMillis_;
+	int selectedMode_;
 };
 
 #endif // LEGODEVICE_H

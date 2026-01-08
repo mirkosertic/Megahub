@@ -1,158 +1,307 @@
+/**
+ * Port Status Component Styles
+ * Displays LEGO device port status with responsive layout
+ */
+
 *:host {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-    background: #1e1e1e;
-    color: #cccccc;
-    padding: 8px;
-    font-size: 13px;
+  /* Re-declare theme variables for Shadow DOM */
+  --vscode-bg-primary: #1e1e1e;
+  --vscode-bg-secondary: #252526;
+  --vscode-bg-elevated: #2d2d30;
+  --vscode-bg-input: #3c3c3c;
+  --vscode-accent-blue: #007acc;
+  --vscode-accent-teal: #4ec9b0;
+  --vscode-accent-yellow: #dcdcaa;
+  --vscode-text-primary: #cccccc;
+  --vscode-text-link: #9cdcfe;
+  --vscode-text-secondary: #858585;
+  --vscode-border-light: #3c3c3c;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 0.75rem;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --transition-fast: 0.15s ease;
+  --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+  --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
+  --font-fixed-10: 0.625rem;
+  --font-fixed-11: 0.688rem;
+  --font-fixed-12: 0.75rem;
 
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  background: var(--vscode-bg-primary);
+  color: var(--vscode-text-primary);
+
+  /* Mobile: Less padding, smaller font */
+  padding: var(--spacing-sm);
+  font-size: var(--font-xs);
 }
 
+/* Desktop: Original padding and font size */
+@media (min-width: 768px) {
+  *:host {
+    padding: var(--spacing-md);
+    font-size: var(--font-sm);
+  }
+}
+
+/* Ports Grid */
 .ports-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  display: flex;
+  flex-direction: column;
+
+  /* Mobile: Smaller gap */
+  gap: var(--spacing-xs);
 }
 
+/* Desktop: Original gap */
+@media (min-width: 768px) {
+  .ports-grid {
+    gap: 6px;
+  }
+}
+
+/* Port Card */
 .port-card {
-    background: #252526;
-    border-radius: 3px;
+  background: var(--vscode-bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 2px solid var(--vscode-border-light);
+  transition: all var(--transition-fast);
+
+  /* Mobile: Less padding */
+  padding: var(--spacing-sm);
+}
+
+/* Desktop: Original padding */
+@media (min-width: 768px) {
+  .port-card {
     padding: 8px;
-    border-left: 2px solid #3c3c3c;
-    transition: all 0.15s ease;
+  }
 }
 
 .port-card:hover {
-    background: #2d2d30;
-    border-left-color: #007acc;
+  background: var(--vscode-bg-elevated);
+  border-left-color: var(--vscode-accent-blue);
 }
 
+/* Port Header */
 .port-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-    gap: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .port-header {
+    flex-wrap: nowrap;
+  }
 }
 
 .port-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #cccccc;
+  color: var(--vscode-text-primary);
+  font-weight: 600;
+
+  /* Mobile: Smaller font */
+  font-size: var(--font-xs);
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .port-label {
+    font-size: var(--font-fixed-12);
+  }
 }
 
 .port-header-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
+/* Device Type (Inline) */
 .device-type-inline {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: #dcdcaa;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--vscode-accent-yellow);
+
+  /* Mobile: Smaller font */
+  font-size: var(--font-fixed-10);
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .device-type-inline {
+    font-size: var(--font-fixed-11);
+  }
 }
 
 .device-icon-inline {
-    font-size: 12px;
-    line-height: 1;
+  line-height: 1;
+
+  /* Mobile: Smaller icon */
+  font-size: var(--font-fixed-11);
 }
 
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .device-icon-inline {
+    font-size: var(--font-fixed-12);
+  }
+}
+
+/* Status Indicator */
 .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-    flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
 }
 
 .status-connected {
-    background: #4ec9b0;
-    box-shadow: 0 0 4px #4ec9b0;
+  background: var(--vscode-accent-teal);
+  box-shadow: 0 0 4px var(--vscode-accent-teal);
 }
 
 .status-disconnected {
-    background: #5a5a5a;
-    animation: none;
+  background: #5a5a5a;
+  animation: none;
 }
 
 @keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
 
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.6;
-    }
+  50% {
+    opacity: 0.6;
+  }
 }
 
+/* Device Info */
 .device-info {
-    display: none;
+  display: none;
 }
 
+/* Device Type */
 .device-type {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
-    background: #2d2d30;
-    border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--vscode-bg-elevated);
+  border-radius: var(--radius-sm);
 }
 
 .device-icon {
-    font-size: 14px;
-    line-height: 1;
+  line-height: 1;
+
+  /* Mobile: Smaller icon */
+  font-size: var(--font-sm);
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .device-icon {
+    font-size: var(--font-fixed-14);
+  }
 }
 
 .device-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #dcdcaa;
-    flex: 1;
+  font-weight: 500;
+  color: var(--vscode-accent-yellow);
+  flex: 1;
+
+  /* Mobile: Smaller font */
+  font-size: var(--font-xs);
 }
 
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .device-name {
+    font-size: var(--font-fixed-12);
+  }
+}
+
+/* Modes Section */
 .modes-section {
-    margin-top: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .modes-section {
+    flex-wrap: nowrap;
+  }
 }
 
 .modes-label {
-    font-size: 10px;
-    color: #858585;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
+  color: var(--vscode-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+
+  /* Mobile: Smaller font */
+  font-size: 9px;
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .modes-label {
+    font-size: var(--font-fixed-10);
+  }
 }
 
 .modes-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    justify-content: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: flex-end;
 }
 
 .mode-badge {
-    padding: 2px 6px;
-    background: #3c3c3c;
-    border-radius: 2px;
-    font-size: 10px;
-    color: #9cdcfe;
-    border: 1px solid #4a4a4a;
-    white-space: nowrap;
+  padding: 2px 6px;
+  background: var(--vscode-bg-input);
+  border-radius: var(--radius-sm);
+  color: var(--vscode-text-link);
+  border: 1px solid #4a4a4a;
+  white-space: nowrap;
+
+  /* Mobile: Smaller font */
+  font-size: 9px;
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .mode-badge {
+    font-size: var(--font-fixed-10);
+  }
 }
 
 .no-device {
-    padding: 4px;
-    color: #858585;
-    font-size: 11px;
-    font-style: italic;
+  padding: 4px;
+  color: var(--vscode-text-secondary);
+  font-style: italic;
+
+  /* Mobile: Smaller font */
+  font-size: var(--font-fixed-10);
+}
+
+/* Desktop: Original size */
+@media (min-width: 768px) {
+  .no-device {
+    font-size: var(--font-fixed-11);
+  }
 }

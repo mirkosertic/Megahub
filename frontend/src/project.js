@@ -1,10 +1,9 @@
-
-import './components/header/component.js';
 import './components/blockly/component.js';
 import './components/luapreview/component.js';
 import './components/ui/component.js';
 import './components/logger/component.js';
 import './components/portstatus/component.js';
+import './components/sidebar-toggle/component.js';
 
 var blocklyEditor = null;
 var luaPreview = null;
@@ -189,5 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		eventSource.addEventListener("portstatus", (event) => {
 			portstatus.setStatus(JSON.parse(event.data));
 		});
+	} else {
+		loadFromLocalStorage(STRORAGE_KEY);
 	}
 });

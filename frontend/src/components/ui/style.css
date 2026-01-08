@@ -1,17 +1,53 @@
+/**
+ * UI Component Styles
+ * Displays dynamic UI values from device
+ */
+
 :host {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    align-items: stretch;
-    align-content: stretch;
+  /* Re-declare theme variables for Shadow DOM */
+  --vscode-text-primary: #cccccc;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+  --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
+  --line-height-base: 1.4;
+
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  align-content: stretch;
+  color: var(--vscode-text-primary);
+  line-height: var(--line-height-base);
+
+  /* Mobile: Smaller spacing */
+  gap: var(--spacing-xs);
+}
+
+/* Desktop: Original spacing */
+@media (min-width: 768px) {
+  :host {
+    gap: var(--spacing-sm);
+  }
 }
 
 .ui-value-entry {
-    flex: 0 1 auto;
+  flex: 0 1 auto;
+
+  /* Mobile: Smaller font */
+  font-size: var(--font-xs);
+}
+
+/* Desktop: Normal font */
+@media (min-width: 768px) {
+  .ui-value-entry {
+    font-size: var(--font-sm);
+  }
 }
 
 .ui-value-entry::before {
-    content: attr(data-label) ": ";
-    font-weight: bold;
+  content: attr(data-label) ": ";
+  font-weight: bold;
+  color: var(--vscode-text-primary);
 }

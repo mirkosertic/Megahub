@@ -13,3 +13,4 @@ Wconfig/secrets.txt
 frontend/node_modules
 data
 managed_components
+.claude

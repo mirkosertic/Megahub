@@ -9,7 +9,8 @@ public:
 		DATA8 = 0x00,
 		DATA16 = 0x01,
 		DATA32 = 0x02,
-		DATAFLOAT = 0x03
+		DATAFLOAT = 0x03,
+		UNKNOWN = 0xff
 	};
 
 	static FormatType forId(int id);

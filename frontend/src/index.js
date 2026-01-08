@@ -1,4 +1,3 @@
-import './components/header/component.js';
 import './components/files/component.js';
 import './components/logger/component.js';
 

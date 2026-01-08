@@ -14,7 +14,8 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 	, handshakeComplete_(false)
 	, lastKeepAliveCheck_(0)
 	, inDataMode_(false)
-	, lastReceivedDataInMillis_(0) {
+	, lastReceivedDataInMillis_(0)
+	, selectedMode_(-1) {
 	protocolState_ = new WaitingState(this);
 
 	modes_ = new Mode *[16];
@@ -40,6 +41,7 @@ void LegoDevice::reset() {
 	}
 
 	serialSpeed_ = 2400;
+	selectedMode_ = -1;
 	serialIO_->switchToBaudrate(2400);
 }
 
@@ -106,6 +108,13 @@ Mode *LegoDevice::getMode(int index) {
 	return modes_[index];
 }
 
+Mode *LegoDevice::selectedMode() {
+	if (selectedMode_ == -1) {
+		return nullptr;
+	}
+	return modes_[selectedMode_];
+}
+
 void LegoDevice::finishHandshake() {
 	INFO("Finishing handshake and switching to %ld baud", serialSpeed_);
 
@@ -154,6 +163,8 @@ void LegoDevice::selectMode(int modeIndex) {
 	serialIO_->sendByte(checksum);
 	serialIO_->flush();
 	INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+
+	selectedMode_ = modeIndex;
 }
 
 void LegoDevice::selectSpeed(long speed) {

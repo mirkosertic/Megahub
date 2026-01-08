@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 
+#include "dataset.h"
 #include "format.h"
 
 #include <string>
@@ -37,6 +38,8 @@ public:
 
 	void reset();
 
+	void processDataPacket(int *payload, int payloadSize);
+
 private:
 	std::string name_;
 	std::string units_;
@@ -47,6 +50,7 @@ private:
 	Format *format_;
 	bool inputTypes_[5];
 	bool outputTypes_[5];
+	Dataset *datasets_;
 };
 
 #endif // MODE_H
