@@ -3,6 +3,7 @@
 #include "SC16IS752.h"
 #include "SC16IS752serialadapter.h"
 #include "btcontroller.h"
+#include "btremote.h"
 #include "configuration.h"
 #include "hubwebserver.h"
 #include "imu.h"
@@ -25,6 +26,7 @@ HubWebServer *webserver = NULL;
 Configuration *configuration = NULL;
 SerialLoggingOutput *loggingOutput = NULL;
 BluetoothController *bluetoothController;
+BTRemote *btremote = NULL;
 
 #define GPIO_SPI_SS	  GPIO_NUM_4
 #define GPIO_SPI_SCK  GPIO_NUM_18
@@ -112,11 +114,20 @@ void setup() {
 
 	INFO("Loading configuration");
 	configuration = new Configuration(&SD, megahub);
+	configuration->load();
 
-	INFO("Initializing WebServer instance")
-	webserver = new HubWebServer(80, &SD, megahub, loggingOutput, configuration);
+	if (configuration->isWiFiEnabled()) {
+		INFO("Initializing WebServer instance")
+		webserver = new HubWebServer(80, &SD, megahub, loggingOutput, configuration);
+	}
 
-	configuration->loadAndApply();
+	if (configuration->isBTEnabled()) {
+		INFO("Initializing BT Remote interface")
+		btremote = new BTRemote(&SD, megahub, loggingOutput, configuration);
+
+		INFO("Initializing BT Remote");
+		btremote->begin(megahub->name().c_str());
+	}
 
 	INFO("Initializing Bluetooth controller interface");
 	bluetoothController->init();
@@ -129,15 +140,22 @@ void setup() {
 }
 
 void loop() {
+
+	if (configuration->isBTEnabled()) {
+		btremote->loop();
+	}
+
 	bluetoothController->loop();
 	megahub->loop();
 
-	if (WiFi.status() == WL_CONNECTED) {
-		if (!webserver->isStarted()) {
-			INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP / URL: http://%s:80/", WiFi.localIP().toString().c_str());
-			webserver->start();
-		} else {
-			webserver->loop();
+	if (configuration->isWiFiEnabled()) {
+		if (WiFi.status() == WL_CONNECTED) {
+			if (!webserver->isStarted()) {
+				INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP / URL: http://%s:80/", WiFi.localIP().toString().c_str());
+				webserver->start();
+			} else {
+				webserver->loop();
+			}
 		}
 	}
 }

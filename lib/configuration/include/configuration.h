@@ -14,14 +14,24 @@ private:
 	std::unique_ptr<Megahub> hub_;
 	FS *fs_;
 
+	bool wifiEnabled_;
+	bool btEnabled_;
+	String ssid_;
+	String pwd_;
+
 	bool deleteDirectory(String directory);
 
 public:
 	Configuration(FS *fs, Megahub *hub);
 	virtual ~Configuration();
 
+	bool isWiFiEnabled();
+	bool isBTEnabled();
+
+	void connectToWiFiOrShowConfigPortal();
+
 	void enterWiFiConfiguration();
-	void loadAndApply();
+	void load();
 
 	String getAutostartProject();
 	bool setAutostartProject(String projectId);

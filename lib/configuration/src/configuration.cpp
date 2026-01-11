@@ -7,10 +7,12 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 
-const char *TEST_LUA_LUA = "hub.init(function()\n  print('Initializing this')\n  hub.setmotorspeed(PORT1,0)\n  print('This is a very cool example of Lua in Action!')\nend)\n\nhub.main_control_loop(function()\n  print('Main control loop')\n  hub.setmotorspeed(PORT1,255)\n  wait(1000)\n  hub.setmotorspeed(PORT1,(-255))\n  wait(1000)\nend)";
-
 Configuration::Configuration(FS *fs, Megahub *hub)
-	: hub_(hub) {
+	: hub_(hub)
+	, wifiEnabled_(false)
+	, btEnabled_(true)
+	, ssid_("")
+	, pwd_("") {
 	fs_ = fs;
 }
 
@@ -68,8 +70,8 @@ void Configuration::enterWiFiConfiguration() {
 	}
 }
 
-void Configuration::loadAndApply() {
-	INFO("Loading and configuring...")
+void Configuration::load() {
+	INFO("Loading configuration...")
 
 	File configFile = fs_->open("/wificonfig.json", FILE_READ);
 	if (!configFile) {
@@ -84,21 +86,41 @@ void Configuration::loadAndApply() {
 			WARN("Could not read configuration file!");
 		} else {
 
-			String ssid = String(document["ssid"].as<String>());
-			String pwd = String(document["pwd"].as<String>());
+			if (document["bluetoothEnabled"].is<bool>()) {
+				btEnabled_ = document["bluetoothEnabled"].as<bool>();
+			}
+			if (document["wifiEnabled"].is<bool>()) {
+				wifiEnabled_ = document["wifiEnabled"].as<bool>();
+			}
 
-			INFO("Connecting to configured network SSID %s", ssid.c_str());
+			if (document["ssid"].is<String>()) {
+				ssid_ = String(document["ssid"].as<String>());
+			}
 
-			WiFi.mode(WIFI_STA);
-			WiFi.begin(ssid, pwd);
-
-			return;
+			if (document["pwd"].is<String>()) {
+				pwd_ = String(document["pwd"].as<String>());
+			}
 		}
 	}
+}
 
-	enterWiFiConfiguration();
+bool Configuration::isWiFiEnabled() {
+	return wifiEnabled_;
+}
 
-	// hub_->loadLUA(TEST_LUA_LUA);
+bool Configuration::isBTEnabled() {
+	return btEnabled_;
+}
+
+void Configuration::connectToWiFiOrShowConfigPortal() {
+	if (ssid_.length() > 0) {
+		INFO("Connecting to configured network SSID %s", ssid_.c_str());
+
+		WiFi.mode(WIFI_STA);
+		WiFi.begin(ssid_, pwd_);
+	} else {
+		enterWiFiConfiguration();
+	}
 }
 
 Configuration::~Configuration() {

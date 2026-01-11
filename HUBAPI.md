@@ -1,6 +1,6 @@
 # Hub Web Server API Documentation
 
-This document describes the REST API endpoints and Server-Sent Events (SSE) for the LEGO ESP32 Hub Web Server.
+This document describes the REST API endpoints and Server-Sent Events (SSE) for the Megahub Web Server.
 
 ## Base URL
 
