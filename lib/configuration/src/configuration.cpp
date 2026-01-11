@@ -288,3 +288,32 @@ void Configuration::deleteProject(String projectId) {
 
 	deleteDirectory(path);
 }
+
+String Configuration::getProjectFileContentAsString(String projectId, String fileName) {
+	String path = "/project/" + projectId + "/" + fileName;
+
+	File content = fs_->open(path, FILE_READ);
+	if (content) {
+		DEBUG("Reading file %s", path.c_str());
+		String strContent = content.readString();
+		content.close();
+		return strContent;
+	}
+	WARN("Cannot open file %s to read", path.c_str());
+	return "";
+}
+
+bool Configuration::writeProjectFileContent(String project, String filename, String &strContent) {
+
+	String path = "/project/" + project + "/" + filename;
+
+	File content = fs_->open(path, FILE_WRITE, true);
+	if (content) {
+		DEBUG("Writing file %s", path.c_str());
+		content.print(strContent);
+		content.close();
+		return true;
+	}
+	WARN("Cannot open file %s to read", path.c_str());
+	return false;
+}

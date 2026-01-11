@@ -302,7 +302,7 @@ void HubWebServer::start() {
 	server_->on("/project/*", HTTP_PUT, projectPutHandler);
 
 	server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest *request, PsychicResponse *resp) {
-		INFO("webserver() - /autostart DELETE");
+		INFO("webserver() - /project DELETE");
 
 		PsychicStreamResponse response(resp, "application/json");
 

@@ -35,7 +35,7 @@ private:
 	String urlDecode(const String &text);
 
 public:
-	HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
+	HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration);
 	virtual ~HubWebServer();
 
 	bool isStarted();

@@ -4,6 +4,7 @@
 #include "configuration.h"
 #include "megahub.h"
 
+#include <ArduinoJson.h>
 #include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -46,22 +47,28 @@ struct FragmentBuffer {
 // BLE Server Klasse
 class BTRemote : public BLEServerCallbacks, public BLECharacteristicCallbacks {
 private:
-	BLEServer *pServer;
-	BLEService *pService;
-	BLECharacteristic *pRequestChar;
-	BLECharacteristic *pResponseChar;
-	BLECharacteristic *pEventChar;
-	BLECharacteristic *pControlChar;
+	BLEServer *pServer_;
+	BLEService *pService_;
+	BLECharacteristic *pRequestChar_;
+	BLECharacteristic *pResponseChar_;
+	BLECharacteristic *pEventChar_;
+	BLECharacteristic *pControlChar_;
 
-	bool deviceConnected;
-	size_t mtu; // Default MTU
+	SerialLoggingOutput *loggingOutput_;
+	Configuration *configuration_;
+	Megahub *hub_;
 
-	std::map<uint8_t, FragmentBuffer> fragmentBuffers;
-	uint8_t nextMessageId;
+	TaskHandle_t logforwarderTaskHandle_;
+
+	bool deviceConnected_;
+	size_t mtu_; // Default MTU
+
+	std::map<uint8_t, FragmentBuffer> fragmentBuffers_;
+	uint8_t nextMessageId_;
 
 	// Callback-Funktionen
 	// Callback: (appRequestType, messageId, payload)
-	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback;
+	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback_;
 
 	// Fragment verarbeiten
 	void handleFragment(const uint8_t *data, size_t length);
@@ -82,6 +89,26 @@ private:
 	// MTU-Information an Client senden
 	void sendMTUNotification();
 
+	bool reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqGetProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqRun(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqGetProjects(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+
+	// Control Message senden
+	void sendControlMessage(ControlMessageType type, uint8_t messageId);
+
+	// Request Callback registrieren
+	// Callback-Signatur: void callback(uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t>& payload)
+	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback);
+
+	// Event senden
+	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data);
+
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
 
@@ -95,15 +122,10 @@ public:
 	// Characteristic Callbacks
 	void onWrite(BLECharacteristic *pCharacteristic) override;
 
-	// Event senden
-	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data);
-
-	// Control Message senden
-	void sendControlMessage(ControlMessageType type, uint8_t messageId);
-
-	// Request Callback registrieren
-	// Callback-Signatur: void callback(uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t>& payload)
-	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback);
+	// Events
+	void publishLogMessages();
+	void publishCommands();
+	void publishPortstatus();
 
 	// Timeout-Handler (sollte regelmäßig aufgerufen werden)
 	void loop();
