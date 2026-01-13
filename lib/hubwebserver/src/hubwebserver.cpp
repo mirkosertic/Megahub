@@ -139,42 +139,6 @@ void HubWebServer::start() {
 	  response.write(index_js_gz, index_js_gz_len);
       return response.endSend(); });
 
-	server_->on("/project.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
-
-      INFO("webserver() - Rendering /project.js resource");
-
-	  // Chunked response to optimize RAM usage
-      size_t content_length = project_js_gz_len;
-
-      DEBUG("webserver() - Size of response is %d", content_length);
-      PsychicStreamResponse response(resp, "text/javascript");
-
-	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
-	  response.addHeader("Content-Encoding", "gzip");
-      response.setContentLength(content_length);
-
-      response.beginSend();
-	  response.write(project_js_gz, project_js_gz_len);
-      return response.endSend(); });
-
-	server_->on("/component.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
-
-      INFO("webserver() - Rendering /component.js resource");
-
-	  // Chunked response to optimize RAM usage
-      size_t content_length = component_js_gz_len;
-
-      DEBUG("webserver() - Size of response is %d", content_length);
-      PsychicStreamResponse response(resp, "text/javascript");
-
-	  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
-	  response.addHeader("Content-Encoding", "gzip");
-      response.setContentLength(content_length);
-
-      response.beginSend();
-	  response.write(component_js_gz, component_js_gz_len);
-      return response.endSend(); });
-
 	server_->on("/style.css", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
       INFO("webserver() - Rendering /style.css resource");
@@ -226,47 +190,6 @@ void HubWebServer::start() {
                     response.beginSend();
                     response.print(data);
                     return response.endSend(); });
-
-	server_->on("/project/*", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
-
-					String uri = request->uri().substring(9);
-
-					if (uri.endsWith("/model.xml")) {
-
-						int p = uri.indexOf('/');
-						String projectId = this->urlDecode(uri.substring(0, p));
-						String filename = "model.xml";
-
-						PsychicStreamResponse response(resp, "application/octet-stream");
-						INFO("webserver() - content %S/%s requested for download", projectId.c_str(), filename.c_str());
-						response.setCode(200);
-						response.addHeader("Cache-Control","no-cache, must-revalidate");      
-						response.beginSend();
-
-						configuration_->streamProjectFileTo(projectId, filename, [&response](char *buffer, int size) {
-							DEBUG("Got data chunk of size %d for streaming", size);
-							response.write(&buffer[0], size);
-						});
-
-						return response.endSend(); 						
-
-					} else {
-
-						INFO("webserver() - Index page %s requested", uri.c_str());
-
-						// Chunked response to optimize RAM usage
-						size_t content_length = project_html_gz_len;
-
-						DEBUG("webserver() - Size of response is %d", content_length);
-						PsychicStreamResponse response(resp, "text/html");
-
-						response.addHeader("Cache-Control", "no-cache, must-revalidate");
-						response.setContentLength(content_length);
-    					response.addHeader("Content-Encoding", "gzip");
-						response.beginSend();
-						response.write(project_html_gz, project_html_gz_len);
-						return response.endSend(); 
-					} });
 
 	PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
 	projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {

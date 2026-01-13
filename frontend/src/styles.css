@@ -123,51 +123,6 @@ button:disabled {
 }
 
 
-/* ===== Global Layout Grid (Landing Page - index.html) ===== */
-
-.global-layout {
-  display: grid;
-  height: 100vh;
-  width: 100vw;
-
-  /* Mobile: Flexible footer (8rem minimum) */
-  grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-mobile), auto);
-  grid-template-columns: 100%;
-  grid-template-areas:
-    "header"
-    "content"
-    "footer";
-}
-
-/* Tablet: 10rem footer */
-@media (min-width: 768px) {
-  .global-layout {
-    grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-tablet), auto);
-  }
-}
-
-/* Desktop: Fixed 12rem footer */
-@media (min-width: 1512px) {
-  .global-layout {
-    grid-template-rows: var(--header-height) 1fr var(--footer-height-desktop);
-  }
-}
-
-.global-layout .layout-header {
-  grid-area: header;
-}
-
-.global-layout .layout-content {
-  grid-area: content;
-}
-
-.global-layout .layout-footer {
-  grid-area: footer;
-}
-
-
-/* ===== Project Editor Layout Grid (project.html) ===== */
-
 .global-layout-sidebar {
   display: grid;
   height: 100vh;
@@ -326,6 +281,10 @@ custom-sidebar-toggle {
   justify-content: center;
 }
 
+custom-files {
+  padding: 20px;
+}
+
 .sidebar-toggle-btn {
   display: flex;
   align-items: center;
@@ -418,7 +377,8 @@ custom-lua-preview {
 
 /* Responsive code font sizing */
 custom-lua-preview code.language-lua {
-  font-size: 0.65rem !important; /* ~10px mobile */
+  font-size: 0.65rem !important;
+  /* ~10px mobile */
 }
 
 custom-lua-preview pre.language-lua {
@@ -428,7 +388,8 @@ custom-lua-preview pre.language-lua {
 /* Tablet: Medium size */
 @media (min-width: 768px) and (max-width: 1023px) {
   custom-lua-preview code.language-lua {
-    font-size: 0.7rem !important; /* ~11px */
+    font-size: 0.7rem !important;
+    /* ~11px */
   }
 
   custom-lua-preview pre.language-lua {
@@ -439,7 +400,8 @@ custom-lua-preview pre.language-lua {
 /* Desktop: Original size */
 @media (min-width: 1024px) {
   custom-lua-preview code.language-lua {
-    font-size: 0.8rem !important; /* ~13px */
+    font-size: 0.8rem !important;
+    /* ~13px */
   }
 
   custom-lua-preview pre.language-lua {

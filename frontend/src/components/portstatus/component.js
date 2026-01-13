@@ -17,22 +17,20 @@ class PortstatusElement extends HTMLElement {
 	};
 
 	initialize() {
-		this.setStatus({
+		this.updateStatus({
 			ports : [
 			]
 		});
-	}
+	};
 
-	setStatus(data) {
-		console.log("Got Portstatus: " + JSON.stringify(data));
+	updateStatus(data) {
+		console.debug("Got Portstatus: " + JSON.stringify(data));
 		this.status = data;
 		this.render();
-	}
+	};
 
 	render() {
 		if (this.status && this.status.ports) {
-
-			console.log(JSON.stringify(this.status));
 
 			const grid = this.shadowRoot.getElementById('portsGrid');
 
@@ -74,7 +72,7 @@ class PortstatusElement extends HTMLElement {
 				grid.appendChild(card);
 			});
 		}
-	}
+	};
 };
 
 customElements.define('custom-portstatus', PortstatusElement);

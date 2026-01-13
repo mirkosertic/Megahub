@@ -33,7 +33,7 @@ enum class ControlMessageType : uint8_t {
 // Konfiguration
 const size_t FRAGMENT_HEADER_SIZE = 5;
 const size_t MAX_BUFFER_SIZE = 65536; // 64KB max pro Message
-const uint32_t FRAGMENT_TIMEOUT_MS = 5000;
+const uint32_t FRAGMENT_TIMEOUT_MS = 50000;
 
 // Fragment Buffer Struktur
 struct FragmentBuffer {
@@ -61,6 +61,7 @@ private:
 	TaskHandle_t logforwarderTaskHandle_;
 
 	bool deviceConnected_;
+	bool readyForEvents_;
 	size_t mtu_; // Default MTU
 
 	std::map<uint8_t, FragmentBuffer> fragmentBuffers_;
@@ -98,6 +99,7 @@ private:
 	bool reqGetProjects(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 
 	// Control Message senden
 	void sendControlMessage(ControlMessageType type, uint8_t messageId);

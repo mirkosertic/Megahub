@@ -74,38 +74,27 @@ class FilesHTMLElement extends HTMLElement {
 		});
 
 		this.shadowRoot.getElementById("openbutton").addEventListener("click", (event) => {
-			this.createOrOpenProject(this.selectedProject.name);
+			this.openProject(this.selectedProject.name);
 		});
 
 		this.shadowRoot.getElementById("createbutton").addEventListener("click", (event) => {
 			var project = this.shadowRoot.getElementById("newProjectName").value;
-			this.createOrOpenProject(project);
+			this.createProject(project);
 		});
 
 		this.setAutoStartProject(this.autostartProject);
 	};
 
 	deleteProject(projectName) {
-
-		fetch("/project/" + encodeURIComponent(projectName), {
-			method : "DELETE"
-		})
-			.then((response) => {
-				console.log("Got response from backend : " + JSON.stringify(response));
-
-				this.initialize();
-			})
-			.catch((error) => {
-				console.error('Error deleting project:', error);
-			});
+		window.Application.deleteProject(projectName);
 	}
 
-	createOrOpenProject(projectName) {
-		if (!import.meta.env.DEV) {
-			window.location.href = "/project/" + encodeURIComponent(projectName) + "/";
-		} else {
-			window.location.href = "/project.html";
-		}
+	openProject(projectName) {
+		window.Application.openProject(projectName);
+	}
+
+	createProject(projectName) {
+		window.Application.createProject(projectName);
 	}
 
 	setAutoStartProject(project) {
@@ -119,25 +108,13 @@ class FilesHTMLElement extends HTMLElement {
 
 		if (this.autostartProject && this.projectData.length > 0) {
 			const btn = this.shadowRoot.querySelector(".autostart-button[data-project='" + project + "']");
-			btn.classList.add("autostart-active");
-			btn.textContent = '★';
-			btn.title = 'Autostart enabled';
+			if (btn) {
+				btn.classList.add("autostart-active");
+				btn.textContent = '★';
+				btn.title = 'Autostart enabled';
+			}
 
-			fetch("/autostart", {
-				method : "PUT",
-				body : JSON.stringify(
-					{"project" : project}
-						 ),
-				headers : {
-									   "Content-type" : "application/json; charset=UTF-8",
-									   },
-			})
-				.then((response) => {
-					console.log("Got response from backend : " + JSON.stringify(response));
-				})
-				.catch((error) => {
-					console.error('Error deleting project:', error);
-				});
+			window.Application.setAutostartProject(project);
 		}
 	}
 
@@ -150,37 +127,10 @@ class FilesHTMLElement extends HTMLElement {
 		element.classList.add('selected');
 	};
 
-	initialize() {
-		if (!import.meta.env.DEV) {
-			fetch("/projects")
-				.then((response) => response.json())
-				.then((json) => {
-					this.initProjectListWith(json.projects);
-				})
-				.catch((error) => {
-					console.error('Error loading /project', error);
-				});
-
-			fetch("/autostart")
-				.then((response) => response.json())
-				.then((json) => {
-					this.setAutoStartProject(json.project);
-				})
-				.catch((error) => {
-					console.error('Error loading /autostart', error);
-					this.setAutoStartProject(undefined);
-				});
-
-		} else {
-			let projectArray = [
-				{name : 'dummy'},
-				{name : 'testproject'},
-			];
-
-			this.initProjectListWith(projectArray);
-			this.setAutoStartProject("testproject");
-		}
-	}
+	initialize(projectList, autostartProject) {
+		this.initProjectListWith(projectList);
+		this.setAutoStartProject(autostartProject);
+	};
 };
 
 customElements.define('custom-files', FilesHTMLElement);

@@ -30,14 +30,14 @@ if not os.path.exists(node_modules):
 print("Running Vite build...")
 if os.name == 'nt':
     result = subprocess.run(
-        ["npm.cmd", "run", "build"], 
+        ["npm.cmd", "run", "build:web"], 
         cwd=frontend_dir, 
         capture_output=True,
         text=True
     )
 else:    
     result = subprocess.run(
-        ["npm", "run", "build"], 
+        ["npm", "run", "build:web"], 
         cwd=frontend_dir, 
         capture_output=True,
         text=True

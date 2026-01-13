@@ -23,15 +23,16 @@
 #define FLAG_LAST_FRAGMENT 0x01
 #define FLAG_ERROR		   0x02
 
-#define APP_REQUEST_TYPE_STOP_PROGRAM	 0x01
-#define APP_REQUEST_TYPE_GET_ROJECT_FILE 0x02
-#define APP_REQUEST_TYPE_PUT_ROJECT_FILE 0x03
-#define APP_REQUEST_TYPE_DELETE_PROJECT	 0x04
-#define APP_REQUEST_TYPE_SYNTAX_CHECK	 0x05
-#define APP_REQUEST_TYPE_RUN_PROGRAM	 0x06
-#define APP_REQUEST_TYPE_GET_PROJECTS	 0x07
-#define APP_REQUEST_TYPE_GET_AUTOSTART	 0x08
-#define APP_REQUEST_TYPE_PUT_AUTOSTART	 0x09
+#define APP_REQUEST_TYPE_STOP_PROGRAM	  0x01
+#define APP_REQUEST_TYPE_GET_ROJECT_FILE  0x02
+#define APP_REQUEST_TYPE_PUT_ROJECT_FILE  0x03
+#define APP_REQUEST_TYPE_DELETE_PROJECT	  0x04
+#define APP_REQUEST_TYPE_SYNTAX_CHECK	  0x05
+#define APP_REQUEST_TYPE_RUN_PROGRAM	  0x06
+#define APP_REQUEST_TYPE_GET_PROJECTS	  0x07
+#define APP_REQUEST_TYPE_GET_AUTOSTART	  0x08
+#define APP_REQUEST_TYPE_PUT_AUTOSTART	  0x09
+#define APP_REQUEST_TYPE_READY_FOR_EVENTS 0x0A
 
 #define APP_EVENT_TYPE_LOG		  0x01
 #define APP_EVENT_TYPE_PORTSTATUS 0x02
@@ -197,6 +198,7 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, configuration_(configuration)
 	, hub_(hub)
 	, deviceConnected_(false)
+	, readyForEvents_(false)
 	, mtu_(23)
 	, nextMessageId_(0) {
 }
@@ -284,6 +286,9 @@ void BTRemote::begin(const char *deviceName) {
 					case APP_REQUEST_TYPE_PUT_AUTOSTART:
 						result = reqPutAutostart(requestDoc, responseDoc);
 						break;
+					case APP_REQUEST_TYPE_READY_FOR_EVENTS:
+						result = reqReadyForEvents(requestDoc, responseDoc);
+						break;
 					default:
 						WARN("Not supported appRequestType : %d", appRequestType);
 						responseDoc["error"] = "Not supported appRequestType!";
@@ -311,6 +316,7 @@ void BTRemote::begin(const char *deviceName) {
 
 // Server Callbacks
 void BTRemote::onConnect(BLEServer *pServer) {
+	readyForEvents_ = false;
 	deviceConnected_ = true;
 	mtu_ = pServer->getPeerMTU(pServer->getConnId()) - 3; // ATT Header abziehen
 	INFO("Client connected, MTU: %d", mtu_);
@@ -321,6 +327,7 @@ void BTRemote::onConnect(BLEServer *pServer) {
 }
 
 void BTRemote::onDisconnect(BLEServer *pServer) {
+	readyForEvents_ = false;
 	deviceConnected_ = false;
 	fragmentBuffers_.clear();
 	INFO("Client disconnected");
@@ -574,7 +581,7 @@ size_t BTRemote::getMTU() const {
 void BTRemote::publishLogMessages() {
 	String logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
 	while (logMessage.length() > 0) {
-		if (deviceConnected_) {
+		if (deviceConnected_ && readyForEvents_) {
 			std::vector<uint8_t> response;
 			createJsonResponse(response, [this, logMessage](JsonDocument &responseDoc) {
 				responseDoc["message"] = logMessage;
@@ -590,7 +597,7 @@ void BTRemote::publishLogMessages() {
 void BTRemote::publishCommands() {
 	String command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
 	while (command.length() > 0) {
-		if (deviceConnected_) {
+		if (deviceConnected_ && readyForEvents_) {
 
 			std::vector<uint8_t> response;
 			stringToVector(command, response);
@@ -605,7 +612,7 @@ void BTRemote::publishCommands() {
 void BTRemote::publishPortstatus() {
 	String command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
 	while (command.length() > 0) {
-		if (deviceConnected_) {
+		if (deviceConnected_ && readyForEvents_) {
 
 			std::vector<uint8_t> response;
 			stringToVector(command, response);
@@ -626,7 +633,14 @@ bool BTRemote::reqGetProjectFile(const JsonDocument &requestDoc, JsonDocument &r
 	String project = requestDoc["project"].as<String>();
 	String filename = requestDoc["filename"].as<String>();
 
-	responseDoc["content"] = configuration_->getProjectFileContentAsString(project, filename);
+	INFO("Fetching file %s of project %s", filename.c_str(), project.c_str());
+
+	String content = configuration_->getProjectFileContentAsString(project, filename);
+	INFO("Response has size %d", content.length());
+
+	responseDoc["content"] = content;
+
+	INFO("Done, returning content");
 	return true;
 }
 
@@ -700,4 +714,10 @@ bool BTRemote::reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &res
 
 	WARN("Could not set autostart project!");
 	return false;
+}
+
+bool BTRemote::reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+	INFO("Client notified that it is ready to receive events!");
+	readyForEvents_ = true;
+	return true;
 }

@@ -9,9 +9,27 @@
 </head>
 
 <body>
-    <div class="global-layout">
-        <header id="header" class="layout-header">Megahub IDE</header>
-        <custom-files id="files" class="layout-content"></custom-files>
+    <div class="global-layout-sidebar">
+        <header id="header" class="layout-header">Megahub IDE<custom-sidebar-toggle></custom-sidebar-toggle></header>
+        <div class="welcome dynamicvisibility visible-btconnect">
+            <button id="btconnect">Connect with MegaHub</button>
+        </div>
+        <div class="layout-content dynamicvisibility visible-management">
+            <custom-files id="files"></custom-files>
+        </div>
+        <custom-blockly id="blockly" class="layout-content dynamicvisibility visible-editor"></custom-blockly>
+        <div class="layout-sidebar">
+            <button class="btn btn-success reset dynamicvisibility visible-editor" id="reset">Reset
+                workspace</button>
+            <button class="btn btn-success btn syntaxcheck dynamicvisibility visible-editor" id="syntaxcheck">Syntax
+                check</button>
+            <button class="btn btn-primary execute dynamicvisibility visible-editor" id="execute">Execute!</button>
+            <button class="btn btn-success stop dynamicvisibility visible-editor" id="stop">Stop!</button>
+            <custom-lua-preview id="luapreview" class="dynamicvisibility visible-editor"></custom-lua-preview>
+            <custom-portstatus id="portstatus"
+                class="dynamicvisibility visible-management visible-editor"></custom-portstatus>
+            <custom-ui id="uicomponents" class="dynamicvisibility visible-editor visible-management"></custom-ui>
+        </div>
         <custom-logger id="logger" class="layout-footer"></custom-logger>
     </div>
     <script type="module" src="/src/index.js"></script>

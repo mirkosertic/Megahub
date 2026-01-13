@@ -2,7 +2,7 @@ Import("env")
 import os
 import gzip
 
-data_dir = os.path.join(env.get("PROJECT_DIR"), "data")
+data_dir = os.path.join(env.get("PROJECT_DIR"), "data/web")
 output_dir = os.path.join(env.subst("$BUILD_DIR"), "generated")
 
 os.makedirs(output_dir, exist_ok=True)

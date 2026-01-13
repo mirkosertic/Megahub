@@ -37,22 +37,6 @@ Serves the main application JavaScript file.
 - Content-Type: `text/javascript`
 - Content-Encoding: `gzip`
 
-### GET /project.js
-
-Serves the project-related JavaScript file.
-
-**Response:**
-- Content-Type: `text/javascript`
-- Content-Encoding: `gzip`
-
-### GET /component.js
-
-Serves the component JavaScript file.
-
-**Response:**
-- Content-Type: `text/javascript`
-- Content-Encoding: `gzip`
-
 ### GET /style.css
 
 Serves the application stylesheet.
@@ -352,16 +336,80 @@ Emitted when the status of a device port changes.
         "type": "BOOST Color and Distance Sensor",
         "icon": "⚙️",
         "modes": [
-          "COLOR",
-          "PROX",
-          "COUNT",
-          "REFLT",
-          "AMBI",
-          "COL O",
-          "RGB I",
-          "IR Tx"
-        ]
-      }
+            {
+                "id": 0,
+                "name": "COLOR",
+                "units": "IDX",
+                "datasets": 1,
+                "figures": 3,
+                "decimals": 0,
+                "type": "DATA8"
+            },
+            {
+                "id": 1,
+                "name": "PROX",
+                "units": "DIS",
+                "datasets": 1,
+                "figures": 3,
+                "decimals": 0,
+                "type": "DATA8"
+            },
+            {
+                "id": 2,
+                "name": "COUNT",
+                "units": "CNT",
+                "datasets": 1,
+                "figures": 4,
+                "decimals": 0,
+                "type": "DATA32"
+            },
+            {
+                "id": 3,
+                "name": "REFLT",
+                "units": "PCT",
+                "datasets": 1,
+                "figures": 3,
+                "decimals": 0,
+                "type": "DATA8"
+            },
+            {
+                "id": 4,
+                "name": "AMBI",
+                "units": "PCT",
+                "datasets": 1,
+                "figures": 3,
+                "decimals": 0,
+                "type": "DATA8"
+            },
+            {
+                "id": 5,
+                "name": "COL O",
+                "units": "IDX",
+                "datasets": 1,
+                "figures": 3,
+                "decimals": 0,
+                "type": "DATA8"
+            },
+            {
+                "id": 6,
+                "name": "RGB I",
+                "units": "RAW",
+                "datasets": 3,
+                "figures": 5,
+                "decimals": 0,
+                "type": "DATA16"
+            },
+            {
+                "id": 7,
+                "name": "IR Tx",
+                "units": "N/A",
+                "datasets": 1,
+                "figures": 5,
+                "decimals": 0,
+                "type": "DATA16"
+            }
+          ]
+        }
     },
     {
       "id": 4,

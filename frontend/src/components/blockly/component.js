@@ -406,7 +406,7 @@ class BlocklyHTMLElement extends HTMLElement {
 
 	clearWorkspace() {
 		if (confirm('Workspace wirklich zurücksetzen?')) {
-			workspace.clear();
+			this.workspace.clear();
 		}
 	};
 };
