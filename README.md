@@ -9,19 +9,20 @@ Megahub is an ESP32-based alternative hub designed for LEGO&copy; enthusiasts an
 This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO&copy; sensors and motors.
 It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
 
-** Use it at your own Risk!! **
+** Build and Use it at your own Risk!! **
 
 ## Key Features
 
 - **KiCad**: All schematics and PCB production files are available in KiCad and Gerber format
 - **WiFi Enabled**: Built-in wireless connectivity for remote control and programming
+- **Bluetooth Enabled**: Acts as a Bluetooth BLE Server and Client
+- **IDE**: Configure and program Megahub through the intuitive [Megahub IDE](https://mirkosertic.github.io/Megahub/)
+- **Visual Programming Interface**: Blockly visual programming for beginners
 - **SD-Card**: Built-in SD-card reader to store multiple projects (autostart possible)
 - **4 UART Ports**: Connect up to 4 LEGO&copy; WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
 - **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
 - **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
 - **Flexible GPIO**: Additional GPIO pins available for custom sensors, buttons, and peripherals
-- **Visual Programming Interface**: Blockly visual programming for beginners
-- **Web-based Interface**: Configure and program your hub through an intuitive Web UI
 - **ROS(Robot Operating System)**: Micro ROS support is comming soon...
 - **MQTT**: MQTT support is comming soon...
 - **Gamepad**: Bluetooth Gamepad support is comming soon...
@@ -31,7 +32,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 - I wanted to learn something new
 - Designing Hard- and Software work together is fun
-- There is no truly open sysstem with the same capabilities available on the market
+- There is no truly open system with the same capabilities available on the market
 
 ## How It Differs from Existing Solutions
 
