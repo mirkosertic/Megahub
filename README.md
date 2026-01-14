@@ -9,7 +9,7 @@ Megahub is an ESP32-based alternative hub designed for LEGO&copy; enthusiasts an
 This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO&copy; sensors and motors.
 It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
 
-** Build and Use it at your own Risk!! **
+** Build and use it at your own Risk!! **
 
 ## Key Features
 
@@ -32,7 +32,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 - I wanted to learn something new
 - Designing Hard- and Software work together is fun
-- There is no truly open system with the same capabilities available on the market
+- There is no truly open system with the same capabilities available
 
 ## How It Differs from Existing Solutions
 
