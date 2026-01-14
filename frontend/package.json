@@ -5,10 +5,9 @@
   "scripts": {
     "dev": "vite --mode dev",
     "dev:bt": "vite --mode bt",
-    "build:dev": "vite build --mode dev",
-    "build:bt": "vite build --mode bt",
+    "build:bt": "vite build --mode bt --base=/Megahub/",
     "build:web": "vite build --mode web",
-    "build:all": "npm run build:dev && npm run build:bt && npm run build:web"    
+    "build:all": "npm run build:bt && npm run build:web"    
   },
   "devDependencies": {
     "browserlist": "^1.0.2",
