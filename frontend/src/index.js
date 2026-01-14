@@ -14,8 +14,14 @@ import {
 	APP_EVENT_TYPE_PORTSTATUS,
 	APP_REQUEST_TYPE_GET_AUTOSTART,
 	APP_REQUEST_TYPE_GET_PROJECTS,
-	APP_REQUEST_TYPE_GET_ROJECT_FILE,
+	APP_REQUEST_TYPE_GET_PROJECT_FILE,
 	APP_REQUEST_TYPE_READY_FOR_EVENTS,
+	APP_REQUEST_TYPE_STOP_PROGRAM,
+	APP_REQUEST_TYPE_PUT_AUTOSTART,
+	APP_REQUEST_TYPE_SYNTAX_CHECK,
+	APP_REQUEST_TYPE_RUN_PROGRAM,
+	APP_REQUEST_TYPE_PUT_PROJECT_FILE,
+	APP_REQUEST_TYPE_DELETE_PROJECT,
 	BLEClient
 } from './bleclient.js'
 
@@ -53,13 +59,13 @@ function stopCode() {
 
 const STRORAGE_KEY = 'blockly_robot_workspace';
 
-// Workspace als XML speichern
-function saveWorkspace() {
+// Save workspace as XML
+async function saveWorkspace() {
 	try {
 		const xmlText = blocklyEditor.generateXML();
-		window.Application.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
+		await window.Application.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
 		const luaCode = generateCode();
-		window.Application.saveProjectFile("program.lua", "text/x-lua; charset=UTF-8", luaCode);
+		await window.Application.saveProjectFile("program.lua", "text/x-lua; charset=UTF-8", luaCode);
 
 		return true;
 	} catch (error) {
@@ -80,8 +86,10 @@ window.Application = {
 		const items = document.querySelectorAll(".dynamicvisibility");
 		for (const item of items) {
 			item.style.display = 'none';
+			item.style.visibility = 'hidden';
 			if (item.classList.contains('visible-' + mode)) {
 				item.style.display = 'block';
+				item.style.visibility = "visible";
 			}
 		}
 	},
@@ -97,14 +105,14 @@ window.Application = {
 		console.log("Creating new empty project")
 		window.Application.setMode('editor');
 
-		Application.activeProject = projectId;
+		window.Application.activeProject = projectId;
 	},
 
 	openProject : function(projectId) {
 		console.log("Opening project " + projectId);
 		window.Application.setMode('editor');
 
-		Application.activeProject = projectId;
+		window.Application.activeProject = projectId;
 
 		window.Application.requestProjectFile(projectId, 'model.xml', function(projectId, filename, content) {
 			if (!blocklyEditor.loadXML(content)) {
@@ -113,44 +121,48 @@ window.Application = {
 		});
 	},
 
-	deleteProject : function(project) {
+	deleteProject : async function(project) {
+		// clang-format off
 		if (mode === 'bt') {
-			// TODO
+			console.log("Deleting project " + project);
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_DELETE_PROJECT, JSON.stringify({ "project": project }));
+			
+			window.Application.jumpToFilesView();
 		} else if (mode === 'web') {
 			fetch("/project/" + encodeURIComponent(project), {
 				method : "DELETE"
 			})
-				.then((response) => {
-					console.log("Got response from backend : " + JSON.stringify(response));
+			.then((response) => {
+				console.log("Got response from backend : " + JSON.stringify(response));
 
-					this.initialize();
-				})
-				.catch((error) => {
-					console.error('Error deleting project:', error);
-				});
+				window.Application.jumpToFilesView();
+			})
+			.catch((error) => {
+				console.error('Error deleting project:', error);
+			});
 		}
+		// clang-format on
 	},
 
-	setAutostartProject : function(project) {
+	setAutostartProject : async function(project) {
+		// clang-format off
 		if (mode === 'bt') {
-			// TODO
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_AUTOSTART, JSON.stringify({"project" : project}));
 		} else if (mode === 'web') {
 			fetch("/autostart", {
 				method : "PUT",
-				body : JSON.stringify(
-					{"project" : project}
-						 ),
+				body : JSON.stringify({"project" : project}),
 				headers : {
-									   "Content-type" : "application/json; charset=UTF-8",
-									   },
+							"Content-type" : "application/json; charset=UTF-8",
+						  },
+			}).then((response) => {
+				console.log("Got response from backend : " + JSON.stringify(response));
 			})
-				.then((response) => {
-					console.log("Got response from backend : " + JSON.stringify(response));
-				})
-				.catch((error) => {
-					console.error('Error deleting project:', error);
-				});
+			.catch((error) => {
+				console.error('Error deleting project:', error);
+			});
 		}
+		// clang-format off
 	},
 
 	requestProjectFile : async function(projectId, filename, callback) {
@@ -166,18 +178,15 @@ window.Application = {
 				}
 
 				callback(projectId, filename, xmlText);
+				return;
 			}
 
 			callback(projectId, filename, '');
 		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_ROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename}));
-			const responseJson = JSON.parse(new TextDecoder().decode(response));
-			if (responseJson.result) {
-				var content = new TextDecoder().decode(response).content;
-				callback(projectId, filename, content);
-			} else {
-				console.warn("Got error response from server : " + JSON.stringify(responseJson));
-			}
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename}));
+			const contentResponse = new TextDecoder().decode(response);
+
+			callback(projectId, filename, contentResponse);
 		} else if (mode === 'web') {
 			const response = await fetch("/project/" + encodeURIComponent(projectId) + "/" + filename);
 			const responseText = await response.text();
@@ -185,14 +194,17 @@ window.Application = {
 		}
 	},
 
-	saveProjectFile : async function(projectId, filename, contentType, content) {
+	saveProjectFile: async function (filename, contentType, content) {
+		var projectId = window.Application.activeProject;
+		// clang-format off
 		if (mode === 'dev') {
 			// Dev-specific logic
 			if (filename === 'model.xml') {
 				localStorage.setItem(STRORAGE_KEY, xmlText);
 			}
 		} else if (mode === 'bt') {
-			// TODDO
+			console.log("Saving file " + filename + " to project " + projectId);
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename, "content": content}));
 		} else if (mode === 'web') {
 			fetch("/project/" + encodeURIComponent(projectId) + "/" + filename, {
 				method : "PUT",
@@ -201,17 +213,22 @@ window.Application = {
 						   "Content-type" : contentType,
 						   },
 			})
-				.then((response) => {
-					console.log("Got response from backend : " + JSON.stringify(response));
-				});
+			.then((response) => {
+				console.log("Got response from backend : " + JSON.stringify(response));
+			});
 		}
+		// clang-format on
 	},
 
 	syntaxCheck : async function(luaCode) {
+		// clang-format off
 		if (mode === 'dev') {
 			// Dev-specific logic
 		} else if (mode === 'bt') {
-			// BT-specific logic
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_SYNTAX_CHECK, JSON.stringify({ "luaScript": luaCode }));
+			const contentResponse = new TextDecoder().decode(response);
+			const responsejson = JSON.parse(contentResponse);
+			alert("Syntax Check Result:\nSuccess: " + responsejson.result + "\nParse Time: " + responsejson.parseTime + "ms\nError Message: " + responsejson.errorMessage);
 		} else if (mode === 'web') {
 			fetch("/syntaxcheck", {
 				method : "PUT",
@@ -220,18 +237,24 @@ window.Application = {
 						   "Content-type" : "text/x-lua; charset=UTF-8",
 						   },
 			})
-				.then((response) => response.json())
-				.then((response) => {
-					alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-				});
+			.then((response) => response.json())
+			.then((response) => {
+				alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
+			});
 		}
+		// clang-format on
 	},
 
 	executeCode : async function(luaCode) {
+		// clang-format off
 		if (mode === 'dev') {
 			// Dev-specific logic
 		} else if (mode === 'bt') {
-			// BT-specific logic
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_RUN_PROGRAM, JSON.stringify({ "luaScript": luaCode }));
+			const contentResponse = new TextDecoder().decode(response);
+			const responsejson = JSON.parse(contentResponse);
+			uiComponents.clear();
+			alert("Syntax Check Result:\nSuccess: " + responsejson.result);
 		} else if (mode === 'web') {
 			fetch("/execute", {
 				method : "PUT",
@@ -240,19 +263,20 @@ window.Application = {
 						   "Content-type" : "text/x-lua; charset=UTF-8",
 						   },
 			})
-				.then((response) => response.json())
-				.then((response) => {
-					uiComponents.clear();
-					alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
-				});
+			.then((response) => response.json())
+			.then((response) => {
+				uiComponents.clear();
+			});
 		}
+		// clang-format on
 	},
 
 	stop : async function() {
+		// clang-format off
 		if (mode === 'dev') {
 			// Dev-specific logic
 		} else if (mode === 'bt') {
-			// BT-specific logic
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_STOP_PROGRAM, JSON.stringify({}));
 		} else if (mode === 'web') {
 			fetch("/stop", {
 				method : "PUT",
@@ -261,11 +285,12 @@ window.Application = {
 						   "Content-type" : "text/x-lua; charset=UTF-8",
 						   },
 			})
-				.then((response) => response.json())
-				.then((response) => {
-					console.log("Stop command sent, response: " + JSON.stringify(response));
-				});
+			.then((response) => response.json())
+			.then((response) => {
+				console.log("Stop command sent, response: " + JSON.stringify(response));
+			});
 		}
+		// clang-format on
 	},
 
 	requestProjectsAndAutostartConfig : async function(callback) {
@@ -275,8 +300,12 @@ window.Application = {
 		];
 
 		if (mode === 'bt') {
+			console.log("Requesting Projects...");
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_PROJECTS, JSON.stringify({}));
-			const responseJson = JSON.parse(new TextDecoder().decode(response));
+			const responseText = new TextDecoder().decode(response);
+			console.log("Got Response : (" + responseText + ")");
+			const responseJson = JSON.parse(responseText);
+			console.log("JSON Response was " + JSON.stringify(responseJson));
 			projects = responseJson.projects;
 		} else if (mode === 'web') {
 			const response = await fetch("/projects");
@@ -287,12 +316,12 @@ window.Application = {
 		var autostart = "testproject";
 
 		if (mode === 'bt') {
-			const response = await fetch("/autostart");
-			const responseJson = await response.json();
-			autostart = responseJson.project;
-		} else if (mode === 'web') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_AUTOSTART, JSON.stringify({}));
 			const responseJson = JSON.parse(new TextDecoder().decode(response));
+			autostart = responseJson.project;
+		} else if (mode === 'web') {
+			const response = await fetch("/autostart");
+			const responseJson = await response.json();
 			autostart = responseJson.project;
 		}
 
@@ -309,7 +338,6 @@ async function initBLEConnection() {
 
 		portstatus.initialize();
 
-		// Event-Listener registrieren (Application Event Type 1 = z.B. Sensor-Event)
 		bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
 			const logEvent = JSON.parse(new TextDecoder().decode(data));
 			logger.addToLog(logEvent.message);
@@ -322,12 +350,12 @@ async function initBLEConnection() {
 
 		bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
 			const command = JSON.parse(new TextDecoder().decode(data));
-			uicomponents.processUIEvent(status);
+			uicomponents.processUIEvent(command);
 		});
 
-		// Wildcard-Listener
+		// Wildcard listener
 		// bleClient.addEventListener('*', (appEventType, data) => {
-		//	console.log(`Event Type ${appEventType} empfangen:`, new TextDecoder().decode(data));
+		//	console.log(`Event Type ${appEventType} received:`, new TextDecoder().decode(data));
 		//});
 
 		// Activate Eventing
@@ -432,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		stopCode();
 	});
 
-	// Enable autp save every 10 seconds
+	// Enable auto save every 10 seconds
 	setInterval(() => {
 		if (window.Application.activeProject) {
 			saveWorkspace();

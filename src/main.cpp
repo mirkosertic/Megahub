@@ -117,6 +117,8 @@ void setup() {
 	configuration->load();
 
 	if (configuration->isWiFiEnabled()) {
+		configuration->connectToWiFiOrShowConfigPortal();
+		// We only reach this point in case there is no configuration needed...
 		INFO("Initializing WebServer instance")
 		webserver = new HubWebServer(80, &SD, megahub, loggingOutput, configuration);
 	}
@@ -125,12 +127,12 @@ void setup() {
 		INFO("Initializing BT Remote interface")
 		btremote = new BTRemote(&SD, megahub, loggingOutput, configuration);
 
+		INFO("Initializing Bluetooth controller interface");
+		bluetoothController->init();
+
 		INFO("Initializing BT Remote");
 		btremote->begin(megahub->name().c_str());
 	}
-
-	INFO("Initializing Bluetooth controller interface");
-	bluetoothController->init();
 
 	INFO("Setup completed");
 	Statusmonitor::instance()->setStatus(IDLE);
@@ -143,6 +145,7 @@ void loop() {
 
 	if (configuration->isBTEnabled()) {
 		btremote->loop();
+		bluetoothController->loop();
 	}
 
 	bluetoothController->loop();

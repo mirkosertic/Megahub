@@ -40,8 +40,8 @@ public:
 	std::vector<String> getProjects();
 	bool writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t *data, size_t length);
 	void streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget &streamTarget);
+	File getProjectFile(String projectId, String fileName);
 
-	String getProjectFileContentAsString(String projectId, String fileName);
 	bool writeProjectFileContent(String project, String filename, String &content);
 };
 

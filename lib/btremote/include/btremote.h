@@ -5,10 +5,9 @@
 #include "megahub.h"
 
 #include <ArduinoJson.h>
-#include <BLE2902.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
+#include <NimBLEDevice.h>
+#include <NimBLEServer.h>
+#include <NimBLEUtils.h>
 #include <map>
 #include <vector>
 
@@ -34,6 +33,7 @@ enum class ControlMessageType : uint8_t {
 const size_t FRAGMENT_HEADER_SIZE = 5;
 const size_t MAX_BUFFER_SIZE = 65536; // 64KB max pro Message
 const uint32_t FRAGMENT_TIMEOUT_MS = 50000;
+const size_t MAX_CONCURRENT_MESSAGES = 3; // Memory Safety: Limit gleichzeitiger Nachrichten
 
 // Fragment Buffer Struktur
 struct FragmentBuffer {
@@ -45,14 +45,14 @@ struct FragmentBuffer {
 };
 
 // BLE Server Klasse
-class BTRemote : public BLEServerCallbacks, public BLECharacteristicCallbacks {
+class BTRemote : public NimBLEServerCallbacks, public NimBLECharacteristicCallbacks {
 private:
-	BLEServer *pServer_;
-	BLEService *pService_;
-	BLECharacteristic *pRequestChar_;
-	BLECharacteristic *pResponseChar_;
-	BLECharacteristic *pEventChar_;
-	BLECharacteristic *pControlChar_;
+	NimBLEServer *pServer_;
+	NimBLEService *pService_;
+	NimBLECharacteristic *pRequestChar_;
+	NimBLECharacteristic *pResponseChar_;
+	NimBLECharacteristic *pEventChar_;
+	NimBLECharacteristic *pControlChar_;
 
 	SerialLoggingOutput *loggingOutput_;
 	Configuration *configuration_;
@@ -66,6 +66,9 @@ private:
 
 	std::map<uint8_t, FragmentBuffer> fragmentBuffers_;
 	uint8_t nextMessageId_;
+
+	QueueHandle_t responseQueue_;
+	TaskHandle_t responseSenderTaskHandle_;
 
 	// Callback-Funktionen
 	// Callback: (appRequestType, messageId, payload)
@@ -81,17 +84,19 @@ private:
 	void handleControlMessage(const uint8_t *data, size_t length);
 
 	// Fragmentierte Nachricht senden
-	bool sendFragmented(BLECharacteristic *characteristic, ProtocolMessageType protocolType,
+	bool sendFragmented(NimBLECharacteristic *characteristic, ProtocolMessageType protocolType,
 		uint8_t messageId, const std::vector<uint8_t> &data);
 
 	// Response senden
 	bool sendResponse(uint8_t messageId, const std::vector<uint8_t> &data);
 
+	bool sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider);
+
 	// MTU-Information an Client senden
 	void sendMTUNotification();
 
 	bool reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqGetProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqGetProjectFile(uint8_t messageId, const JsonDocument &requestDoc);
 	bool reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &responseDoc);
@@ -117,17 +122,22 @@ public:
 	void begin(const char *deviceName);
 
 	// Server Callbacks
-	void onConnect(BLEServer *pServer) override;
+	void onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) override;
 
-	void onDisconnect(BLEServer *pServer) override;
+	void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override;
+
+	void onMTUChange(uint16_t mtu, NimBLEConnInfo &connInfo);
 
 	// Characteristic Callbacks
-	void onWrite(BLECharacteristic *pCharacteristic) override;
+	void onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) override;
 
 	// Events
 	void publishLogMessages();
 	void publishCommands();
 	void publishPortstatus();
+
+	// Process queued responses (called from background task)
+	void processResponseQueue();
 
 	// Timeout-Handler (sollte regelmäßig aufgerufen werden)
 	void loop();

@@ -35,7 +35,6 @@ class UIHTMLElement extends HTMLElement {
 				element.innerHTML = `${value}`;
 			}
 		}
-		console.log("UI Event: ", event);
 	};
 
 	clear() {

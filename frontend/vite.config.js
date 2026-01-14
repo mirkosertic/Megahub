@@ -14,7 +14,6 @@ export default defineConfig(({mode}) => {
 			rollupOptions: {
 							input: {
 								index: resolve(__dirname, 'index.html'),
-								bttest: resolve(__dirname, 'bttest.html'),
 							},
 							output: {
 								manualChunks: undefined,

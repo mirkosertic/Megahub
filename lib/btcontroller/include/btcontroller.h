@@ -3,11 +3,11 @@
 
 #include <Arduino.h>
 
-// #include <BLEGamepadClient.h>
+#include <BLEGamepadClient.h>
 
 class BluetoothController {
 private:
-	//	XboxController *controller_;
+	XboxController *controller_;
 
 public:
 	BluetoothController();

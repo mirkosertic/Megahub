@@ -1,16 +1,16 @@
 /**
- * BLE Web Client für ESP32 Kommunikation
- * Unterstützt Request/Response und Event-Streaming mit automatischer Fragmentierung
+ * BLE Web Client for ESP32 communication
+ * Supports Request/Response and Event-Streaming with automatic fragmentation
  */
 
-// UUIDs (müssen mit ESP32 übereinstimmen)
+// UUIDs (must match ESP32)
 const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const REQUEST_CHAR_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 const RESPONSE_CHAR_UUID = '1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e';
 const EVENT_CHAR_UUID = 'd8de624e-140f-4a22-8594-e2216b84a5f2';
 const CONTROL_CHAR_UUID = 'f78ebbff-c8b7-4107-93de-889a6a06d408';
 
-// Protocol Message Types (INTERN - für Fragmentierungs-Protokoll)
+// Protocol Message Types (INTERNAL - for fragmentation protocol)
 const ProtocolMessageType = {
 	REQUEST : 0x01,
 	RESPONSE : 0x02,
@@ -18,7 +18,7 @@ const ProtocolMessageType = {
 	CONTROL : 0x04
 };
 
-// Control Message Types (INTERN - für Control-Channel)
+// Control Message Types (INTERNAL - for control channel)
 const ControlMessageType = {
 	ACK : 0x01,
 	NACK : 0x02,
@@ -29,11 +29,11 @@ const ControlMessageType = {
 	REQUEST_MTU_INFO : 0x07
 };
 
-// Fragment Flags (INTERN)
+// Fragment Flags (INTERNAL)
 const FLAG_LAST_FRAGMENT = 0x01;
 const FLAG_ERROR = 0x02;
 
-// Konstanten
+// Constants
 const FRAGMENT_HEADER_SIZE = 5;
 const DEFAULT_TIMEOUT_MS = 50000;
 const MAX_RETRIES = 3;
@@ -49,68 +49,68 @@ export class BLEClient {
 		this.eventChar = null;
 		this.controlChar = null;
 
-		this.mtu = 23; // Default MTU, wird nach Verbindung aktualisiert
+		this.mtu = 23; // Default MTU, will be updated after connection
 		this.mtuReceived = false;
 		this.mtuReceivedResolve = null;
 		this.connected = false;
 
-		// Fragment-Verwaltung
+		// Fragment management
 		this.fragmentBuffers = new Map();
 
-		// Request-Verwaltung
+		// Request management
 		this.pendingRequests = new Map();
 		this.currentMessageId = 0;
 
-		// Event-Listener
+		// Event listeners
 		this.eventListeners = new Map();
 
-		// Disconnect-Listener
+		// Disconnect listener
 		this.onDisconnectCallback = null;
 	}
 
 	/**
-	 * Verbindung zum BLE-Gerät herstellen
+	 * Establish connection to BLE device
 	 * @returns {Promise<void>}
 	 */
 	async connect() {
 		try {
-			console.log('Starte BLE-Verbindung...');
+			console.log('Starting BLE connection...');
 
-			// Gerät auswählen
+			// Select device
 			this.device = await navigator.bluetooth.requestDevice({
 				filters : [ {services : [ SERVICE_UUID ]} ],
 				optionalServices : [ SERVICE_UUID ]
 			});
 
-			console.log('Gerät ausgewählt:', this.device.name);
+			console.log('Device selected:', this.device.name);
 
-			// Disconnect-Handler
+			// Disconnect handler
 			this.device.addEventListener('gattserverdisconnected', () => {
 				this.handleDisconnect();
 			});
 
-			// Mit GATT Server verbinden
+			// Connect to GATT server
 			this.server = await this.device.gatt.connect();
-			console.log('GATT Server verbunden');
+			console.log('GATT server connected');
 
-			// Service abrufen
+			// Get service
 			this.service = await this.server.getPrimaryService(SERVICE_UUID);
-			console.log('Service gefunden');
+			console.log('Service found');
 
-			// Characteristics abrufen
+			// Get characteristics
 			this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
 			this.responseChar = await this.service.getCharacteristic(RESPONSE_CHAR_UUID);
 			this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
 			this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
 
-			console.log('Alle Characteristics gefunden');
+			console.log('All characteristics found');
 
-			// Notifications aktivieren
+			// Enable notifications
 			await this.responseChar.startNotifications();
 			await this.eventChar.startNotifications();
 			await this.controlChar.startNotifications();
 
-			// Event-Listener für eingehende Daten
+			// Event listeners for incoming data
 			this.responseChar.addEventListener('characteristicvaluechanged',
 				(event) => this.handleFragment(event.target.value, 'response'));
 
@@ -121,49 +121,49 @@ export class BLEClient {
 				(event) => this.handleControlMessage(event.target.value));
 
 			this.connected = true;
-			console.log('BLE-Verbindung erfolgreich hergestellt');
+			console.log('BLE connection successfully established');
 
-			// Auf MTU-Information vom Server warten (mit Timeout)
+			// Wait for MTU information from server (with timeout)
 			await this.waitForMTU(2000);
 			console.log(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
 
 		} catch (error) {
-			console.error('Verbindungsfehler:', error);
-			throw new Error(`BLE-Verbindung fehlgeschlagen: ${error.message}`);
+			console.error('Connection error:', error);
+			throw new Error(`BLE connection failed: ${error.message}`);
 		}
 	}
 
 	/**
-	 * Auf MTU-Information vom Server warten
-	 * @param {number} timeout - Timeout in Millisekunden
+	 * Wait for MTU information from server
+	 * @param {number} timeout - Timeout in milliseconds
 	 */
 	async waitForMTU(timeout = 2000) {
-		console.log('Warte auf MTU-Information vom Server...');
+		console.log('Waiting for MTU information from server...');
 
-		// Promise für MTU-Empfang erstellen
+		// Create promise for MTU reception
 		const mtuPromise = new Promise((resolve) => {
 			this.mtuReceivedResolve = resolve;
 		});
 
-		// Timeout-Promise
+		// Timeout promise
 		const timeoutPromise = new Promise((resolve) => {
 			setTimeout(() => resolve('timeout'), timeout);
 		});
 
-		// Warten auf MTU oder Timeout
+		// Wait for MTU or timeout
 		const result = await Promise.race([ mtuPromise, timeoutPromise ]);
 
-		// Falls Timeout, selbst ermitteln
+		// If timeout, determine MTU ourselves
 		if (result === 'timeout') {
-			console.warn('Keine MTU-Info vom Server empfangen (Timeout), ermittle selbst...');
+			console.warn('No MTU info received from server (timeout), determining ourselves...');
 			await this.negotiateMTU();
 		} else {
-			console.log('MTU-Info vom Server erfolgreich empfangen');
+			console.log('MTU info from server successfully received');
 		}
 	}
 
 	/**
-	 * MTU durch Testen ermitteln
+	 * Determine MTU by testing
 	 */
 	async negotiateMTU() {
 		const testSizes = [ 517, 251, 185, 158, 131, 104, 77, 50, 23 ];
@@ -174,7 +174,7 @@ export class BLEClient {
 				testData.fill(0xFF);
 				await this.requestChar.writeValue(testData);
 				this.mtu = size;
-				console.log(`MTU-Test erfolgreich: ${size} bytes`);
+				console.log(`MTU test successful: ${size} bytes`);
 				return;
 			} catch (error) {
 				continue;
@@ -182,11 +182,11 @@ export class BLEClient {
 		}
 
 		this.mtu = 23;
-		console.warn('MTU-Aushandlung fehlgeschlagen, verwende Minimum: 23 bytes');
+		console.warn('MTU negotiation failed, using minimum: 23 bytes');
 	}
 
 	/**
-	 * Verbindung trennen
+	 * Disconnect
 	 */
 	async disconnect() {
 		if (this.device && this.device.gatt.connected) {
@@ -196,14 +196,14 @@ export class BLEClient {
 	}
 
 	/**
-	 * Disconnect-Handler
+	 * Disconnect handler
 	 */
 	handleDisconnect() {
-		console.log('Verbindung getrennt');
+		console.log('Connection closed');
 		this.connected = false;
 
 		for (const [messageId, request] of this.pendingRequests) {
-			request.reject(new Error('Verbindung getrennt'));
+			request.reject(new Error('Connection closed'));
 		}
 		this.pendingRequests.clear();
 		this.fragmentBuffers.clear();
@@ -214,7 +214,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Disconnect-Callback registrieren
+	 * Register disconnect callback
 	 * @param {Function} callback
 	 */
 	onDisconnect(callback) {
@@ -222,34 +222,34 @@ export class BLEClient {
 	}
 
 	/**
-	 * Fragment verarbeiten (INTERN)
+	 * Process fragment (INTERNAL)
 	 * @param {DataView} dataView
-	 * @param {string} type - 'response' oder 'event'
+	 * @param {string} type - 'response' or 'event'
 	 */
 	handleFragment(dataView, type) {
 		if (dataView.byteLength < FRAGMENT_HEADER_SIZE) {
-			console.error('Fragment zu klein');
+			console.error('Fragment too small');
 			return;
 		}
 
-		// Header parsen
+		// Parse header
 		const protocolMsgType = dataView.getUint8(0);
 		const messageId = dataView.getUint8(1);
 		const fragmentNum = dataView.getUint16(2);
 		const flags = dataView.getUint8(4);
 
-		console.debug(`Fragment empfangen: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
+		console.debug(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
 
-		// Payload extrahieren
+		// Extract payload
 		const payload = new Uint8Array(
 			dataView.buffer,
 			dataView.byteOffset + FRAGMENT_HEADER_SIZE,
 			dataView.byteLength - FRAGMENT_HEADER_SIZE);
 
-		// Buffer-Key
+		// Buffer key
 		const bufferKey = `${type}-${messageId}`;
 
-		// Buffer initialisieren oder erweitern
+		// Initialize or extend buffer
 		if (!this.fragmentBuffers.has(bufferKey)) {
 			this.fragmentBuffers.set(bufferKey, {
 				fragments : [],
@@ -263,17 +263,17 @@ export class BLEClient {
 		buffer.fragments.push(payload);
 		buffer.timestamp = Date.now();
 
-		// Letztes Fragment?
+		// Last fragment?
 		if (flags & FLAG_LAST_FRAGMENT) {
-			console.debug(`Vollständige Nachricht empfangen: ID=${messageId}, Fragments=${buffer.fragments.length}`);
+			console.debug(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
 
-			// Fragmente zusammenführen
+			// Merge fragments
 			const completeData = this.mergeFragments(buffer.fragments);
 
-			// Buffer freigeben
+			// Release buffer
 			this.fragmentBuffers.delete(bufferKey);
 
-			// Nachricht verarbeiten
+			// Process message
 			if (type === 'response') {
 				this.handleResponse(messageId, completeData);
 			} else if (type === 'event') {
@@ -283,7 +283,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Fragmente zusammenführen
+	 * Merge fragments
 	 * @param {Array<Uint8Array>} fragments
 	 * @returns {Uint8Array}
 	 */
@@ -301,66 +301,66 @@ export class BLEClient {
 	}
 
 	/**
-	 * Response verarbeiten
-	 * @param {number} messageId - Interne Message-ID (Protokoll-Ebene)
-	 * @param {Uint8Array} data - Vollständige Response-Daten (inkl. Application Request Type)
+	 * Process response
+	 * @param {number} messageId - Internal message ID (protocol layer)
+	 * @param {Uint8Array} data - Complete response data (incl. Application Request Type)
 	 */
 	handleResponse(messageId, data) {
 		const pending = this.pendingRequests.get(messageId);
 		if (pending) {
 			clearTimeout(pending.timeout);
 			this.pendingRequests.delete(messageId);
-			// Komplette Daten zurückgeben (inkl. Request Type falls Server ihn zurücksendet)
+			// Return complete data (incl. request type if server sends it back)
 			pending.resolve(data);
 		} else {
-			console.warn(`Keine ausstehende Anfrage für Message ID ${messageId}`);
+			console.warn(`No pending request for message ID ${messageId}`);
 		}
 	}
 
 	/**
-	 * Event verarbeiten
-	 * @param {number} messageId - Interne Message-ID (Protokoll-Ebene)
-	 * @param {Uint8Array} data - Vollständige Event-Daten
+	 * Process event
+	 * @param {number} messageId - Internal message ID (protocol layer)
+	 * @param {Uint8Array} data - Complete event data
 	 */
 	handleEvent(messageId, data) {
 		if (data.length === 0) {
-			console.warn('Event ohne Daten empfangen');
+			console.warn('Event received without data');
 			return;
 		}
 
-		// Erstes Byte ist der Application Event Type
+		// First byte is the Application Event Type
 		const appEventType = data[0];
 		const eventData = data.slice(1);
 
-		console.debug(`Event empfangen: AppEventType=${appEventType}, Size=${eventData.length}`);
+		console.debug(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
 
-		// Event-Listener aufrufen
+		// Call event listeners
 		const listeners = this.eventListeners.get(appEventType);
 		if (listeners) {
 			for (const listener of listeners) {
 				try {
 					listener(eventData);
 				} catch (error) {
-					console.error('Fehler im Event-Listener:', error);
+					console.error('Error in event listener:', error);
 				}
 			}
 		}
 
-		// Wildcard-Listener (für alle Events)
+		// Wildcard listeners (for all events)
 		const wildcardListeners = this.eventListeners.get('*');
 		if (wildcardListeners) {
 			for (const listener of wildcardListeners) {
 				try {
 					listener(appEventType, eventData);
 				} catch (error) {
-					console.error('Fehler im Wildcard-Event-Listener:', error);
+					console.error('Error in wildcard event listener:', error);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Control Message verarbeiten (INTERN)
+	 * Process control message (INTERNAL)
 	 * @param {DataView} dataView
 	 */
 	handleControlMessage(dataView) {
@@ -369,13 +369,13 @@ export class BLEClient {
 
 		const ctrlType = dataView.getUint8(0);
 
-		console.log(`Control Message empfangen: Type=${ctrlType}, Length=${dataView.byteLength}`);
+		console.log(`Control message received: Type=${ctrlType}, Length=${dataView.byteLength}`);
 
 		switch (ctrlType) {
 			case ControlMessageType.MTU_INFO:
 				if (dataView.byteLength >= 4) {
 					const mtu = (dataView.getUint8(2) << 8) | dataView.getUint8(3);
-					console.log(`MTU-Info vom Server: ${mtu} bytes (Nutzlast: ${mtu - 3} bytes)`);
+					console.log(`MTU info from server: ${mtu} bytes (payload: ${mtu - 3} bytes)`);
 					this.mtu = mtu;
 					this.mtuReceived = true;
 
@@ -384,27 +384,27 @@ export class BLEClient {
 						this.mtuReceivedResolve = null;
 					}
 				} else {
-					console.error('MTU_INFO zu kurz:', dataView.byteLength);
+					console.error('MTU_INFO too short:', dataView.byteLength);
 				}
 				break;
 
 			case ControlMessageType.ACK:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.log(`ACK für Message ${messageId}`);
+					console.log(`ACK for message ${messageId}`);
 				}
 				break;
 
 			case ControlMessageType.NACK:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.warn(`NACK für Message ${messageId}`);
+					console.warn(`NACK for message ${messageId}`);
 
 					const pending = this.pendingRequests.get(messageId);
 					if (pending) {
 						clearTimeout(pending.timeout);
 						this.pendingRequests.delete(messageId);
-						pending.reject(new Error(`Server hat Request ${messageId} abgelehnt (NACK)`));
+						pending.reject(new Error(`Server rejected request ${messageId} (NACK)`));
 					}
 				}
 				break;
@@ -412,13 +412,13 @@ export class BLEClient {
 			case ControlMessageType.BUFFER_FULL:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.error(`Buffer voll für Message ${messageId}`);
+					console.error(`Buffer full for message ${messageId}`);
 
 					const pending = this.pendingRequests.get(messageId);
 					if (pending) {
 						clearTimeout(pending.timeout);
 						this.pendingRequests.delete(messageId);
-						pending.reject(new Error(`Server-Buffer voll für Message ${messageId}`));
+						pending.reject(new Error(`Server buffer full for message ${messageId}`));
 					}
 				}
 				break;
@@ -426,32 +426,32 @@ export class BLEClient {
 			case ControlMessageType.RETRY:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.log(`Server fordert Retry für Message ${messageId} an`);
+					console.log(`Server requests retry for message ${messageId}`);
 				}
 				break;
 
 			case ControlMessageType.RESET:
-				console.log('Server fordert Reset an');
+				console.log('Server requests reset');
 				this.fragmentBuffers.clear();
 				break;
 
 			default:
-				console.warn(`Unbekannter Control Type: ${ctrlType}`);
+				console.warn(`Unknown control type: ${ctrlType}`);
 		}
 	}
 
 	/**
-	 * Fragmentierte Nachricht senden (INTERN)
+	 * Send fragmented message (INTERNAL)
 	 * @param {BLECharacteristic} characteristic
 	 * @param {number} protocolMsgType - Protocol Message Type (REQUEST/RESPONSE/EVENT)
-	 * @param {number} messageId - Interne Message-ID
-	 * @param {Uint8Array} data - Vollständige Daten (inkl. Application Type)
+	 * @param {number} messageId - Internal message ID
+	 * @param {Uint8Array} data - Complete data (incl. Application Type)
 	 */
 	async sendFragmented(characteristic, protocolMsgType, messageId, data) {
 		const payloadSize = this.mtu - FRAGMENT_HEADER_SIZE;
 		const totalFragments = Math.ceil(data.length / payloadSize) || 1;
 
-		console.debug(`Sende fragmentiert: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
+		console.debug(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
 
 		for (let i = 0; i < totalFragments; i++) {
 			const fragment = new Uint8Array(Math.min(this.mtu, FRAGMENT_HEADER_SIZE + data.length - i * payloadSize));
@@ -472,10 +472,10 @@ export class BLEClient {
 			const payload = data.slice(start, end);
 			fragment.set(payload, FRAGMENT_HEADER_SIZE);
 
-			// Fragment senden
+			// Send fragment
 			await characteristic.writeValue(fragment.slice(0, FRAGMENT_HEADER_SIZE + payload.length));
 
-			// Kleine Pause zwischen Fragmenten
+			// Small pause between fragments
 			if (i < totalFragments - 1) {
 				await this.sleep(10);
 			}
@@ -483,18 +483,18 @@ export class BLEClient {
 	}
 
 	/**
-	 * Request senden und auf Response warten (Promise-basiert)
-	 * @param {number} appRequestType - Application Request Type (z.B. 1=Echo, 2=GetStatus, 3=SetConfig)
-	 * @param {Uint8Array|Array|string} data - Request-Daten
-	 * @param {number} timeout - Timeout in Millisekunden
-	 * @returns {Promise<Uint8Array>} - Response-Daten
+	 * Send request and wait for response (promise-based)
+	 * @param {number} appRequestType - Application Request Type (e.g. 1=Echo, 2=GetStatus, 3=SetConfig)
+	 * @param {Uint8Array|Array|string} data - Request data
+	 * @param {number} timeout - Timeout in milliseconds
+	 * @returns {Promise<Uint8Array>} - Response data
 	 */
 	async sendRequest(appRequestType, data = [], timeout = DEFAULT_TIMEOUT_MS) {
 		if (!this.connected) {
-			throw new Error('Nicht verbunden');
+			throw new Error('Not connected');
 		}
 
-		// Daten in Uint8Array konvertieren
+		// Convert data to Uint8Array
 		let payload;
 		if (typeof data === 'string') {
 			payload = new TextEncoder().encode(data);
@@ -503,10 +503,10 @@ export class BLEClient {
 		} else if (Array.isArray(data)) {
 			payload = new Uint8Array(data);
 		} else {
-			throw new Error('Ungültiges Datenformat');
+			throw new Error('Invalid data format');
 		}
 
-		// Request-Daten: [Application Request Type][Payload...]
+		// Request data: [Application Request Type][Payload...]
 		const requestData = new Uint8Array(1 + payload.length);
 		requestData[0] = appRequestType;
 		requestData.set(payload, 1);
@@ -516,13 +516,13 @@ export class BLEClient {
 			this.currentMessageId = 0;
 
 		return new Promise((resolve, reject) => {
-			// Timeout setzen
+			// Set timeout
 			const timeoutId = setTimeout(() => {
 				this.pendingRequests.delete(messageId);
-				reject(new Error(`Request Timeout (${timeout}ms)`));
+				reject(new Error(`Request timeout (${timeout}ms)`));
 			}, timeout);
 
-			// Request registrieren
+			// Register request
 			this.pendingRequests.set(messageId, {
 				resolve,
 				reject,
@@ -530,7 +530,7 @@ export class BLEClient {
 				timestamp : Date.now()
 			});
 
-			// Request senden (Protocol Type = REQUEST)
+			// Send request (Protocol Type = REQUEST)
 			this.sendFragmented(this.requestChar, ProtocolMessageType.REQUEST, messageId, requestData)
 				.catch(error => {
 					clearTimeout(timeoutId);
@@ -541,7 +541,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Request mit automatischem Retry senden
+	 * Send request with automatic retry
 	 * @param {number} appRequestType - Application Request Type
 	 * @param {Uint8Array|Array|string} data
 	 * @param {number} maxRetries
@@ -553,15 +553,15 @@ export class BLEClient {
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				console.debug(`Request-Versuch ${attempt + 1}/${maxRetries}`);
+				console.debug(`Request attempt ${attempt + 1}/${maxRetries}`);
 				return await this.sendRequest(appRequestType, data, timeout);
 			} catch (error) {
 				lastError = error;
-				console.warn(`Request fehlgeschlagen (Versuch ${attempt + 1}):`, error.message);
+				console.warn(`Request failed (attempt ${attempt + 1}):`, error.message);
 
 				if (attempt < maxRetries - 1) {
 					const delay = 1000 * Math.pow(2, attempt);
-					console.warn(`Warte ${delay}ms vor erneutem Versuch...`);
+					console.warn(`Waiting ${delay}ms before retry...`);
 					await this.sleep(delay);
 				}
 			}
@@ -571,9 +571,9 @@ export class BLEClient {
 	}
 
 	/**
-	 * Event-Listener registrieren
-	 * @param {number|string} appEventType - Application Event Type oder '*' für alle Events
-	 * @param {Function} callback - Callback-Funktion (data: Uint8Array)
+	 * Register event listener
+	 * @param {number|string} appEventType - Application Event Type or '*' for all events
+	 * @param {Function} callback - Callback function (data: Uint8Array)
 	 */
 	addEventListener(appEventType, callback) {
 		if (!this.eventListeners.has(appEventType)) {
@@ -581,11 +581,11 @@ export class BLEClient {
 		}
 		this.eventListeners.get(appEventType).push(callback);
 
-		console.log(`Event-Listener registriert für AppEventType: ${appEventType}`);
+		console.log(`Event listener registered for AppEventType: ${appEventType}`);
 	}
 
 	/**
-	 * Event-Listener entfernen
+	 * Remove event listener
 	 * @param {number|string} appEventType
 	 * @param {Function} callback
 	 */
@@ -604,7 +604,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Control Message senden (INTERN)
+	 * Send control message (INTERNAL)
 	 * @param {number} ctrlType
 	 * @param {number} messageId
 	 */
@@ -614,7 +614,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Hilfsfunktion: Sleep
+	 * Helper function: Sleep
 	 * @param {number} ms
 	 * @returns {Promise<void>}
 	 */
@@ -623,7 +623,7 @@ export class BLEClient {
 	}
 
 	/**
-	 * Verbindungsstatus
+	 * Connection status
 	 * @returns {boolean}
 	 */
 	isConnected() {
@@ -632,8 +632,8 @@ export class BLEClient {
 }
 
 export const APP_REQUEST_TYPE_STOP_PROGRAM = 0x01;
-export const APP_REQUEST_TYPE_GET_ROJECT_FILE = 0x02;
-export const APP_REQUEST_TYPE_PUT_ROJECT_FILE = 0x03;
+export const APP_REQUEST_TYPE_GET_PROJECT_FILE = 0x02;
+export const APP_REQUEST_TYPE_PUT_PROJECT_FILE = 0x03;
 export const APP_REQUEST_TYPE_DELETE_PROJECT = 0x04;
 export const APP_REQUEST_TYPE_SYNTAX_CHECK = 0x05;
 export const APP_REQUEST_TYPE_RUN_PROGRAM = 0x06;

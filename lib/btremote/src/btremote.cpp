@@ -5,10 +5,10 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
-#include <BLE2902.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
+#include <NimBLEDevice.h>
+#include <NimBLEServer.h>
+#include <NimBLEUtils.h>
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -24,8 +24,8 @@
 #define FLAG_ERROR		   0x02
 
 #define APP_REQUEST_TYPE_STOP_PROGRAM	  0x01
-#define APP_REQUEST_TYPE_GET_ROJECT_FILE  0x02
-#define APP_REQUEST_TYPE_PUT_ROJECT_FILE  0x03
+#define APP_REQUEST_TYPE_GET_PROJECT_FILE 0x02
+#define APP_REQUEST_TYPE_PUT_PROJECT_FILE 0x03
 #define APP_REQUEST_TYPE_DELETE_PROJECT	  0x04
 #define APP_REQUEST_TYPE_SYNTAX_CHECK	  0x05
 #define APP_REQUEST_TYPE_RUN_PROGRAM	  0x06
@@ -37,6 +37,14 @@
 #define APP_EVENT_TYPE_LOG		  0x01
 #define APP_EVENT_TYPE_PORTSTATUS 0x02
 #define APP_EVENT_TYPE_COMMAND	  0x03
+
+// Delay zwischen Fragmenten (in ms)
+// Small delay to allow browser's JS event loop to process events
+// Much lower now that we're not blocking in callback context
+const uint32_t INTER_FRAGMENT_DELAY_MS = 100;
+
+// Task-Loop-Delay (in ms) - CPU-Zeit freigeben
+const uint32_t TASK_LOOP_DELAY_MS = 10;
 
 /**
  * Convert Arduino String to std::vector<uint8_t>
@@ -94,7 +102,7 @@ inline bool serializeJsonToVector(const JsonDocument &doc, std::vector<uint8_t> 
 	size_t written = serializeJson(doc, (char *) buffer.data(), size);
 
 	if (written != size) {
-		WARN("Expected %d bytes, wrote %d bytes\n", size, written);
+		WARN("Expected %d bytes, wrote %d bytes", size, written);
 		buffer.resize(written);
 	}
 
@@ -184,12 +192,26 @@ inline bool parseJsonFromVector(const std::vector<uint8_t> &buffer, Func fn) {
 	return true;
 }
 
+// Structure to hold pending file transfer requests
+struct PendingFileTransfer {
+	uint8_t messageId;
+	String project;
+	String filename;
+};
+
 void btLogForwarderTask(void *param) {
 	BTRemote *server = (BTRemote *) param;
 	while (true) {
 		server->publishLogMessages();
 		server->publishCommands();
 		server->publishPortstatus();
+	}
+}
+
+void btResponseSenderTask(void *param) {
+	BTRemote *server = (BTRemote *) param;
+	while (true) {
+		server->processResponseQueue();
 	}
 }
 
@@ -200,15 +222,22 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, deviceConnected_(false)
 	, readyForEvents_(false)
 	, mtu_(23)
-	, nextMessageId_(0) {
+	, nextMessageId_(0)
+	, responseQueue_(nullptr)
+	, responseSenderTaskHandle_(nullptr) {
+	// Create response queue (max 3 pending file transfers)
+	responseQueue_ = xQueueCreate(3, sizeof(PendingFileTransfer));
 }
 
 void BTRemote::begin(const char *deviceName) {
-	BLEDevice::init(deviceName);
-	BLEDevice::setMTU(517); // Try maximum MTU
+	// NimBLE initialisieren
+	NimBLEDevice::init(deviceName);
+
+	// MTU setzen - NimBLE unterstützt bis zu 512
+	NimBLEDevice::setMTU(517);
 
 	// Server erstellen
-	pServer_ = BLEDevice::createServer();
+	pServer_ = NimBLEDevice::createServer();
 	pServer_->setCallbacks(this);
 
 	// Service erstellen
@@ -217,85 +246,87 @@ void BTRemote::begin(const char *deviceName) {
 	// Request Characteristic (Write)
 	pRequestChar_ = pService_->createCharacteristic(
 		REQUEST_CHAR_UUID,
-		BLECharacteristic::PROPERTY_WRITE);
+		NIMBLE_PROPERTY::WRITE);
 	pRequestChar_->setCallbacks(this);
 
-	// Response Characteristic (Notify)
+	// Response Characteristic (Indicate - provides automatic flow control)
 	pResponseChar_ = pService_->createCharacteristic(
 		RESPONSE_CHAR_UUID,
-		BLECharacteristic::PROPERTY_NOTIFY);
-	pResponseChar_->addDescriptor(new BLE2902());
+		NIMBLE_PROPERTY::INDICATE);
 
-	// Event Characteristic (Notify)
+	// Event Characteristic (Indicate - provides automatic flow control)
 	pEventChar_ = pService_->createCharacteristic(
 		EVENT_CHAR_UUID,
-		BLECharacteristic::PROPERTY_NOTIFY);
-	pEventChar_->addDescriptor(new BLE2902());
+		NIMBLE_PROPERTY::INDICATE);
 
 	// Control Characteristic (Write/Notify)
 	pControlChar_ = pService_->createCharacteristic(
 		CONTROL_CHAR_UUID,
-		BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+		NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
 	pControlChar_->setCallbacks(this);
-	pControlChar_->addDescriptor(new BLE2902());
 
 	// Service starten
 	pService_->start();
 
-	// Advertising starten
-	BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+	// Advertising konfigurieren und starten
+	NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
 	pAdvertising->addServiceUUID(SERVICE_UUID);
-	pAdvertising->setScanResponse(true);
-	pAdvertising->setMinPreferred(0x06);
-	pAdvertising->setMinPreferred(0x12);
-	BLEDevice::startAdvertising();
+	pAdvertising->enableScanResponse(true);
+	pAdvertising->setPreferredParams(0x06, 0x12); // 22.5ms
+
+	if (!NimBLEDevice::startAdvertising()) {
+		ERROR("Failed to start advertising!");
+	}
 
 	// General Event handler for all incoming requests
 	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t> &payload) {
-		INFO("Processing BTMessage with id %d and appRequestType %d", messageId, appRequestType);
+		INFO("Processing BT message with id %d and appRequestType %d", messageId, appRequestType);
 
 		parseJsonFromVector(payload, [this, messageId, appRequestType](const JsonDocument &requestDoc) {
 			std::vector<uint8_t> response;
-			createJsonResponse(response, [this, appRequestType, requestDoc](JsonDocument &responseDoc) {
-				bool result = false;
-				switch (appRequestType) {
-					case APP_REQUEST_TYPE_STOP_PROGRAM:
-						result = reqStopProgram(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_GET_ROJECT_FILE:
-						result = reqGetProjectFile(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_PUT_ROJECT_FILE:
-						result = reqPutProjectFile(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_DELETE_PROJECT:
-						result = reqDeleteProject(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_SYNTAX_CHECK:
-						result = reqSyntaxCheck(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_RUN_PROGRAM:
-						result = reqRun(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_GET_PROJECTS:
-						result = reqGetProjects(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_GET_AUTOSTART:
-						result = reqGetAutostart(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_PUT_AUTOSTART:
-						result = reqPutAutostart(requestDoc, responseDoc);
-						break;
-					case APP_REQUEST_TYPE_READY_FOR_EVENTS:
-						result = reqReadyForEvents(requestDoc, responseDoc);
-						break;
-					default:
-						WARN("Not supported appRequestType : %d", appRequestType);
-						responseDoc["error"] = "Not supported appRequestType!";
-						break;
-				}
-				responseDoc["result"] = result;
-			});
+			if (appRequestType == APP_REQUEST_TYPE_GET_PROJECT_FILE) {
+				// Special Case, responding with a large file
+				reqGetProjectFile(messageId, requestDoc);
+				return;
+			} else {
+				createJsonResponse(response, [this, appRequestType, requestDoc](JsonDocument &responseDoc) {
+					bool result = false;
+					switch (appRequestType) {
+						case APP_REQUEST_TYPE_STOP_PROGRAM:
+							result = reqStopProgram(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_PUT_PROJECT_FILE:
+							result = reqPutProjectFile(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_DELETE_PROJECT:
+							result = reqDeleteProject(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_SYNTAX_CHECK:
+							result = reqSyntaxCheck(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_RUN_PROGRAM:
+							result = reqRun(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_GET_PROJECTS:
+							result = reqGetProjects(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_GET_AUTOSTART:
+							result = reqGetAutostart(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_PUT_AUTOSTART:
+							result = reqPutAutostart(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_READY_FOR_EVENTS:
+							result = reqReadyForEvents(requestDoc, responseDoc);
+							break;
+						default:
+							WARN("Not supported appRequestType: %d", appRequestType);
+							responseDoc["error"] = "Not supported appRequestType!";
+							break;
+					}
+					responseDoc["result"] = result;
+				});
+			}
 
 			sendResponse(messageId, response);
 		});
@@ -311,31 +342,52 @@ void BTRemote::begin(const char *deviceName) {
 		&logforwarderTaskHandle_ // Store task handle for cancellation
 	);
 
-	INFO("BLE Server started as ID %s, waiting for Connections...", SERVICE_UUID);
+	// Response sender task - runs outside callback context
+	xTaskCreate(
+		btResponseSenderTask,
+		"BTResponseSender",
+		8192, // Larger stack for file operations
+		(void *) this,
+		2, // Higher priority than log forwarder
+		&responseSenderTaskHandle_);
+
+	INFO("BLE Server started as ID %s, waiting for connections...", SERVICE_UUID);
 }
 
 // Server Callbacks
-void BTRemote::onConnect(BLEServer *pServer) {
+void BTRemote::onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) {
 	readyForEvents_ = false;
 	deviceConnected_ = true;
-	mtu_ = pServer->getPeerMTU(pServer->getConnId()) - 3; // ATT Header abziehen
-	INFO("Client connected, MTU: %d", mtu_);
+	mtu_ = connInfo.getMTU() - 3; // ATT Header abziehen
 
-	// send MTU to client
-	vTaskDelay(pdMS_TO_TICKS(200));
+	INFO("Client connected, MTU: %d, was notified with MTU %d", mtu_, connInfo.getMTU());
+
+	// MTU-Info an Client senden (kleine Verzögerung für Stabilität)
+	vTaskDelay(pdMS_TO_TICKS(100));
 	sendMTUNotification();
 }
 
-void BTRemote::onDisconnect(BLEServer *pServer) {
+void BTRemote::onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) {
 	readyForEvents_ = false;
 	deviceConnected_ = false;
 	fragmentBuffers_.clear();
+
 	INFO("Client disconnected");
-	BLEDevice::startAdvertising();
+
+	// Advertising neu starten
+	if (!NimBLEDevice::startAdvertising()) {
+		ERROR("Failed to restart advertising after disconnect!");
+	}
+}
+
+void BTRemote::onMTUChange(uint16_t mtu, NimBLEConnInfo &connInfo) {
+	mtu_ = max(12, mtu - 3); // ATT Header abziehen
+	INFO("MTU changed to: %d, was notified with %d", mtu_, mtu);
+	sendMTUNotification();
 }
 
 // Characteristic Callbacks
-void BTRemote::onWrite(BLECharacteristic *pCharacteristic) {
+void BTRemote::onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) {
 	std::string value = pCharacteristic->getValue();
 
 	if (value.length() < FRAGMENT_HEADER_SIZE) {
@@ -363,11 +415,19 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	DEBUG("Fragment received: ProtocolType=%d, ID=%d, Num=%d, Flags=0x%02X",
 		(uint8_t) protocolType, messageId, fragmentNum, flags);
 
+	// Memory Safety: Prüfe ob Limit erreicht
+	if (fragmentBuffers_.size() >= MAX_CONCURRENT_MESSAGES && fragmentBuffers_.find(messageId) == fragmentBuffers_.end()) {
+		WARN("Max concurrent messages reached (%d), rejecting message ID %d",
+			MAX_CONCURRENT_MESSAGES, messageId);
+		sendControlMessage(ControlMessageType::BUFFER_FULL, messageId);
+		return;
+	}
+
 	// Buffer für diese Message ID holen oder erstellen
 	auto &buffer = fragmentBuffers_[messageId];
 
 	if (fragmentNum == 0) {
-		// Erste Fragment - Buffer initialisieren
+		// Erstes Fragment - Buffer initialisieren
 		buffer.data.clear();
 		buffer.lastFragmentTime = millis();
 		buffer.receivedFragments = 0;
@@ -376,7 +436,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 
 	// Timeout prüfen
 	if (millis() - buffer.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
-		WARN("Fragment timeout for Message ID %d", messageId);
+		WARN("Fragment timeout for message ID %d", messageId);
 		fragmentBuffers_.erase(messageId);
 		sendControlMessage(ControlMessageType::NACK, messageId);
 		return;
@@ -390,7 +450,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 
 	// Overflow-Schutz
 	if (buffer.data.size() + payloadSize > MAX_BUFFER_SIZE) {
-		WARN("Buffer overflow für Message ID %d", messageId);
+		WARN("Buffer overflow for message ID %d", messageId);
 		fragmentBuffers_.erase(messageId);
 		sendControlMessage(ControlMessageType::BUFFER_FULL, messageId);
 		return;
@@ -401,7 +461,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 
 	// Letztes Fragment?
 	if (flags & FLAG_LAST_FRAGMENT) {
-		DEBUG("Complete Message received: ID=%d, Size=%d",
+		DEBUG("Complete message received: ID=%d, Size=%d",
 			messageId, buffer.data.size());
 
 		// Vollständige Message verarbeiten
@@ -422,7 +482,7 @@ void BTRemote::processCompleteMessage(ProtocolMessageType protocolType, uint8_t 
 		uint8_t appRequestType = data[0];
 		std::vector<uint8_t> payload(data.begin() + 1, data.end());
 
-		DEBUG("Processinf Request AppRequestType=%d, Payload-Size=%d",
+		DEBUG("Processing request AppRequestType=%d, Payload-Size=%d",
 			appRequestType, payload.size());
 
 		if (onRequestCallback_) {
@@ -440,41 +500,97 @@ void BTRemote::handleControlMessage(const uint8_t *data, size_t length) {
 	ControlMessageType ctrlType = (ControlMessageType) data[0];
 	uint8_t messageId = data[1];
 
-	DEBUG("Control Message: Type=%d, ID=%d", (uint8_t) ctrlType, messageId);
+	DEBUG("Control message: Type=%d, ID=%d", (uint8_t) ctrlType, messageId);
 
 	switch (ctrlType) {
 		case ControlMessageType::RETRY:
 			// Client fordert Retry an
+			WARN("Client requested retry for message ID %d", messageId);
 			break;
 		case ControlMessageType::RESET:
+			INFO("Client requested reset");
 			fragmentBuffers_.clear();
 			break;
 		default:
 			break;
 	}
 }
+bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider) {
+	if (!deviceConnected_) {
+		WARN("Kein Client verbunden");
+		return false;
+	}
+
+	size_t payloadSize = min((size_t) 512, mtu_) - FRAGMENT_HEADER_SIZE;
+	size_t totalFragments = (totalSize + payloadSize - 1) / payloadSize;
+
+	if (totalFragments == 0) {
+		totalFragments = 1;
+	}
+
+	DEBUG("Sending fragmented: ID=%d, Size=%d, Fragments=%d",
+		messageId, totalSize, totalFragments);
+
+	size_t remaining = totalSize;
+	for (int i = 0; i < totalFragments; i++) {
+		DEBUG("Sending fragment %d/%d with MTU %d and payload size %d", i + 1, totalFragments, mtu_, payloadSize);
+		std::vector<uint8_t> fragment;
+		fragment.reserve(payloadSize);
+
+		// Header
+		fragment.push_back((uint8_t) ProtocolMessageType::RESPONSE);
+		fragment.push_back(messageId);
+		fragment.push_back((i >> 8) & 0xFF);
+		fragment.push_back(i & 0xFF);
+
+		// Flags
+		uint8_t flags = (i == totalFragments - 1) ? FLAG_LAST_FRAGMENT : 0x00;
+		fragment.push_back(flags);
+
+		int read = chunkProvider(i, payloadSize, fragment);
+		DEBUG("Read %d bytes for chunk with index %d, fragment size is %d, flags is %d", read, i, fragment.size(), flags);
+
+		// Using indicate() instead of notify() - provides automatic flow control
+		// The indicate() call blocks until client ACK is received
+		pResponseChar_->setValue(fragment.data(), fragment.size());
+		if (!pResponseChar_->indicate()) {
+			ERROR("Failed to indicate fragment %d of %d", i + 1, totalFragments);
+			return false;
+		}
+
+		// Note: indicate() already blocks until ACK, which may provide enough time
+		// for browser's JS event loop. Only add delay if events are still dropped.
+		// Uncomment if needed:
+		if (i < totalFragments - 1) {
+			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
+		}
+	}
+
+	return true;
+}
 
 // Fragmentierte Nachricht senden
-bool BTRemote::sendFragmented(BLECharacteristic *characteristic, ProtocolMessageType protocolType,
+bool BTRemote::sendFragmented(NimBLECharacteristic *characteristic, ProtocolMessageType protocolType,
 	uint8_t messageId, const std::vector<uint8_t> &data) {
 	if (!deviceConnected_) {
 		WARN("Kein Client verbunden");
 		return false;
 	}
 
-	size_t payloadSize = mtu_ - FRAGMENT_HEADER_SIZE;
+	size_t payloadSize = min((size_t) 512, mtu_) - FRAGMENT_HEADER_SIZE;
 	size_t totalFragments = (data.size() + payloadSize - 1) / payloadSize;
 
 	if (totalFragments == 0) {
 		totalFragments = 1;
 	}
 
-	DEBUG("Sendiong fragmented: ProtocolType=%d, ID=%d, Size=%d, Fragments=%d",
+	DEBUG("Sending fragmented: ProtocolType=%d, ID=%d, Size=%d, Fragments=%d",
 		(uint8_t) protocolType, messageId, data.size(), totalFragments);
 
 	for (size_t i = 0; i < totalFragments; i++) {
+		DEBUG("Sending fragment %d with MTU %d and payload size %d", i, mtu_, payloadSize);
 		std::vector<uint8_t> fragment;
-		fragment.reserve(mtu_);
+		fragment.reserve(payloadSize);
 
 		// Header
 		fragment.push_back((uint8_t) protocolType);
@@ -494,12 +610,20 @@ bool BTRemote::sendFragmented(BLECharacteristic *characteristic, ProtocolMessage
 			fragment.insert(fragment.end(), data.begin() + start, data.begin() + end);
 		}
 
-		// Fragment senden
+		// Fragment senden mit Error-Handling
+		// Using indicate() instead of notify() - provides automatic flow control
 		characteristic->setValue(fragment.data(), fragment.size());
-		characteristic->notify();
+		if (!characteristic->indicate()) {
+			ERROR("Failed to indicate fragment %d of %d", i + 1, totalFragments);
+			return false;
+		}
 
-		// Kleine Pause zwischen Fragmenten (wichtig!)
-		delay(10);
+		// Note: indicate() already blocks until ACK, which may provide enough time
+		// for browser's JS event loop. Only add delay if events are still dropped.
+		// Uncomment if needed:
+		if (i < totalFragments - 1) {
+			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
+		}
 	}
 
 	return true;
@@ -511,9 +635,12 @@ bool BTRemote::sendResponse(uint8_t messageId, const std::vector<uint8_t> &data)
 }
 
 // Event senden
+// Note: This is called from publishLogMessages/publishCommands/publishPortstatus
+// which run in background task context (not callback), so direct sending is safe
 bool BTRemote::sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data) {
 	// Event-Daten: [Application Event Type][Payload...]
 	std::vector<uint8_t> eventData;
+	eventData.reserve(data.size() + 1);
 	eventData.push_back(appEventType);
 	eventData.insert(eventData.end(), data.begin(), data.end());
 
@@ -528,7 +655,9 @@ void BTRemote::sendControlMessage(ControlMessageType type, uint8_t messageId) {
 
 	uint8_t data[2] = {(uint8_t) type, messageId};
 	pControlChar_->setValue(data, 2);
-	pControlChar_->notify();
+	if (!pControlChar_->notify()) {
+		ERROR("Failed to send control message type %d", (uint8_t) type);
+	}
 }
 
 // MTU-Information an Client senden
@@ -544,13 +673,14 @@ void BTRemote::sendMTUNotification() {
 	data[3] = mtu_ & 0xFF;
 
 	pControlChar_->setValue(data, 4);
-	pControlChar_->notify();
-
-	INFO("MTU-Info sent: %d bytes", mtu_);
+	if (!pControlChar_->notify()) {
+		ERROR("Failed to send MTU notification");
+	} else {
+		INFO("MTU-Info sent: %d bytes", mtu_);
+	}
 }
 
 // Request Callback registrieren
-// Callback-Signatur: void callback(uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t>& payload)
 void BTRemote::onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback) {
 	onRequestCallback_ = callback;
 }
@@ -561,7 +691,7 @@ void BTRemote::loop() {
 
 	for (auto it = fragmentBuffers_.begin(); it != fragmentBuffers_.end();) {
 		if (now - it->second.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
-			WARN("Timeout: Message ID %d entfernt", it->first);
+			WARN("Timeout: Message ID %d removed", it->first);
 			sendControlMessage(ControlMessageType::NACK, it->first);
 			it = fragmentBuffers_.erase(it);
 		} else {
@@ -583,7 +713,7 @@ void BTRemote::publishLogMessages() {
 	while (logMessage.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
 			std::vector<uint8_t> response;
-			createJsonResponse(response, [this, logMessage](JsonDocument &responseDoc) {
+			createJsonResponse(response, [logMessage](JsonDocument &responseDoc) {
 				responseDoc["message"] = logMessage;
 			});
 
@@ -610,17 +740,17 @@ void BTRemote::publishCommands() {
 }
 
 void BTRemote::publishPortstatus() {
-	String command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
-	while (command.length() > 0) {
+	String status = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+	while (status.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
 
 			std::vector<uint8_t> response;
-			stringToVector(command, response);
+			stringToVector(status, response);
 
 			sendEvent(APP_EVENT_TYPE_PORTSTATUS, response);
 		}
 
-		command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+		status = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
 	}
 }
 
@@ -628,33 +758,64 @@ bool BTRemote::reqStopProgram(const JsonDocument &requestDoc, JsonDocument &resp
 	return hub_->stopLUACode();
 }
 
-bool BTRemote::reqGetProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
+bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestDoc) {
 	String project = requestDoc["project"].as<String>();
 	String filename = requestDoc["filename"].as<String>();
 
-	INFO("Fetching file %s of project %s", filename.c_str(), project.c_str());
+	INFO("Queueing file transfer request for %s of project %s", filename.c_str(), project.c_str());
 
-	String content = configuration_->getProjectFileContentAsString(project, filename);
-	INFO("Response has size %d", content.length());
+	// Queue the request instead of sending directly (to avoid blocking in callback)
+	PendingFileTransfer transfer = {messageId, project, filename};
+	if (xQueueSend(responseQueue_, &transfer, 0) != pdTRUE) {
+		WARN("Response queue full, dropping file transfer request");
+		return false;
+	}
 
-	responseDoc["content"] = content;
-
-	INFO("Done, returning content");
 	return true;
 }
 
-bool BTRemote::reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+void BTRemote::processResponseQueue() {
+	PendingFileTransfer transfer;
 
+	// Wait for a pending transfer request (blocks until available)
+	if (xQueueReceive(responseQueue_, &transfer, portMAX_DELAY) == pdTRUE) {
+		INFO("Processing queued file transfer for %s of project %s",
+			transfer.filename.c_str(), transfer.project.c_str());
+
+		File projectFile = configuration_->getProjectFile(transfer.project, transfer.filename);
+		if (projectFile) {
+			size_t projectSize = projectFile.size();
+			INFO("Response has size %d", projectSize);
+
+			// Now we're in a separate task context, safe to do long-running operations
+			sendLargeResponse(transfer.messageId, projectSize, [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer) {
+				INFO("Reading chunk with index %d from file", index);
+				char buffer[maxChunkSize];
+				size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
+				for (int i = 0; i < read; i++) {
+					dataContainer.push_back(buffer[i]);
+				}
+				INFO("Read %d bytes from file for chunk %d", read, index);
+				return read;
+			});
+
+			projectFile.close();
+		} else {
+			WARN("File not found: %s/%s", transfer.project.c_str(), transfer.filename.c_str());
+		}
+	}
+}
+
+bool BTRemote::reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
 	String project = requestDoc["project"].as<String>();
 	String filename = requestDoc["filename"].as<String>();
 	String content = requestDoc["content"].as<String>();
 
+	INFO("Saving file %s to project %s", filename.c_str(), project.c_str());
 	return configuration_->writeProjectFileContent(project, filename, content);
 }
 
 bool BTRemote::reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	String project = requestDoc["project"].as<String>();
 
 	configuration_->deleteProject(project);
@@ -663,7 +824,6 @@ bool BTRemote::reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &re
 }
 
 bool BTRemote::reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	String luaScript = requestDoc["luaScript"].as<String>();
 
 	LuaCheckResult result = hub_->checkLUACode(luaScript);
@@ -674,7 +834,6 @@ bool BTRemote::reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &resp
 }
 
 bool BTRemote::reqRun(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	String luaScript = requestDoc["luaScript"].as<String>();
 
 	hub_->executeLUACode(luaScript);
@@ -682,12 +841,11 @@ bool BTRemote::reqRun(const JsonDocument &requestDoc, JsonDocument &responseDoc)
 }
 
 bool BTRemote::reqGetProjects(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	JsonArray projectList = responseDoc["projects"].to<JsonArray>();
 
 	std::vector<String> foundProjects = configuration_->getProjects();
 	INFO("%d projects found", foundProjects.size());
-	for (int i = 0; i < foundProjects.size(); i++) {
+	for (size_t i = 0; i < foundProjects.size(); i++) {
 		JsonObject entry = projectList.add<JsonObject>();
 		entry["name"] = String(foundProjects[i]);
 	}
@@ -696,7 +854,6 @@ bool BTRemote::reqGetProjects(const JsonDocument &requestDoc, JsonDocument &resp
 }
 
 bool BTRemote::reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	String autostartProject = configuration_->getAutostartProject();
 	if (autostartProject.length() > 0) {
 		responseDoc["project"] = autostartProject;
@@ -707,7 +864,6 @@ bool BTRemote::reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &res
 }
 
 bool BTRemote::reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
-
 	if (configuration_->setAutostartProject(requestDoc["project"].as<String>())) {
 		return true;
 	}

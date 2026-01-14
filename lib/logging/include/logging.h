@@ -50,6 +50,7 @@ public:
 #ifdef LOGGING_ENABLED
 	#define INFO(msg, ...) Logging::instance()->genericLog("[INFO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
 	#define WARN(msg, ...) Logging::instance()->genericLog("[WARN] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
+	#define ERROR(msg, ...) Logging::instance()->genericLog("[ERRO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
 #endif
 
 #ifdef DEBUG_LOGGING_ENABLED
@@ -59,6 +60,7 @@ public:
 #ifndef LOGGING_ENABLED
 	#define INFO(msg, ...)
 	#define WARN(msg, ...)
+	#define ERROR(msg, ...)
 #endif
 
 #ifndef DEBUG_LOGGING_ENABLED

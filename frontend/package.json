@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode dev",
+    "dev:bt": "vite --mode bt",
     "build:dev": "vite build --mode dev",
     "build:bt": "vite build --mode bt",
     "build:web": "vite build --mode web",

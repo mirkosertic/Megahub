@@ -216,6 +216,12 @@ bool Configuration::writeFileChunkToProject(String projectId, String fileName, u
 	return true;
 }
 
+File Configuration::getProjectFile(String projectId, String fileName) {
+	String path = "/project/" + projectId + "/" + fileName;
+
+	return fs_->open(path, FILE_READ);
+}
+
 void Configuration::streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget &streamTarget) {
 	INFO("webserver() - start sending data to client");
 
@@ -287,20 +293,6 @@ void Configuration::deleteProject(String projectId) {
 	String path = "/project/" + projectId;
 
 	deleteDirectory(path);
-}
-
-String Configuration::getProjectFileContentAsString(String projectId, String fileName) {
-	String path = "/project/" + projectId + "/" + fileName;
-
-	File content = fs_->open(path, FILE_READ);
-	if (content) {
-		DEBUG("Reading file %s", path.c_str());
-		String strContent = content.readString();
-		content.close();
-		return strContent;
-	}
-	WARN("Cannot open file %s to read", path.c_str());
-	return "";
 }
 
 bool Configuration::writeProjectFileContent(String project, String filename, String &strContent) {

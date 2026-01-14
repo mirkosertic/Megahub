@@ -422,3 +422,85 @@ custom-blockly {
     color: var(--vscode-bg-primary);
   }
 }
+
+
+/* ===== Bluetooth Connect Welcome Screen ===== */
+
+.global-layout-sidebar .welcome {
+  grid-area: content;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  background: var(--vscode-bg-primary);
+}
+
+#btconnect {
+  /* Layout & Sizing */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-xl);
+  min-height: var(--button-height-mobile);
+
+  /* Appearance */
+  background: var(--vscode-accent-blue-dark);
+  color: var(--vscode-text-bright);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-md);
+
+  /* Typography */
+  font-size: var(--font-base);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-base);
+
+  /* Animation */
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* Bluetooth icon (using CSS) */
+#btconnect::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+/* Hover state */
+#btconnect:hover:not(:disabled) {
+  background: var(--vscode-accent-blue-hover);
+  border-color: var(--vscode-accent-blue);
+}
+
+/* Active/pressed state */
+#btconnect:active:not(:disabled) {
+  background: var(--vscode-accent-blue);
+}
+
+/* Disabled state */
+#btconnect:disabled {
+  background: var(--vscode-bg-elevated);
+  color: var(--vscode-text-secondary);
+  border-color: var(--vscode-border-light);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+#btconnect:disabled::before {
+  filter: grayscale(100%) opacity(0.5);
+}
+
+/* Desktop: Compact button sizing */
+@media (min-width: 1024px) {
+  #btconnect {
+    min-height: var(--button-height-desktop);
+    padding: var(--spacing-sm) var(--spacing-lg);
+  }
+}
