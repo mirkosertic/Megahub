@@ -1,5 +1,7 @@
 name: PlatformIO CI
-on: [push]
+on:
+  push:
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
