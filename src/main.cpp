@@ -2,7 +2,6 @@
 
 #include "SC16IS752.h"
 #include "SC16IS752serialadapter.h"
-#include "btcontroller.h"
 #include "btremote.h"
 #include "configuration.h"
 #include "hubwebserver.h"
@@ -25,7 +24,6 @@ Megahub *megahub = NULL;
 HubWebServer *webserver = NULL;
 Configuration *configuration = NULL;
 SerialLoggingOutput *loggingOutput = NULL;
-BluetoothController *bluetoothController;
 BTRemote *btremote = NULL;
 
 #define GPIO_SPI_SS	  GPIO_NUM_4
@@ -82,9 +80,6 @@ void setup() {
 		}
 	}
 
-	INFO("Creating Bluetooth Controller interface")
-	bluetoothController = new BluetoothController();
-
 	INFO("Initializing SC16IS752 1 on I2C bus...");
 	i2cuart1 = new SC16IS752(SC16IS750_PROTOCOL_I2C, SC16IS750_ADDRESS_AA);
 	i2cuart1->begin(2400, 2400);
@@ -126,11 +121,6 @@ void setup() {
 	if (configuration->isBTEnabled()) {
 		INFO("Initializing BT Remote interface")
 		btremote = new BTRemote(&SD, megahub, loggingOutput, configuration);
-
-		INFO("Initializing Bluetooth controller interface");
-		bluetoothController->init();
-
-		INFO("Initializing BT Remote");
 		btremote->begin(megahub->name().c_str());
 	}
 
@@ -142,13 +132,19 @@ void setup() {
 }
 
 void loop() {
+	static unsigned long lastHeapLog = 0;
+	unsigned long currentMillis = millis();
+
+	// Log free heap memory every 10 seconds
+	if (currentMillis - lastHeapLog >= 10000) {
+		INFO("Free HEAP: %d bytes", ESP.getFreeHeap());
+		lastHeapLog = currentMillis;
+	}
 
 	if (configuration->isBTEnabled()) {
 		btremote->loop();
-		bluetoothController->loop();
 	}
 
-	bluetoothController->loop();
 	megahub->loop();
 
 	if (configuration->isWiFiEnabled()) {
