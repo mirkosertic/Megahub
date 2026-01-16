@@ -91,11 +91,6 @@ static esp_ble_adv_params_t g_adv_params = {
 #define APP_EVENT_TYPE_PORTSTATUS 0x02
 #define APP_EVENT_TYPE_COMMAND	  0x03
 
-// Delay zwischen Fragmenten (in ms)
-// Small delay to allow browser's JS event loop to process events
-// Much lower now that we're not blocking in callback context
-const uint32_t INTER_FRAGMENT_DELAY_MS = 200;
-
 // Task-Loop-Delay (in ms) - CPU-Zeit freigeben
 const uint32_t TASK_LOOP_DELAY_MS = 10;
 
@@ -248,7 +243,8 @@ inline bool parseJsonFromVector(const std::vector<uint8_t> &buffer, Func fn) {
 // Message types for the unified message processor queue
 enum class MessageProcessorItemType : uint8_t {
 	INCOMING_REQUEST,  // Process incoming request (was blocking callback)
-	FILE_TRANSFER      // Send file response (existing functionality)
+	FILE_TRANSFER,     // Send file response (existing functionality)
+	MTU_NOTIFICATION   // Send MTU notification (from GATTS callback)
 };
 
 struct PendingFileTransfer {
@@ -285,6 +281,13 @@ struct MessageProcessorItem {
 		item.dataPtr = new IncomingRequest{protocolType, messageId, data};
 		return item;
 	}
+
+	static MessageProcessorItem createMTUNotification() {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::MTU_NOTIFICATION;
+		item.dataPtr = nullptr;  // No data needed, MTU is stored in class member
+		return item;
+	}
 };
 
 // Unified message processor task - handles requests, file transfers, and event publishing
@@ -307,10 +310,15 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, mtu_(23)
 	, nextMessageId_(0)
 	, responseQueue_(nullptr)
-	, responseSenderTaskHandle_(nullptr) {
+	, responseSenderTaskHandle_(nullptr)
+	, indicationConfirmSemaphore_(nullptr) {
 	// Create unified message processor queue (handles both requests and file transfers)
 	// Increased to 5 to handle concurrent requests + file transfers
 	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
+
+	// Create binary semaphore for indication confirmation flow control
+	// Binary semaphore is used to wait for ESP_GATTS_CONF_EVT after each indication
+	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 
 	// Initialize handles to invalid values
 	memset(&handles_, 0, sizeof(handles_));
@@ -600,6 +608,10 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 		int read = chunkProvider(i, payloadSize, fragment);
 		DEBUG("Read %d bytes for chunk with index %d, fragment size is %d, flags is %d", read, i, fragment.size(), flags);
 
+		// Clear semaphore before sending to handle race condition where
+		// confirmation arrives before we call xSemaphoreTake()
+		xSemaphoreTake(indicationConfirmSemaphore_, 0);
+
 		// Send fragment using Bluedroid indicate
 		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
 			handles_.response_char_handle, fragment.size(), fragment.data(), true); // true = need confirm (indicate)
@@ -609,9 +621,16 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 			return false;
 		}
 
-		// Delay between fragments for browser JS event loop
-		if (i < totalFragments - 1) {
-			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
+		DEBUG("Indicate sent, waiting for confirmation for fragment %d/%d", i + 1, totalFragments);
+
+		// Wait for indication confirmation (ESP_GATTS_CONF_EVT) with timeout
+		// Using 1000ms timeout to handle poor RF conditions
+		if (xSemaphoreTake(indicationConfirmSemaphore_, pdMS_TO_TICKS(1000)) == pdTRUE) {
+			DEBUG("Confirmation received for fragment %d/%d", i + 1, totalFragments);
+		} else {
+			WARN("Confirmation timeout for fragment %d of %d", i + 1, totalFragments);
+			// Could implement retry logic here, but for now just fail
+			return false;
 		}
 	}
 
@@ -659,6 +678,10 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 			fragment.insert(fragment.end(), data.begin() + start, data.begin() + end);
 		}
 
+		// Clear semaphore before sending to handle race condition where
+		// confirmation arrives before we call xSemaphoreTake()
+		xSemaphoreTake(indicationConfirmSemaphore_, 0);
+
 		// Send fragment using Bluedroid indicate
 		DEBUG("Sending indicate: gatts_if=%d, conn_id=%d, handle=%d, len=%d, protocolType=%d, msgId=%d",
 			gatts_if_, connState_.conn_id, char_handle, fragment.size(), (uint8_t)protocolType, messageId);
@@ -669,13 +692,18 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 		if (ret != ESP_OK) {
 			ERROR("Failed to indicate fragment %d of %d: %s", i + 1, totalFragments, esp_err_to_name(ret));
 			return false;
-		} else {
-			DEBUG("Indicate sent successfully for fragment %d/%d", i + 1, totalFragments);
 		}
 
-		// Delay between fragments for browser JS event loop
-		if (i < totalFragments - 1) {
-			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
+		DEBUG("Indicate sent, waiting for confirmation for fragment %d/%d", i + 1, totalFragments);
+
+		// Wait for indication confirmation (ESP_GATTS_CONF_EVT) with timeout
+		// Using 1000ms timeout to handle poor RF conditions
+		if (xSemaphoreTake(indicationConfirmSemaphore_, pdMS_TO_TICKS(1000)) == pdTRUE) {
+			DEBUG("Confirmation received for fragment %d/%d", i + 1, totalFragments);
+		} else {
+			WARN("Confirmation timeout for fragment %d of %d", i + 1, totalFragments);
+			// Could implement retry logic here, but for now just fail
+			return false;
 		}
 	}
 
@@ -890,13 +918,19 @@ void BTRemote::processMessageQueue() {
 			// CRITICAL: Manually free the allocated memory
 			// (No destructor on MessageProcessorItem because FreeRTOS uses memcpy)
 			delete transfer;
+
+		} else if (item.type == MessageProcessorItemType::MTU_NOTIFICATION) {
+			// Send MTU notification (called from task context, not callback)
+			INFO("Processing MTU notification from task context");
+			sendMTUNotification();
+			// No memory to free, dataPtr is nullptr
 		}
 	}
 
 	// After processing (or timeout), check for pending events and send them
 	// This prevents race conditions - all BLE communication is serialized through this task
 	if (isConnected() && readyForEvents_) {
-		//publishLogMessages();
+		publishLogMessages();
 		publishCommands();
 		publishPortstatus();
 	}
@@ -1008,6 +1042,9 @@ void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 				break;
 			case ESP_GATTS_MTU_EVT:
 				g_btremote_instance->handleGattsMTU(param);
+				break;
+			case ESP_GATTS_CONF_EVT:
+				g_btremote_instance->handleGattsConfirm(param);
 				break;
 			default:
 				break;
@@ -1282,9 +1319,12 @@ void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t *param) {
 		connState_.remote_addr[2], connState_.remote_addr[3],
 		connState_.remote_addr[4], connState_.remote_addr[5]);
 
-	// Small delay for stability
-	vTaskDelay(pdMS_TO_TICKS(100));
-	sendMTUNotification();
+	// Queue MTU notification to be sent from task context (not callback)
+	// This avoids calling vTaskDelay from ISR context
+	MessageProcessorItem item = MessageProcessorItem::createMTUNotification();
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("Failed to queue MTU notification");
+	}
 }
 
 void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
@@ -1303,7 +1343,36 @@ void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {
 	mtu_ = param->mtu.mtu - 3; // Subtract ATT header
 	connState_.mtu = mtu_;
 	INFO("MTU changed to: %d (notified with %d)", mtu_, param->mtu.mtu);
-	sendMTUNotification();
+
+	// Queue MTU notification to be sent from task context (not callback)
+	MessageProcessorItem item = MessageProcessorItem::createMTUNotification();
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("Failed to queue MTU notification");
+	}
+}
+
+void BTRemote::handleGattsConfirm(esp_ble_gatts_cb_param_t *param) {
+	// Indication confirmed by client - signal the waiting task
+	DEBUG("Indication confirmed: status=%d, handle=%d", param->conf.status, param->conf.handle);
+
+	if (param->conf.status == ESP_GATT_OK) {
+		// Give semaphore to unblock the sending task
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(indicationConfirmSemaphore_, &xHigherPriorityTaskWoken);
+
+		// Yield to higher priority task if needed
+		if (xHigherPriorityTaskWoken) {
+			portYIELD_FROM_ISR();
+		}
+	} else {
+		WARN("Indication confirmation failed: status=%d", param->conf.status);
+		// Still signal to prevent deadlock, sender will handle error
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(indicationConfirmSemaphore_, &xHigherPriorityTaskWoken);
+		if (xHigherPriorityTaskWoken) {
+			portYIELD_FROM_ISR();
+		}
+	}
 }
 
 void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {

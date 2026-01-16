@@ -98,6 +98,9 @@ private:
 	QueueHandle_t responseQueue_;
 	TaskHandle_t responseSenderTaskHandle_;
 
+	// FreeRTOS synchronization for indication confirmation
+	SemaphoreHandle_t indicationConfirmSemaphore_;
+
 	// Callback-Funktionen
 	// Callback: (appRequestType, messageId, payload)
 	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback_;
@@ -153,6 +156,7 @@ private:
 	void handleGattsCreate(esp_ble_gatts_cb_param_t *param);
 	void handleGattsAddChar(esp_ble_gatts_cb_param_t *param);
 	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param);
+	void handleGattsConfirm(esp_ble_gatts_cb_param_t *param);
 
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
