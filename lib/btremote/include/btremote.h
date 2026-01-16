@@ -8,14 +8,12 @@
 #include <map>
 #include <vector>
 
-// ESP-IDF Bluedroid Bluetooth includes
 #include "esp_bt.h"
 #include "esp_bt_main.h"
 #include "esp_gap_ble_api.h"
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
 
-// Protocol Message Types (INTERN - für Fragmentierungs-Protokoll)
 enum class ProtocolMessageType : uint8_t {
 	REQUEST = 0x01,
 	RESPONSE = 0x02,
@@ -23,7 +21,6 @@ enum class ProtocolMessageType : uint8_t {
 	CONTROL = 0x04
 };
 
-// Control Message Types (INTERN - für Control-Channel)
 enum class ControlMessageType : uint8_t {
 	ACK = 0x01,
 	NACK = 0x02,
@@ -33,13 +30,11 @@ enum class ControlMessageType : uint8_t {
 	MTU_INFO = 0x06
 };
 
-// Konfiguration
 const size_t FRAGMENT_HEADER_SIZE = 5;
-const size_t MAX_BUFFER_SIZE = 65536; // 64KB max pro Message
+const size_t MAX_BUFFER_SIZE = 65536;
 const uint32_t FRAGMENT_TIMEOUT_MS = 50000;
-const size_t MAX_CONCURRENT_MESSAGES = 3; // Memory Safety: Limit gleichzeitiger Nachrichten
+const size_t MAX_CONCURRENT_MESSAGES = 3;
 
-// Fragment Buffer Struktur
 struct FragmentBuffer {
 	std::vector<uint8_t> data;
 	uint32_t lastFragmentTime;
@@ -48,7 +43,6 @@ struct FragmentBuffer {
 	ProtocolMessageType protocolType;
 };
 
-// BLE Handle tracking structure
 struct BLEHandles {
 	uint16_t service_handle;
 	uint16_t request_char_handle;
@@ -64,7 +58,6 @@ struct BLEHandles {
 	uint16_t control_cccd_handle;
 };
 
-// Connection state tracking
 struct ConnectionState {
 	uint16_t conn_id;
 	uint16_t gatt_if;
@@ -73,10 +66,8 @@ struct ConnectionState {
 	bool connected;
 };
 
-// BLE Server Klasse
 class BTRemote {
 private:
-	// Bluedroid handles
 	BLEHandles handles_;
 	ConnectionState connState_;
 	uint16_t gatts_if_;
@@ -90,7 +81,7 @@ private:
 
 	bool deviceConnected_;
 	bool readyForEvents_;
-	size_t mtu_; // Default MTU
+	size_t mtu_;
 
 	std::map<uint8_t, FragmentBuffer> fragmentBuffers_;
 	uint8_t nextMessageId_;
@@ -98,32 +89,19 @@ private:
 	QueueHandle_t responseQueue_;
 	TaskHandle_t responseSenderTaskHandle_;
 
-	// FreeRTOS synchronization for indication confirmation
+	// CRITICAL: Semaphore for indication flow control (ESP_GATTS_CONF_EVT sync)
 	SemaphoreHandle_t indicationConfirmSemaphore_;
 
-	// Callback-Funktionen
-	// Callback: (appRequestType, messageId, payload)
 	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback_;
 
-	// Fragment verarbeiten
 	void handleFragment(const uint8_t *data, size_t length);
-
-	// Vollständige Message verarbeiten
 	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data);
-
-	// Control Message verarbeiten
 	void handleControlMessage(const uint8_t *data, size_t length);
-
-	// Fragmentierte Nachricht senden
 	bool sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType,
 		uint8_t messageId, const std::vector<uint8_t> &data);
-
-	// Response senden
 	bool sendResponse(uint8_t messageId, const std::vector<uint8_t> &data);
 
 	bool sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider);
-
-	// MTU-Information an Client senden
 	void sendMTUNotification();
 
 	bool reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc);
@@ -137,17 +115,10 @@ private:
 	bool reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 
-	// Control Message senden
 	void sendControlMessage(ControlMessageType type, uint8_t messageId);
-
-	// Request Callback registrieren
-	// Callback-Signatur: void callback(uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t>& payload)
 	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback);
-
-	// Event senden
 	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data);
 
-	// Internal event handlers (called from static GATTS callback)
 	void handleGattsConnect(esp_ble_gatts_cb_param_t *param);
 	void handleGattsDisconnect(esp_ble_gatts_cb_param_t *param);
 	void handleGattsMTU(esp_ble_gatts_cb_param_t *param);
@@ -163,22 +134,14 @@ public:
 
 	void begin(const char *deviceName);
 
-	// Static GATTS event handler (friend to access private methods)
 	static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
 		esp_ble_gatts_cb_param_t *param);
-
-	// Static GAP event handler
 	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
-	// Events
 	void publishLogMessages();
 	void publishCommands();
 	void publishPortstatus();
-
-	// Unified message queue processor (runs in separate task)
 	void processMessageQueue();
-
-	// Timeout-Handler (sollte regelmäßig aufgerufen werden)
 	void loop();
 
 	bool isConnected() const;

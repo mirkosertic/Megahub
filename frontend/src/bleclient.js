@@ -38,6 +38,9 @@ const FRAGMENT_HEADER_SIZE = 5;
 const DEFAULT_TIMEOUT_MS = 50000;
 const MAX_RETRIES = 3;
 
+// Verbose logging (set to false for production)
+const VERBOSE_LOGGING = false;
+
 export class BLEClient {
 	constructor() {
 		this.device = null;
@@ -68,13 +71,32 @@ export class BLEClient {
 		this.onDisconnectCallback = null;
 	}
 
+	// Logging helpers
+	logVerbose(...args) {
+		if (VERBOSE_LOGGING) {
+			console.log('[BLE VERBOSE]', ...args);
+		}
+	}
+
+	logInfo(...args) {
+		console.log('[BLE]', ...args);
+	}
+
+	logWarn(...args) {
+		console.warn('[BLE]', ...args);
+	}
+
+	logError(...args) {
+		console.error('[BLE]', ...args);
+	}
+
 	/**
 	 * Establish connection to BLE device
 	 * @returns {Promise<void>}
 	 */
 	async connect() {
 		try {
-			console.log('Starting BLE connection...');
+			this.logInfo('Starting BLE connection...');
 
 			// Select device
 			this.device = await navigator.bluetooth.requestDevice({
@@ -82,7 +104,7 @@ export class BLEClient {
 				optionalServices : [ SERVICE_UUID ]
 			});
 
-			console.log('Device selected:', this.device.name);
+			this.logInfo('Device selected:', this.device.name);
 
 			// Disconnect handler
 			this.device.addEventListener('gattserverdisconnected', () => {
@@ -91,11 +113,11 @@ export class BLEClient {
 
 			// Connect to GATT server
 			this.server = await this.device.gatt.connect();
-			console.log('GATT server connected');
+			this.logVerbose('GATT server connected');
 
 			// Get service
 			this.service = await this.server.getPrimaryService(SERVICE_UUID);
-			console.log('Service found');
+			this.logVerbose('Service found');
 
 			// Get characteristics
 			this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
@@ -103,7 +125,7 @@ export class BLEClient {
 			this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
 			this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
 
-			console.log('All characteristics found');
+			this.logVerbose('All characteristics found');
 
 			// Enable notifications
 			await this.responseChar.startNotifications();
@@ -111,6 +133,7 @@ export class BLEClient {
 			await this.controlChar.startNotifications();
 
 			// Event listeners for incoming data
+			this.logVerbose('Registering event listeners for characteristics');
 			this.responseChar.addEventListener('characteristicvaluechanged',
 				(event) => this.handleFragment(event.target.value, 'response'));
 
@@ -121,14 +144,14 @@ export class BLEClient {
 				(event) => this.handleControlMessage(event.target.value));
 
 			this.connected = true;
-			console.log('BLE connection successfully established');
+			this.logInfo('BLE connection successfully established');
 
 			// Wait for MTU information from server (with timeout)
 			await this.waitForMTU(2000);
-			console.log(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
+			this.logInfo(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
 
 		} catch (error) {
-			console.error('Connection error:', error);
+			this.logError('Connection error:', error);
 			throw new Error(`BLE connection failed: ${error.message}`);
 		}
 	}
@@ -138,7 +161,7 @@ export class BLEClient {
 	 * @param {number} timeout - Timeout in milliseconds
 	 */
 	async waitForMTU(timeout = 2000) {
-		console.log('Waiting for MTU information from server...');
+		this.logVerbose('Waiting for MTU information from server...');
 
 		// Create promise for MTU reception
 		const mtuPromise = new Promise((resolve) => {
@@ -155,10 +178,10 @@ export class BLEClient {
 
 		// If timeout, determine MTU ourselves
 		if (result === 'timeout') {
-			console.warn('No MTU info received from server (timeout), determining ourselves...');
+			this.logWarn('No MTU info received from server (timeout), determining MTU ourselves...');
 			await this.negotiateMTU();
 		} else {
-			console.log('MTU info from server successfully received');
+			this.logInfo('MTU info from server successfully received');
 		}
 	}
 
@@ -174,7 +197,7 @@ export class BLEClient {
 				testData.fill(0xFF);
 				await this.requestChar.writeValue(testData);
 				this.mtu = size;
-				console.log(`MTU test successful: ${size} bytes`);
+				this.logInfo(`MTU negotiated: ${size} bytes`);
 				return;
 			} catch (error) {
 				continue;
@@ -182,7 +205,7 @@ export class BLEClient {
 		}
 
 		this.mtu = 23;
-		console.warn('MTU negotiation failed, using minimum: 23 bytes');
+		this.logWarn('MTU negotiation failed, using minimum: 23 bytes');
 	}
 
 	/**
@@ -199,7 +222,7 @@ export class BLEClient {
 	 * Disconnect handler
 	 */
 	handleDisconnect() {
-		console.log('Connection closed');
+		this.logInfo('Disconnected');
 		this.connected = false;
 
 		for (const [messageId, request] of this.pendingRequests) {
@@ -228,7 +251,7 @@ export class BLEClient {
 	 */
 	handleFragment(dataView, type) {
 		if (dataView.byteLength < FRAGMENT_HEADER_SIZE) {
-			console.error('Fragment too small');
+			this.logError('Fragment too small');
 			return;
 		}
 
@@ -238,7 +261,7 @@ export class BLEClient {
 		const fragmentNum = dataView.getUint16(2);
 		const flags = dataView.getUint8(4);
 
-		console.log(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
+		this.logVerbose(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
 
 		// Extract payload
 		const payload = new Uint8Array(
@@ -265,7 +288,7 @@ export class BLEClient {
 
 		// Last fragment?
 		if (flags & FLAG_LAST_FRAGMENT) {
-			console.log(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
+			this.logVerbose(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
 
 			// Merge fragments
 			const completeData = this.mergeFragments(buffer.fragments);
@@ -313,7 +336,7 @@ export class BLEClient {
 			// Return complete data (incl. request type if server sends it back)
 			pending.resolve(data);
 		} else {
-			console.warn(`No pending request for message ID ${messageId}`);
+			this.logWarn(`No pending request for message ID ${messageId}`);
 		}
 	}
 
@@ -324,7 +347,7 @@ export class BLEClient {
 	 */
 	handleEvent(messageId, data) {
 		if (data.length === 0) {
-			console.warn('Event received without data');
+			this.logWarn('Event received without data');
 			return;
 		}
 
@@ -332,7 +355,7 @@ export class BLEClient {
 		const appEventType = data[0];
 		const eventData = data.slice(1);
 
-		console.log(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
+		this.logVerbose(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
 
 		// Call event listeners
 		const listeners = this.eventListeners.get(appEventType);
@@ -341,7 +364,7 @@ export class BLEClient {
 				try {
 					listener(eventData);
 				} catch (error) {
-					console.error('Error in event listener:', error);
+					this.logError('Error in event listener:', error);
 				}
 			}
 		}
@@ -353,7 +376,7 @@ export class BLEClient {
 				try {
 					listener(appEventType, eventData);
 				} catch (error) {
-					console.error('Error in wildcard event listener:', error);
+					this.logError('Error in wildcard event listener:', error);
 				}
 			}
 		}
@@ -369,13 +392,13 @@ export class BLEClient {
 
 		const ctrlType = dataView.getUint8(0);
 
-		console.log(`Control message received: Type=${ctrlType}, Length=${dataView.byteLength}`);
+		this.logVerbose(`Control message received: Type=${ctrlType}, Length=${dataView.byteLength}`);
 
 		switch (ctrlType) {
 			case ControlMessageType.MTU_INFO:
 				if (dataView.byteLength >= 4) {
 					const mtu = (dataView.getUint8(2) << 8) | dataView.getUint8(3);
-					console.log(`MTU info from server: ${mtu} bytes (payload: ${mtu - 3} bytes)`);
+					this.logInfo(`MTU received from server: ${mtu} bytes (payload: ${mtu - 3} bytes)`);
 					this.mtu = mtu;
 					this.mtuReceived = true;
 
@@ -384,21 +407,21 @@ export class BLEClient {
 						this.mtuReceivedResolve = null;
 					}
 				} else {
-					console.error('MTU_INFO too short:', dataView.byteLength);
+					this.logError('MTU_INFO too short:', dataView.byteLength);
 				}
 				break;
 
 			case ControlMessageType.ACK:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.log(`ACK for message ${messageId}`);
+					this.logVerbose(`ACK for message ${messageId}`);
 				}
 				break;
 
 			case ControlMessageType.NACK:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.warn(`NACK for message ${messageId}`);
+					this.logWarn(`NACK received for message ${messageId}`);
 
 					const pending = this.pendingRequests.get(messageId);
 					if (pending) {
@@ -412,7 +435,7 @@ export class BLEClient {
 			case ControlMessageType.BUFFER_FULL:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.error(`Buffer full for message ${messageId}`);
+					this.logWarn(`Buffer full for message ${messageId}`);
 
 					const pending = this.pendingRequests.get(messageId);
 					if (pending) {
@@ -426,17 +449,17 @@ export class BLEClient {
 			case ControlMessageType.RETRY:
 				if (dataView.byteLength >= 2) {
 					const messageId = dataView.getUint8(1);
-					console.log(`Server requests retry for message ${messageId}`);
+					this.logVerbose(`Server requests retry for message ${messageId}`);
 				}
 				break;
 
 			case ControlMessageType.RESET:
-				console.log('Server requests reset');
+				this.logInfo('Server requests reset');
 				this.fragmentBuffers.clear();
 				break;
 
 			default:
-				console.warn(`Unknown control type: ${ctrlType}`);
+				this.logWarn(`Unknown control message type: ${ctrlType}`);
 		}
 	}
 
@@ -451,7 +474,7 @@ export class BLEClient {
 		const payloadSize = this.mtu - FRAGMENT_HEADER_SIZE;
 		const totalFragments = Math.ceil(data.length / payloadSize) || 1;
 
-		console.log(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
+		this.logVerbose(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
 
 		for (let i = 0; i < totalFragments; i++) {
 			const fragment = new Uint8Array(Math.min(this.mtu, FRAGMENT_HEADER_SIZE + data.length - i * payloadSize));
@@ -472,13 +495,9 @@ export class BLEClient {
 			const payload = data.slice(start, end);
 			fragment.set(payload, FRAGMENT_HEADER_SIZE);
 
-			// Send fragment
-			await characteristic.writeValue(fragment.slice(0, FRAGMENT_HEADER_SIZE + payload.length));
-
-			// Small pause between fragments
-			if (i < totalFragments - 1) {
-				await this.sleep(10);
-			}
+			// Send fragment with ATT Write Response (BLE flow control)
+			// This waits for ESP32 confirmation before sending next fragment
+			await characteristic.writeValueWithResponse(fragment.slice(0, FRAGMENT_HEADER_SIZE + payload.length));
 		}
 	}
 
@@ -553,15 +572,15 @@ export class BLEClient {
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				console.log(`Request attempt ${attempt + 1}/${maxRetries}`);
+				this.logInfo(`Request attempt ${attempt + 1}/${maxRetries}`);
 				return await this.sendRequest(appRequestType, data, timeout);
 			} catch (error) {
 				lastError = error;
-				console.warn(`Request failed (attempt ${attempt + 1}):`, error.message);
+				this.logWarn(`Request failed (attempt ${attempt + 1}):`, error.message);
 
 				if (attempt < maxRetries - 1) {
 					const delay = 1000 * Math.pow(2, attempt);
-					console.warn(`Waiting ${delay}ms before retry...`);
+					this.logWarn(`Waiting ${delay}ms before retry...`);
 					await this.sleep(delay);
 				}
 			}
@@ -581,7 +600,7 @@ export class BLEClient {
 		}
 		this.eventListeners.get(appEventType).push(callback);
 
-		console.log(`Event listener registered for AppEventType: ${appEventType}`);
+		this.logVerbose(`Event listener registered for AppEventType: ${appEventType}`);
 	}
 
 	/**
