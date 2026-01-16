@@ -238,7 +238,7 @@ export class BLEClient {
 		const fragmentNum = dataView.getUint16(2);
 		const flags = dataView.getUint8(4);
 
-		console.debug(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
+		console.log(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
 
 		// Extract payload
 		const payload = new Uint8Array(
@@ -265,7 +265,7 @@ export class BLEClient {
 
 		// Last fragment?
 		if (flags & FLAG_LAST_FRAGMENT) {
-			console.debug(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
+			console.log(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
 
 			// Merge fragments
 			const completeData = this.mergeFragments(buffer.fragments);
@@ -332,7 +332,7 @@ export class BLEClient {
 		const appEventType = data[0];
 		const eventData = data.slice(1);
 
-		console.debug(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
+		console.log(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
 
 		// Call event listeners
 		const listeners = this.eventListeners.get(appEventType);
@@ -451,7 +451,7 @@ export class BLEClient {
 		const payloadSize = this.mtu - FRAGMENT_HEADER_SIZE;
 		const totalFragments = Math.ceil(data.length / payloadSize) || 1;
 
-		console.debug(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
+		console.log(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
 
 		for (let i = 0; i < totalFragments; i++) {
 			const fragment = new Uint8Array(Math.min(this.mtu, FRAGMENT_HEADER_SIZE + data.length - i * payloadSize));
@@ -553,7 +553,7 @@ export class BLEClient {
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				console.debug(`Request attempt ${attempt + 1}/${maxRetries}`);
+				console.log(`Request attempt ${attempt + 1}/${maxRetries}`);
 				return await this.sendRequest(appRequestType, data, timeout);
 			} catch (error) {
 				lastError = error;

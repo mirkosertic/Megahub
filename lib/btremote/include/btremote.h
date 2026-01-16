@@ -5,11 +5,15 @@
 #include "megahub.h"
 
 #include <ArduinoJson.h>
-#include <NimBLEDevice.h>
-#include <NimBLEServer.h>
-#include <NimBLEUtils.h>
 #include <map>
 #include <vector>
+
+// ESP-IDF Bluedroid Bluetooth includes
+#include "esp_bt.h"
+#include "esp_bt_main.h"
+#include "esp_gap_ble_api.h"
+#include "esp_gatt_common_api.h"
+#include "esp_gatts_api.h"
 
 // Protocol Message Types (INTERN - für Fragmentierungs-Protokoll)
 enum class ProtocolMessageType : uint8_t {
@@ -44,15 +48,39 @@ struct FragmentBuffer {
 	ProtocolMessageType protocolType;
 };
 
+// BLE Handle tracking structure
+struct BLEHandles {
+	uint16_t service_handle;
+	uint16_t request_char_handle;
+	uint16_t request_char_value_handle;
+	uint16_t response_char_handle;
+	uint16_t response_char_value_handle;
+	uint16_t response_cccd_handle;
+	uint16_t event_char_handle;
+	uint16_t event_char_value_handle;
+	uint16_t event_cccd_handle;
+	uint16_t control_char_handle;
+	uint16_t control_char_value_handle;
+	uint16_t control_cccd_handle;
+};
+
+// Connection state tracking
+struct ConnectionState {
+	uint16_t conn_id;
+	uint16_t gatt_if;
+	esp_bd_addr_t remote_addr;
+	uint16_t mtu;
+	bool connected;
+};
+
 // BLE Server Klasse
-class BTRemote : public NimBLEServerCallbacks, public NimBLECharacteristicCallbacks {
+class BTRemote {
 private:
-	NimBLEServer *pServer_;
-	NimBLEService *pService_;
-	NimBLECharacteristic *pRequestChar_;
-	NimBLECharacteristic *pResponseChar_;
-	NimBLECharacteristic *pEventChar_;
-	NimBLECharacteristic *pControlChar_;
+	// Bluedroid handles
+	BLEHandles handles_;
+	ConnectionState connState_;
+	uint16_t gatts_if_;
+	uint16_t app_id_;
 
 	SerialLoggingOutput *loggingOutput_;
 	Configuration *configuration_;
@@ -84,7 +112,7 @@ private:
 	void handleControlMessage(const uint8_t *data, size_t length);
 
 	// Fragmentierte Nachricht senden
-	bool sendFragmented(NimBLECharacteristic *characteristic, ProtocolMessageType protocolType,
+	bool sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType,
 		uint8_t messageId, const std::vector<uint8_t> &data);
 
 	// Response senden
@@ -116,28 +144,35 @@ private:
 	// Event senden
 	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data);
 
+	// Internal event handlers (called from static GATTS callback)
+	void handleGattsConnect(esp_ble_gatts_cb_param_t *param);
+	void handleGattsDisconnect(esp_ble_gatts_cb_param_t *param);
+	void handleGattsMTU(esp_ble_gatts_cb_param_t *param);
+	void handleGattsWrite(esp_ble_gatts_cb_param_t *param);
+	void handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+	void handleGattsCreate(esp_ble_gatts_cb_param_t *param);
+	void handleGattsAddChar(esp_ble_gatts_cb_param_t *param);
+	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param);
+
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
 
 	void begin(const char *deviceName);
 
-	// Server Callbacks
-	void onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) override;
+	// Static GATTS event handler (friend to access private methods)
+	static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+		esp_ble_gatts_cb_param_t *param);
 
-	void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override;
-
-	void onMTUChange(uint16_t mtu, NimBLEConnInfo &connInfo);
-
-	// Characteristic Callbacks
-	void onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) override;
+	// Static GAP event handler
+	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
 	// Events
 	void publishLogMessages();
 	void publishCommands();
 	void publishPortstatus();
 
-	// Process queued responses (called from background task)
-	void processResponseQueue();
+	// Unified message queue processor (runs in separate task)
+	void processMessageQueue();
 
 	// Timeout-Handler (sollte regelmäßig aufgerufen werden)
 	void loop();

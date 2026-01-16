@@ -5,12 +5,23 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
-#include <NimBLEDevice.h>
-#include <NimBLEServer.h>
-#include <NimBLEUtils.h>
 #include <algorithm>
+#include <cstring>
 #include <map>
 #include <vector>
+
+// ESP-IDF Bluedroid includes
+#include "esp_bt.h"
+#include "esp_bt_main.h"
+#include "esp_gap_ble_api.h"
+#include "esp_gatt_common_api.h"
+#include "esp_gatts_api.h"
+
+// Arduino BT helper (handles controller init correctly)
+#include "esp32-hal-bt.h"
+
+// Global instance pointer for static callbacks
+static BTRemote *g_btremote_instance = nullptr;
 
 // UUIDs für Service und Characteristics
 #define SERVICE_UUID	   "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -18,6 +29,48 @@
 #define RESPONSE_CHAR_UUID "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e"
 #define EVENT_CHAR_UUID	   "d8de624e-140f-4a22-8594-e2216b84a5f2"
 #define CONTROL_CHAR_UUID  "f78ebbff-c8b7-4107-93de-889a6a06d408"
+
+// Helper: Convert UUID string to esp_bt_uuid_t (128-bit)
+static esp_bt_uuid_t stringToUUID128(const char *uuid_str) {
+	esp_bt_uuid_t uuid;
+	uuid.len = ESP_UUID_LEN_128;
+
+	// Parse UUID string: "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+	// Format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+	// ESP32 expects little-endian byte order
+
+	uint8_t tmp[16];
+	int idx = 0;
+
+	for (int i = 0; i < strlen(uuid_str) && idx < 16; i++) {
+		char c = uuid_str[i];
+		if (c == '-')
+			continue;
+
+		char hex[3] = {uuid_str[i], uuid_str[i + 1], 0};
+		tmp[idx++] = (uint8_t) strtol(hex, NULL, 16);
+		i++; // Skip next char since we read 2
+	}
+
+	// Reverse to little-endian
+	for (int i = 0; i < 16; i++) {
+		uuid.uuid.uuid128[i] = tmp[15 - i];
+	}
+
+	return uuid;
+}
+
+// Advertising parameters
+static esp_ble_adv_params_t g_adv_params = {
+	.adv_int_min = 0x20,
+	.adv_int_max = 0x40,
+	.adv_type = ADV_TYPE_IND,
+	.own_addr_type = BLE_ADDR_TYPE_PUBLIC,
+	.peer_addr = {0},
+	.peer_addr_type = BLE_ADDR_TYPE_PUBLIC,
+	.channel_map = ADV_CHNL_ALL,
+	.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
+};
 
 // Fragment Flags
 #define FLAG_LAST_FRAGMENT 0x01
@@ -41,7 +94,7 @@
 // Delay zwischen Fragmenten (in ms)
 // Small delay to allow browser's JS event loop to process events
 // Much lower now that we're not blocking in callback context
-const uint32_t INTER_FRAGMENT_DELAY_MS = 100;
+const uint32_t INTER_FRAGMENT_DELAY_MS = 200;
 
 // Task-Loop-Delay (in ms) - CPU-Zeit freigeben
 const uint32_t TASK_LOOP_DELAY_MS = 10;
@@ -192,11 +245,46 @@ inline bool parseJsonFromVector(const std::vector<uint8_t> &buffer, Func fn) {
 	return true;
 }
 
-// Structure to hold pending file transfer requests
+// Message types for the unified message processor queue
+enum class MessageProcessorItemType : uint8_t {
+	INCOMING_REQUEST,  // Process incoming request (was blocking callback)
+	FILE_TRANSFER      // Send file response (existing functionality)
+};
+
 struct PendingFileTransfer {
 	uint8_t messageId;
 	String project;
 	String filename;
+};
+
+struct IncomingRequest {
+	ProtocolMessageType protocolType;
+	uint8_t messageId;
+	std::vector<uint8_t> data;
+};
+
+// Unified message processor item
+// IMPORTANT: This struct is trivially copyable (no destructor) because FreeRTOS queues
+// use memcpy(), which bypasses C++ copy/move semantics. Memory must be freed manually
+// in processMessageQueue() after processing.
+struct MessageProcessorItem {
+	MessageProcessorItemType type;
+	void* dataPtr;  // Points to either IncomingRequest* or PendingFileTransfer*
+
+	// Factory methods allocate memory that MUST be freed in processMessageQueue()
+	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String& project, const String& filename) {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::FILE_TRANSFER;
+		item.dataPtr = new PendingFileTransfer{messageId, project, filename};
+		return item;
+	}
+
+	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t>& data) {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::INCOMING_REQUEST;
+		item.dataPtr = new IncomingRequest{protocolType, messageId, data};
+		return item;
+	}
 };
 
 void btLogForwarderTask(void *param) {
@@ -208,15 +296,18 @@ void btLogForwarderTask(void *param) {
 	}
 }
 
-void btResponseSenderTask(void *param) {
+// Unified message processor task - handles both incoming requests and file transfers
+void btMessageProcessorTask(void *param) {
 	BTRemote *server = (BTRemote *) param;
 	while (true) {
-		server->processResponseQueue();
+		server->processMessageQueue();
 	}
 }
 
 BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration)
-	: loggingOutput_(loggingOutput)
+	: gatts_if_(ESP_GATT_IF_NONE)
+	, app_id_(0x55)
+	, loggingOutput_(loggingOutput)
 	, configuration_(configuration)
 	, hub_(hub)
 	, deviceConnected_(false)
@@ -225,58 +316,79 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, nextMessageId_(0)
 	, responseQueue_(nullptr)
 	, responseSenderTaskHandle_(nullptr) {
-	// Create response queue (max 3 pending file transfers)
-	responseQueue_ = xQueueCreate(3, sizeof(PendingFileTransfer));
+	// Create unified message processor queue (handles both requests and file transfers)
+	// Increased to 5 to handle concurrent requests + file transfers
+	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
+
+	// Initialize handles to invalid values
+	memset(&handles_, 0, sizeof(handles_));
+	memset(&connState_, 0, sizeof(connState_));
+	connState_.connected = false;
+
+	// Set global instance for static callbacks
+	g_btremote_instance = this;
 }
 
 void BTRemote::begin(const char *deviceName) {
-	// NimBLE initialisieren
-	NimBLEDevice::init(deviceName);
+	esp_err_t ret;
 
-	// MTU setzen - NimBLE unterstützt bis zu 512
-	NimBLEDevice::setMTU(517);
-
-	// Server erstellen
-	pServer_ = NimBLEDevice::createServer();
-	pServer_->setCallbacks(this);
-
-	// Service erstellen
-	pService_ = pServer_->createService(SERVICE_UUID);
-
-	// Request Characteristic (Write)
-	pRequestChar_ = pService_->createCharacteristic(
-		REQUEST_CHAR_UUID,
-		NIMBLE_PROPERTY::WRITE);
-	pRequestChar_->setCallbacks(this);
-
-	// Response Characteristic (Indicate - provides automatic flow control)
-	pResponseChar_ = pService_->createCharacteristic(
-		RESPONSE_CHAR_UUID,
-		NIMBLE_PROPERTY::INDICATE);
-
-	// Event Characteristic (Indicate - provides automatic flow control)
-	pEventChar_ = pService_->createCharacteristic(
-		EVENT_CHAR_UUID,
-		NIMBLE_PROPERTY::INDICATE);
-
-	// Control Characteristic (Write/Notify)
-	pControlChar_ = pService_->createCharacteristic(
-		CONTROL_CHAR_UUID,
-		NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
-	pControlChar_->setCallbacks(this);
-
-	// Service starten
-	pService_->start();
-
-	// Advertising konfigurieren und starten
-	NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
-	pAdvertising->addServiceUUID(SERVICE_UUID);
-	pAdvertising->enableScanResponse(true);
-	pAdvertising->setPreferredParams(0x06, 0x12); // 22.5ms
-
-	if (!NimBLEDevice::startAdvertising()) {
-		ERROR("Failed to start advertising!");
+	// 1. Initialize BT controller for dual-mode (BLE + Classic for future HID Host)
+	// Use Arduino's btStart() helper which correctly handles dual-mode initialization
+	// based on sdkconfig.defaults settings (CONFIG_BTDM_CTRL_MODE_BTDM=y)
+	INFO("Starting Bluetooth controller in dual-mode (BTDM)...");
+	if (!btStart()) {
+		ERROR("Bluetooth controller start failed!");
+		ERROR("Check that CONFIG_BT_ENABLED=y and CONFIG_BTDM_CTRL_MODE_BTDM=y in sdkconfig");
+		return;
 	}
+	INFO("Bluetooth controller started successfully in dual-mode");
+
+	// 2. Initialize Bluedroid stack
+	ret = esp_bluedroid_init();
+	if (ret) {
+		ERROR("Bluedroid init failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	ret = esp_bluedroid_enable();
+	if (ret) {
+		ERROR("Bluedroid enable failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	// 5. Set device name
+	ret = esp_ble_gap_set_device_name(deviceName);
+	if (ret) {
+		ERROR("Set device name failed: %s", esp_err_to_name(ret));
+	}
+
+	// 6. Set MTU
+	ret = esp_ble_gatt_set_local_mtu(517);
+	if (ret) {
+		ERROR("Set local MTU failed: %s", esp_err_to_name(ret));
+	}
+
+	// 7. Register callbacks
+	ret = esp_ble_gatts_register_callback(BTRemote::gattsEventHandler);
+	if (ret) {
+		ERROR("GATTS register callback failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	ret = esp_ble_gap_register_callback(BTRemote::gapEventHandler);
+	if (ret) {
+		ERROR("GAP register callback failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	// 8. Register application profile
+	ret = esp_ble_gatts_app_register(app_id_);
+	if (ret) {
+		ERROR("GATTS app register failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	INFO("Bluedroid BLE initialization started, waiting for registration...")
 
 	// General Event handler for all incoming requests
 	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t> &payload) {
@@ -333,76 +445,25 @@ void BTRemote::begin(const char *deviceName) {
 	});
 
 	// Logging forwarder task
-	xTaskCreate(
+	/*xTaskCreate(
 		btLogForwarderTask,
 		"BTLogForwarderTask",
 		4096,
 		(void *) this,
 		1,
 		&logforwarderTaskHandle_ // Store task handle for cancellation
-	);
+	);*/
 
-	// Response sender task - runs outside callback context
+	// Unified message processor task - handles requests and file transfers outside callback context
 	xTaskCreate(
-		btResponseSenderTask,
-		"BTResponseSender",
+		btMessageProcessorTask,
+		"BTMsgProcessor",
 		8192, // Larger stack for file operations
 		(void *) this,
 		2, // Higher priority than log forwarder
 		&responseSenderTaskHandle_);
 
 	INFO("BLE Server started as ID %s, waiting for connections...", SERVICE_UUID);
-}
-
-// Server Callbacks
-void BTRemote::onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) {
-	readyForEvents_ = false;
-	deviceConnected_ = true;
-	mtu_ = connInfo.getMTU() - 3; // ATT Header abziehen
-
-	INFO("Client connected, MTU: %d, was notified with MTU %d", mtu_, connInfo.getMTU());
-
-	// MTU-Info an Client senden (kleine Verzögerung für Stabilität)
-	vTaskDelay(pdMS_TO_TICKS(100));
-	sendMTUNotification();
-}
-
-void BTRemote::onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) {
-	readyForEvents_ = false;
-	deviceConnected_ = false;
-	fragmentBuffers_.clear();
-
-	INFO("Client disconnected");
-
-	// Advertising neu starten
-	if (!NimBLEDevice::startAdvertising()) {
-		ERROR("Failed to restart advertising after disconnect!");
-	}
-}
-
-void BTRemote::onMTUChange(uint16_t mtu, NimBLEConnInfo &connInfo) {
-	mtu_ = max(12, mtu - 3); // ATT Header abziehen
-	INFO("MTU changed to: %d, was notified with %d", mtu_, mtu);
-	sendMTUNotification();
-}
-
-// Characteristic Callbacks
-void BTRemote::onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) {
-	std::string value = pCharacteristic->getValue();
-
-	if (value.length() < FRAGMENT_HEADER_SIZE) {
-		sendControlMessage(ControlMessageType::NACK, 0);
-		return;
-	}
-
-	const uint8_t *data = (const uint8_t *) value.data();
-	size_t length = value.length();
-
-	if (pCharacteristic == pRequestChar_) {
-		handleFragment(data, length);
-	} else if (pCharacteristic == pControlChar_) {
-		handleControlMessage(data, length);
-	}
 }
 
 // Fragment verarbeiten
@@ -464,14 +525,21 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 		DEBUG("Complete message received: ID=%d, Size=%d",
 			messageId, buffer.data.size());
 
-		// Vollständige Message verarbeiten
-		processCompleteMessage(protocolType, messageId, buffer.data);
+		// CRITICAL FIX: Queue the request for processing in separate task
+		// This prevents deadlock where callback blocks waiting for indication ACK
+		MessageProcessorItem item = MessageProcessorItem::createRequest(protocolType, messageId, buffer.data);
+
+		if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+			ERROR("Message processor queue full, dropping request");
+			sendControlMessage(ControlMessageType::NACK, messageId);
+		} else {
+			DEBUG("Request queued for processing in background task");
+			// ACK sent immediately - processing happens async
+			sendControlMessage(ControlMessageType::ACK, messageId);
+		}
 
 		// Buffer freigeben
 		fragmentBuffers_.erase(messageId);
-
-		// ACK senden
-		sendControlMessage(ControlMessageType::ACK, messageId);
 	}
 }
 
@@ -550,17 +618,16 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 		int read = chunkProvider(i, payloadSize, fragment);
 		DEBUG("Read %d bytes for chunk with index %d, fragment size is %d, flags is %d", read, i, fragment.size(), flags);
 
-		// Using indicate() instead of notify() - provides automatic flow control
-		// The indicate() call blocks until client ACK is received
-		pResponseChar_->setValue(fragment.data(), fragment.size());
-		if (!pResponseChar_->indicate()) {
-			ERROR("Failed to indicate fragment %d of %d", i + 1, totalFragments);
+		// Send fragment using Bluedroid indicate
+		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+			handles_.response_char_handle, fragment.size(), fragment.data(), true); // true = need confirm (indicate)
+
+		if (ret != ESP_OK) {
+			ERROR("Failed to indicate fragment %d of %d: %s", i + 1, totalFragments, esp_err_to_name(ret));
 			return false;
 		}
 
-		// Note: indicate() already blocks until ACK, which may provide enough time
-		// for browser's JS event loop. Only add delay if events are still dropped.
-		// Uncomment if needed:
+		// Delay between fragments for browser JS event loop
 		if (i < totalFragments - 1) {
 			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
 		}
@@ -570,7 +637,7 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 }
 
 // Fragmentierte Nachricht senden
-bool BTRemote::sendFragmented(NimBLECharacteristic *characteristic, ProtocolMessageType protocolType,
+bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType,
 	uint8_t messageId, const std::vector<uint8_t> &data) {
 	if (!deviceConnected_) {
 		WARN("Kein Client verbunden");
@@ -610,17 +677,21 @@ bool BTRemote::sendFragmented(NimBLECharacteristic *characteristic, ProtocolMess
 			fragment.insert(fragment.end(), data.begin() + start, data.begin() + end);
 		}
 
-		// Fragment senden mit Error-Handling
-		// Using indicate() instead of notify() - provides automatic flow control
-		characteristic->setValue(fragment.data(), fragment.size());
-		if (!characteristic->indicate()) {
-			ERROR("Failed to indicate fragment %d of %d", i + 1, totalFragments);
+		// Send fragment using Bluedroid indicate
+		DEBUG("Sending indicate: gatts_if=%d, conn_id=%d, handle=%d, len=%d, protocolType=%d, msgId=%d",
+			gatts_if_, connState_.conn_id, char_handle, fragment.size(), (uint8_t)protocolType, messageId);
+
+		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+			char_handle, fragment.size(), fragment.data(), true); // true = need confirm (indicate)
+
+		if (ret != ESP_OK) {
+			ERROR("Failed to indicate fragment %d of %d: %s", i + 1, totalFragments, esp_err_to_name(ret));
 			return false;
+		} else {
+			DEBUG("Indicate sent successfully for fragment %d/%d", i + 1, totalFragments);
 		}
 
-		// Note: indicate() already blocks until ACK, which may provide enough time
-		// for browser's JS event loop. Only add delay if events are still dropped.
-		// Uncomment if needed:
+		// Delay between fragments for browser JS event loop
 		if (i < totalFragments - 1) {
 			vTaskDelay(pdMS_TO_TICKS(INTER_FRAGMENT_DELAY_MS));
 		}
@@ -631,7 +702,9 @@ bool BTRemote::sendFragmented(NimBLECharacteristic *characteristic, ProtocolMess
 
 // Response senden
 bool BTRemote::sendResponse(uint8_t messageId, const std::vector<uint8_t> &data) {
-	return sendFragmented(pResponseChar_, ProtocolMessageType::RESPONSE, messageId, data);
+	INFO("sendResponse: msgId=%d, handle=%d (response=%d, event=%d)",
+		messageId, handles_.response_char_handle, handles_.response_char_handle, handles_.event_char_handle);
+	return sendFragmented(handles_.response_char_handle, ProtocolMessageType::RESPONSE, messageId, data);
 }
 
 // Event senden
@@ -644,7 +717,7 @@ bool BTRemote::sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data)
 	eventData.push_back(appEventType);
 	eventData.insert(eventData.end(), data.begin(), data.end());
 
-	return sendFragmented(pEventChar_, ProtocolMessageType::EVENT, nextMessageId_++, eventData);
+	return sendFragmented(handles_.event_char_handle, ProtocolMessageType::EVENT, nextMessageId_++, eventData);
 }
 
 // Control Message senden
@@ -654,9 +727,11 @@ void BTRemote::sendControlMessage(ControlMessageType type, uint8_t messageId) {
 	}
 
 	uint8_t data[2] = {(uint8_t) type, messageId};
-	pControlChar_->setValue(data, 2);
-	if (!pControlChar_->notify()) {
-		ERROR("Failed to send control message type %d", (uint8_t) type);
+	esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+		handles_.control_char_handle, 2, data, false); // false = no confirm (notify)
+
+	if (ret != ESP_OK) {
+		ERROR("Failed to send control message type %d: %s", (uint8_t) type, esp_err_to_name(ret));
 	}
 }
 
@@ -672,9 +747,11 @@ void BTRemote::sendMTUNotification() {
 	data[2] = (mtu_ >> 8) & 0xFF;
 	data[3] = mtu_ & 0xFF;
 
-	pControlChar_->setValue(data, 4);
-	if (!pControlChar_->notify()) {
-		ERROR("Failed to send MTU notification");
+	esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+		handles_.control_char_handle, 4, data, false); // false = no confirm (notify)
+
+	if (ret != ESP_OK) {
+		ERROR("Failed to send MTU notification: %s", esp_err_to_name(ret));
 	} else {
 		INFO("MTU-Info sent: %d bytes", mtu_);
 	}
@@ -764,44 +841,67 @@ bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestD
 
 	INFO("Queueing file transfer request for %s of project %s", filename.c_str(), project.c_str());
 
-	// Queue the request instead of sending directly (to avoid blocking in callback)
-	PendingFileTransfer transfer = {messageId, project, filename};
-	if (xQueueSend(responseQueue_, &transfer, 0) != pdTRUE) {
-		WARN("Response queue full, dropping file transfer request");
+	// Queue the file transfer for processing in background task
+	MessageProcessorItem item = MessageProcessorItem::createFileTransfer(messageId, project, filename);
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("Message processor queue full, dropping file transfer request");
 		return false;
 	}
 
 	return true;
 }
 
-void BTRemote::processResponseQueue() {
-	PendingFileTransfer transfer;
+// Unified message processor - handles both incoming requests and file transfers
+void BTRemote::processMessageQueue() {
+	MessageProcessorItem item;
 
-	// Wait for a pending transfer request (blocks until available)
-	if (xQueueReceive(responseQueue_, &transfer, portMAX_DELAY) == pdTRUE) {
-		INFO("Processing queued file transfer for %s of project %s",
-			transfer.filename.c_str(), transfer.project.c_str());
+	// Wait for a message (blocks until available)
+	if (xQueueReceive(responseQueue_, &item, portMAX_DELAY) == pdTRUE) {
 
-		File projectFile = configuration_->getProjectFile(transfer.project, transfer.filename);
-		if (projectFile) {
-			size_t projectSize = projectFile.size();
-			INFO("Response has size %d", projectSize);
+		if (item.type == MessageProcessorItemType::INCOMING_REQUEST) {
+			// Process incoming request
+			IncomingRequest* req = static_cast<IncomingRequest*>(item.dataPtr);
+			INFO("Processing incoming request: msgId=%d, protocolType=%d, size=%d",
+				req->messageId, (int)req->protocolType, req->data.size());
 
-			// Now we're in a separate task context, safe to do long-running operations
-			sendLargeResponse(transfer.messageId, projectSize, [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer) {
-				INFO("Reading chunk with index %d from file", index);
-				char buffer[maxChunkSize];
-				size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
-				for (int i = 0; i < read; i++) {
-					dataContainer.push_back(buffer[i]);
-				}
-				INFO("Read %d bytes from file for chunk %d", read, index);
-				return read;
-			});
+			// Call the original processing function (now safe, we're in separate task!)
+			processCompleteMessage(req->protocolType, req->messageId, req->data);
 
-			projectFile.close();
-		} else {
-			WARN("File not found: %s/%s", transfer.project.c_str(), transfer.filename.c_str());
+			// CRITICAL: Manually free the allocated memory
+			// (No destructor on MessageProcessorItem because FreeRTOS uses memcpy)
+			delete req;
+
+		} else if (item.type == MessageProcessorItemType::FILE_TRANSFER) {
+			// Process file transfer
+			PendingFileTransfer* transfer = static_cast<PendingFileTransfer*>(item.dataPtr);
+			INFO("Processing queued file transfer for %s of project %s",
+				transfer->filename.c_str(), transfer->project.c_str());
+
+			File projectFile = configuration_->getProjectFile(transfer->project, transfer->filename);
+			if (projectFile) {
+				size_t projectSize = projectFile.size();
+				INFO("Response has size %d", projectSize);
+
+				// Now we're in a separate task context, safe to do long-running operations
+				sendLargeResponse(transfer->messageId, projectSize, [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer) {
+					INFO("Reading chunk with index %d from file", index);
+					char buffer[maxChunkSize];
+					size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
+					for (int i = 0; i < read; i++) {
+						dataContainer.push_back(buffer[i]);
+					}
+					INFO("Read %d bytes from file for chunk %d", read, index);
+					return read;
+				});
+
+				projectFile.close();
+			} else {
+				WARN("File not found: %s/%s", transfer->project.c_str(), transfer->filename.c_str());
+			}
+
+			// CRITICAL: Manually free the allocated memory
+			// (No destructor on MessageProcessorItem because FreeRTOS uses memcpy)
+			delete transfer;
 		}
 	}
 }
@@ -876,4 +976,390 @@ bool BTRemote::reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &r
 	INFO("Client notified that it is ready to receive events!");
 	readyForEvents_ = true;
 	return true;
+}
+// This file contains the Bluedroid event handlers implementation
+// Append this content to btremote.cpp after the existing methods
+
+// ============================================================================
+// STATIC EVENT HANDLERS
+// ============================================================================
+
+void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+	esp_ble_gatts_cb_param_t *param) {
+	// Route to instance methods
+	if (g_btremote_instance) {
+		switch (event) {
+			case ESP_GATTS_REG_EVT:
+				g_btremote_instance->handleGattsRegister(gatts_if, param);
+				break;
+			case ESP_GATTS_CREATE_EVT:
+				g_btremote_instance->handleGattsCreate(param);
+				break;
+			case ESP_GATTS_ADD_CHAR_EVT:
+				g_btremote_instance->handleGattsAddChar(param);
+				break;
+			case ESP_GATTS_ADD_CHAR_DESCR_EVT:
+				g_btremote_instance->handleGattsAddCharDescr(param);
+				break;
+			case ESP_GATTS_CONNECT_EVT:
+				g_btremote_instance->handleGattsConnect(param);
+				break;
+			case ESP_GATTS_DISCONNECT_EVT:
+				g_btremote_instance->handleGattsDisconnect(param);
+				break;
+			case ESP_GATTS_WRITE_EVT:
+				g_btremote_instance->handleGattsWrite(param);
+				break;
+			case ESP_GATTS_MTU_EVT:
+				g_btremote_instance->handleGattsMTU(param);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
+void BTRemote::gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+	switch (event) {
+		case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+			INFO("Advertising data set (standard), starting advertising");
+			esp_ble_gap_start_advertising(&g_adv_params);
+			break;
+		case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+			INFO("Raw advertising data set, starting advertising");
+			esp_ble_gap_start_advertising(&g_adv_params);
+			break;
+		case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+			INFO("Scan response data set");
+			// Scan response is optional, advertising should already be started by raw adv data event
+			break;
+		case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+			if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
+				INFO("Advertising started successfully");
+			} else {
+				ERROR("Advertising start failed: %d", param->adv_start_cmpl.status);
+			}
+			break;
+		default:
+			break;
+	}
+}
+
+// ============================================================================
+// INSTANCE EVENT HANDLERS
+// ============================================================================
+
+void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
+	if (param->reg.status != ESP_GATT_OK) {
+		ERROR("GATTS register failed, status=%d", param->reg.status);
+		return;
+	}
+
+	INFO("GATTS registered, app_id=%d, gatts_if=%d", param->reg.app_id, gatts_if);
+	gatts_if_ = gatts_if;
+
+	// Create service with proper service ID structure
+	esp_gatt_srvc_id_t service_id = {
+		.id = {
+			.uuid = stringToUUID128(SERVICE_UUID),
+			.inst_id = 0,
+		},
+		.is_primary = true,
+	};
+
+	esp_err_t ret = esp_ble_gatts_create_service(gatts_if, &service_id, 20); // 20 handles needed
+	if (ret) {
+		ERROR("Create service failed: %s", esp_err_to_name(ret));
+	}
+}
+
+void BTRemote::handleGattsCreate(esp_ble_gatts_cb_param_t *param) {
+	if (param->create.status != ESP_GATT_OK) {
+		ERROR("Create service failed, status=%d", param->create.status);
+		return;
+	}
+
+	INFO("Service created, handle=%d", param->create.service_handle);
+	handles_.service_handle = param->create.service_handle;
+
+	// Start service
+	esp_err_t ret = esp_ble_gatts_start_service(handles_.service_handle);
+	if (ret) {
+		ERROR("Start service failed: %s", esp_err_to_name(ret));
+		return;
+	}
+
+	// Add Request characteristic (WRITE)
+	esp_bt_uuid_t char_uuid = stringToUUID128(REQUEST_CHAR_UUID);
+	esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_WRITE;
+	ret = esp_ble_gatts_add_char(handles_.service_handle, &char_uuid,
+		ESP_GATT_PERM_WRITE, prop, nullptr, nullptr);
+	if (ret) {
+		ERROR("Add request char failed: %s", esp_err_to_name(ret));
+	}
+}
+
+void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
+	if (param->add_char.status != ESP_GATT_OK) {
+		ERROR("Add char failed, status=%d", param->add_char.status);
+		return;
+	}
+
+	INFO("Characteristic added, handle=%d, uuid[0]=0x%02x",
+		param->add_char.attr_handle, param->add_char.char_uuid.uuid.uuid128[0]);
+
+	// Determine which characteristic was added by comparing UUIDs
+	esp_bt_uuid_t req_uuid = stringToUUID128(REQUEST_CHAR_UUID);
+	esp_bt_uuid_t resp_uuid = stringToUUID128(RESPONSE_CHAR_UUID);
+	esp_bt_uuid_t evt_uuid = stringToUUID128(EVENT_CHAR_UUID);
+	esp_bt_uuid_t ctrl_uuid = stringToUUID128(CONTROL_CHAR_UUID);
+
+	esp_bt_uuid_t *added_uuid = &param->add_char.char_uuid;
+
+	// Debug: Log the UUID being added
+	char uuid_str[64];
+	snprintf(uuid_str, sizeof(uuid_str), "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+		added_uuid->uuid.uuid128[15], added_uuid->uuid.uuid128[14],
+		added_uuid->uuid.uuid128[13], added_uuid->uuid.uuid128[12],
+		added_uuid->uuid.uuid128[11], added_uuid->uuid.uuid128[10],
+		added_uuid->uuid.uuid128[9], added_uuid->uuid.uuid128[8],
+		added_uuid->uuid.uuid128[7], added_uuid->uuid.uuid128[6],
+		added_uuid->uuid.uuid128[5], added_uuid->uuid.uuid128[4],
+		added_uuid->uuid.uuid128[3], added_uuid->uuid.uuid128[2],
+		added_uuid->uuid.uuid128[1], added_uuid->uuid.uuid128[0]);
+	INFO("Characteristic UUID added: %s", uuid_str);
+
+	if (memcmp(added_uuid->uuid.uuid128, req_uuid.uuid.uuid128, 16) == 0) {
+		handles_.request_char_handle = param->add_char.attr_handle;
+		INFO("Request char handle=%d (UUID: %s)", handles_.request_char_handle, REQUEST_CHAR_UUID);
+
+		// Add Response characteristic (INDICATE)
+		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_INDICATE;
+		esp_ble_gatts_add_char(handles_.service_handle, &resp_uuid,
+			ESP_GATT_PERM_READ, prop, nullptr, nullptr);
+
+	} else if (memcmp(added_uuid->uuid.uuid128, resp_uuid.uuid.uuid128, 16) == 0) {
+		handles_.response_char_handle = param->add_char.attr_handle;
+		INFO("Response char handle=%d (UUID: %s)", handles_.response_char_handle, RESPONSE_CHAR_UUID);
+
+		// Add CCCD for indicate
+		esp_bt_uuid_t descr_uuid;
+		descr_uuid.len = ESP_UUID_LEN_16;
+		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
+			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+
+	} else if (memcmp(added_uuid->uuid.uuid128, evt_uuid.uuid.uuid128, 16) == 0) {
+		handles_.event_char_handle = param->add_char.attr_handle;
+		INFO("Event char handle=%d (UUID: %s)", handles_.event_char_handle, EVENT_CHAR_UUID);
+
+		// Add CCCD for indicate
+		esp_bt_uuid_t descr_uuid;
+		descr_uuid.len = ESP_UUID_LEN_16;
+		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
+			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+
+	} else if (memcmp(added_uuid->uuid.uuid128, ctrl_uuid.uuid.uuid128, 16) == 0) {
+		handles_.control_char_handle = param->add_char.attr_handle;
+		INFO("Control char handle=%d (UUID: %s)", handles_.control_char_handle, CONTROL_CHAR_UUID);
+
+		// Add CCCD for notify
+		esp_bt_uuid_t descr_uuid;
+		descr_uuid.len = ESP_UUID_LEN_16;
+		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
+			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+	}
+}
+
+void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
+	if (param->add_char_descr.status != ESP_GATT_OK) {
+		ERROR("Add char descriptor failed, status=%d", param->add_char_descr.status);
+		return;
+	}
+
+	INFO("Descriptor added, handle=%d", param->add_char_descr.attr_handle);
+
+	// Track CCCD handles (descriptors come after their characteristics)
+	if (handles_.response_cccd_handle == 0 && handles_.response_char_handle != 0) {
+		handles_.response_cccd_handle = param->add_char_descr.attr_handle;
+		INFO("Response CCCD handle=%d", handles_.response_cccd_handle);
+
+		// Add Event characteristic (INDICATE)
+		esp_bt_uuid_t evt_uuid = stringToUUID128(EVENT_CHAR_UUID);
+		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_INDICATE;
+		esp_ble_gatts_add_char(handles_.service_handle, &evt_uuid,
+			ESP_GATT_PERM_READ, prop, nullptr, nullptr);
+
+	} else if (handles_.event_cccd_handle == 0 && handles_.event_char_handle != 0) {
+		handles_.event_cccd_handle = param->add_char_descr.attr_handle;
+		INFO("Event CCCD handle=%d", handles_.event_cccd_handle);
+
+		// Add Control characteristic (WRITE + NOTIFY)
+		esp_bt_uuid_t ctrl_uuid = stringToUUID128(CONTROL_CHAR_UUID);
+		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
+		esp_ble_gatts_add_char(handles_.service_handle, &ctrl_uuid,
+			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, prop, nullptr, nullptr);
+
+	} else if (handles_.control_cccd_handle == 0 && handles_.control_char_handle != 0) {
+		handles_.control_cccd_handle = param->add_char_descr.attr_handle;
+		INFO("Control CCCD handle=%d", handles_.control_cccd_handle);
+
+		// All characteristics and descriptors created - start advertising
+		INFO("All GATT attributes created successfully");
+
+		// Build raw advertising data with 128-bit service UUID
+		// Format: [Length][Type][Data]
+		// For 128-bit UUID, we need ESP_BLE_AD_TYPE_128SRV_CMPL (0x07)
+		static uint8_t raw_adv_data[31]; // Max BLE advertising data size
+		int idx = 0;
+
+		// Flags: General Discoverable + BR/EDR Not Supported
+		raw_adv_data[idx++] = 2;    // Length
+		raw_adv_data[idx++] = 0x01; // Type: Flags
+		raw_adv_data[idx++] = 0x06; // Flags: General Discoverable (0x02) + BR/EDR Not Supported (0x04)
+
+		// Complete 128-bit Service UUID
+		raw_adv_data[idx++] = 17;   // Length (16 bytes UUID + 1 byte type)
+		raw_adv_data[idx++] = 0x07; // Type: Complete List of 128-bit Service UUIDs
+		// Add UUID in little-endian format
+		esp_bt_uuid_t service_uuid = stringToUUID128(SERVICE_UUID);
+		for (int i = 0; i < 16; i++) {
+			raw_adv_data[idx++] = service_uuid.uuid.uuid128[i];
+		}
+
+		// Debug: Log the raw advertising data
+		char hex_str[100];
+		int hex_idx = 0;
+		for (int i = 0; i < idx && hex_idx < 90; i++) {
+			hex_idx += snprintf(hex_str + hex_idx, sizeof(hex_str) - hex_idx, "%02x ", raw_adv_data[i]);
+		}
+		INFO("Raw advertising data (%d bytes): %s", idx, hex_str);
+
+		// Set raw advertising data
+		esp_err_t ret = esp_ble_gap_config_adv_data_raw(raw_adv_data, idx);
+		if (ret != ESP_OK) {
+			ERROR("Set raw advertising data failed: %s", esp_err_to_name(ret));
+		} else {
+			INFO("Raw advertising data set successfully");
+		}
+
+		// Also set scan response data with device name for better discoverability
+		// This is optional but helps Web Bluetooth show the device name
+		esp_ble_adv_data_t scan_rsp_data = {
+			.set_scan_rsp = true,
+			.include_name = true,
+			.include_txpower = false,
+			.min_interval = 0,
+			.max_interval = 0,
+			.appearance = 0,
+			.manufacturer_len = 0,
+			.p_manufacturer_data = nullptr,
+			.service_data_len = 0,
+			.p_service_data = nullptr,
+			.service_uuid_len = 0,
+			.p_service_uuid = nullptr,
+			.flag = 0,
+		};
+		ret = esp_ble_gap_config_adv_data(&scan_rsp_data);
+		if (ret != ESP_OK) {
+			ERROR("Set scan response data failed: %s", esp_err_to_name(ret));
+		}
+	}
+}
+
+void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t *param) {
+	readyForEvents_ = false;
+	deviceConnected_ = true;
+	connState_.connected = true;
+	connState_.conn_id = param->connect.conn_id;
+	connState_.gatt_if = gatts_if_;
+	memcpy(connState_.remote_addr, param->connect.remote_bda, sizeof(esp_bd_addr_t));
+	connState_.mtu = 23; // Default MTU, will be updated if negotiated
+
+	mtu_ = 23;
+
+	INFO("Client connected, conn_id=%d, remote_addr=%02x:%02x:%02x:%02x:%02x:%02x",
+		connState_.conn_id,
+		connState_.remote_addr[0], connState_.remote_addr[1],
+		connState_.remote_addr[2], connState_.remote_addr[3],
+		connState_.remote_addr[4], connState_.remote_addr[5]);
+
+	// Small delay for stability
+	vTaskDelay(pdMS_TO_TICKS(100));
+	sendMTUNotification();
+}
+
+void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
+	readyForEvents_ = false;
+	deviceConnected_ = false;
+	connState_.connected = false;
+	fragmentBuffers_.clear();
+
+	INFO("Client disconnected, conn_id=%d", param->disconnect.conn_id);
+
+	// Restart advertising
+	esp_ble_gap_start_advertising(&g_adv_params);
+}
+
+void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {
+	mtu_ = param->mtu.mtu - 3; // Subtract ATT header
+	connState_.mtu = mtu_;
+	INFO("MTU changed to: %d (notified with %d)", mtu_, param->mtu.mtu);
+	sendMTUNotification();
+}
+
+void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
+	const uint8_t *data = param->write.value;
+	size_t length = param->write.len;
+
+	// Check if this is a CCCD write (2 bytes for enable/disable notifications/indications)
+	if (param->write.handle == handles_.response_cccd_handle ||
+		param->write.handle == handles_.event_cccd_handle ||
+		param->write.handle == handles_.control_cccd_handle) {
+
+		if (length == 2) {
+			uint16_t descr_value = data[0] | (data[1] << 8);
+			const char *char_name = "Unknown";
+			if (param->write.handle == handles_.response_cccd_handle) char_name = "Response";
+			else if (param->write.handle == handles_.event_cccd_handle) char_name = "Event";
+			else if (param->write.handle == handles_.control_cccd_handle) char_name = "Control";
+
+			INFO("CCCD write for %s characteristic: 0x%04x (Notify=%s, Indicate=%s)",
+				char_name, descr_value,
+				(descr_value & 0x0001) ? "YES" : "NO",
+				(descr_value & 0x0002) ? "YES" : "NO");
+		}
+
+		// Send response if needed
+		if (param->write.need_rsp) {
+			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
+				param->write.trans_id, ESP_GATT_OK, nullptr);
+		}
+		return;
+	}
+
+	// Regular characteristic writes - must have at least fragment header
+	if (param->write.len < FRAGMENT_HEADER_SIZE) {
+		sendControlMessage(ControlMessageType::NACK, 0);
+		// Send response if needed
+		if (param->write.need_rsp) {
+			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
+				param->write.trans_id, ESP_GATT_OK, nullptr);
+		}
+		return;
+	}
+
+	if (param->write.handle == handles_.request_char_handle) {
+		handleFragment(data, length);
+	} else if (param->write.handle == handles_.control_char_handle) {
+		handleControlMessage(data, length);
+	}
+
+	// Send response if needed
+	if (param->write.need_rsp) {
+		esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
+			param->write.trans_id, ESP_GATT_OK, nullptr);
+	}
 }

@@ -66,7 +66,7 @@ async function saveWorkspace() {
 		await window.Application.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
 		const luaCode = generateCode();
 		await window.Application.saveProjectFile("program.lua", "text/x-lua; charset=UTF-8", luaCode);
-
+		console.log("Workspace saved!");
 		return true;
 	} catch (error) {
 		console.error('Error while saving project:', error);
@@ -359,7 +359,10 @@ async function initBLEConnection() {
 		//});
 
 		// Activate Eventing
+		console.log("Notifying, I am ready!");
 		await bleClient.sendRequest(APP_REQUEST_TYPE_READY_FOR_EVENTS, JSON.stringify({}));
+
+		console.log("Now I should get log messages");
 
 		bleClient.onDisconnect(() => {
 			console.log('Connection terminated!');
