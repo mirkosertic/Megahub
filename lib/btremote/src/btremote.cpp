@@ -287,20 +287,12 @@ struct MessageProcessorItem {
 	}
 };
 
-void btLogForwarderTask(void *param) {
-	BTRemote *server = (BTRemote *) param;
-	while (true) {
-		server->publishLogMessages();
-		server->publishCommands();
-		server->publishPortstatus();
-	}
-}
-
-// Unified message processor task - handles both incoming requests and file transfers
+// Unified message processor task - handles requests, file transfers, and event publishing
 void btMessageProcessorTask(void *param) {
 	BTRemote *server = (BTRemote *) param;
 	while (true) {
 		server->processMessageQueue();
+		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }
 
@@ -444,17 +436,7 @@ void BTRemote::begin(const char *deviceName) {
 		});
 	});
 
-	// Logging forwarder task
-	/*xTaskCreate(
-		btLogForwarderTask,
-		"BTLogForwarderTask",
-		4096,
-		(void *) this,
-		1,
-		&logforwarderTaskHandle_ // Store task handle for cancellation
-	);*/
-
-	// Unified message processor task - handles requests and file transfers outside callback context
+	// Unified message processor task - handles requests, file transfers, and event publishing
 	xTaskCreate(
 		btMessageProcessorTask,
 		"BTMsgProcessor",
@@ -786,7 +768,8 @@ size_t BTRemote::getMTU() const {
 }
 
 void BTRemote::publishLogMessages() {
-	String logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
+	// Non-blocking check (timeout = 0) to avoid latency accumulation
+	String logMessage = loggingOutput_->waitForLogMessage(0);
 	while (logMessage.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
 			std::vector<uint8_t> response;
@@ -797,12 +780,14 @@ void BTRemote::publishLogMessages() {
 			sendEvent(APP_EVENT_TYPE_LOG, response);
 		}
 
-		logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
+		// Keep checking non-blocking until queue is empty
+		logMessage = loggingOutput_->waitForLogMessage(0);
 	}
 }
 
 void BTRemote::publishCommands() {
-	String command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	// Non-blocking check (timeout = 0) to avoid latency accumulation
+	String command = Commands::instance()->waitForCommand(0);
 	while (command.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
 
@@ -812,12 +797,14 @@ void BTRemote::publishCommands() {
 			sendEvent(APP_EVENT_TYPE_COMMAND, response);
 		}
 
-		command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
+		// Keep checking non-blocking until queue is empty
+		command = Commands::instance()->waitForCommand(0);
 	}
 }
 
 void BTRemote::publishPortstatus() {
-	String status = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+	// Non-blocking check (timeout = 0) to avoid latency accumulation
+	String status = Portstatus::instance()->waitForStatus(0);
 	while (status.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
 
@@ -827,7 +814,8 @@ void BTRemote::publishPortstatus() {
 			sendEvent(APP_EVENT_TYPE_PORTSTATUS, response);
 		}
 
-		status = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+		// Keep checking non-blocking until queue is empty
+		status = Portstatus::instance()->waitForStatus(0);
 	}
 }
 
@@ -855,8 +843,8 @@ bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestD
 void BTRemote::processMessageQueue() {
 	MessageProcessorItem item;
 
-	// Wait for a message (blocks until available)
-	if (xQueueReceive(responseQueue_, &item, portMAX_DELAY) == pdTRUE) {
+	// Wait for a message with short timeout (10ms) for responsive event publishing
+	if (xQueueReceive(responseQueue_, &item, 0) == pdTRUE) {
 
 		if (item.type == MessageProcessorItemType::INCOMING_REQUEST) {
 			// Process incoming request
@@ -903,6 +891,14 @@ void BTRemote::processMessageQueue() {
 			// (No destructor on MessageProcessorItem because FreeRTOS uses memcpy)
 			delete transfer;
 		}
+	}
+
+	// After processing (or timeout), check for pending events and send them
+	// This prevents race conditions - all BLE communication is serialized through this task
+	if (isConnected() && readyForEvents_) {
+		//publishLogMessages();
+		publishCommands();
+		publishPortstatus();
 	}
 }
 
