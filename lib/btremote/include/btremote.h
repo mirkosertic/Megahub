@@ -13,6 +13,8 @@
 #include "esp_gap_ble_api.h"
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
+#include "esp_gap_bt_api.h"
+#include "esp_bt_defs.h"
 
 enum class ProtocolMessageType : uint8_t {
 	REQUEST = 0x01,
@@ -66,6 +68,58 @@ struct ConnectionState {
 	bool connected;
 };
 
+// Bluetooth Classic Device Types
+enum class BTClassicDeviceType : uint8_t {
+	UNKNOWN = 0x00,
+	COMPUTER = 0x01,
+	PHONE = 0x02,
+	AUDIO = 0x03,
+	PERIPHERAL = 0x04,
+	IMAGING = 0x05,
+	WEARABLE = 0x06,
+	TOY = 0x07,
+	HEALTH = 0x08,
+	GAMEPAD = 0x09,
+	KEYBOARD = 0x0A,
+	MOUSE = 0x0B,
+	JOYSTICK = 0x0C
+};
+
+// Bluetooth Classic Device Information
+struct BTClassicDevice {
+	esp_bd_addr_t address;
+	char name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
+	BTClassicDeviceType deviceType;
+	bool paired;
+	int32_t rssi;
+	uint32_t cod; // Class of Device
+};
+
+// HID Host Connection State
+enum class HIDConnectionState : uint8_t {
+	DISCONNECTED = 0x00,
+	CONNECTING = 0x01,
+	CONNECTED = 0x02,
+	DISCONNECTING = 0x03
+};
+
+// HID Device Information
+struct HIDDevice {
+	esp_bd_addr_t address;
+	HIDConnectionState state;
+	char name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
+	uint32_t handle;
+};
+
+// HID Report Data for Gamepad Processing
+struct HIDReportData {
+	uint8_t reportId;
+	uint8_t reportType;
+	uint16_t length;
+	uint8_t data[64]; // Max HID report size
+	uint32_t timestamp;
+};
+
 class BTRemote {
 private:
 	BLEHandles handles_;
@@ -93,6 +147,19 @@ private:
 	SemaphoreHandle_t indicationConfirmSemaphore_;
 
 	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback_;
+
+	// Bluetooth Classic Discovery and Pairing
+	std::map<std::string, BTClassicDevice> discoveredDevices_;
+	SemaphoreHandle_t discoveredDevicesMutex_;
+	uint32_t lastDiscoveryTime_;
+	uint32_t lastDeviceListPublishTime_;
+	bool discoveryInProgress_;
+	bool pairingInProgress_;
+	esp_bd_addr_t pairingDeviceAddress_;
+
+	// HID Host
+	std::map<std::string, HIDDevice> hidDevices_;
+	SemaphoreHandle_t hidDevicesMutex_;
 
 	void handleFragment(const uint8_t *data, size_t length);
 	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data);
@@ -129,6 +196,23 @@ private:
 	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param);
 	void handleGattsConfirm(esp_ble_gatts_cb_param_t *param);
 
+	// Bluetooth Classic GAP Event Handlers
+	void handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param);
+	void handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param);
+	void handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param);
+	void handleGapBTPinRequest(esp_bt_gap_cb_param_t *param);
+	void handleGapBTCfmRequest(esp_bt_gap_cb_param_t *param);
+	void handleGapBTKeyNotify(esp_bt_gap_cb_param_t *param);
+	void handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param);
+	void handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param);
+
+	// Helper methods for Bluetooth Classic
+	void startDiscoveryInternal();
+	void stopDiscoveryInternal();
+	BTClassicDeviceType classifyDevice(uint32_t cod);
+	std::string bdAddrToString(const esp_bd_addr_t address);
+	void stringToBdAddr(const std::string &str, esp_bd_addr_t address);
+
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
 
@@ -137,15 +221,32 @@ public:
 	static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
 		esp_ble_gatts_cb_param_t *param);
 	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+	static void gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
 
 	void publishLogMessages();
 	void publishCommands();
 	void publishPortstatus();
+	void publishBTClassicDevices();
 	void processMessageQueue();
 	void loop();
 
 	bool isConnected() const;
 	size_t getMTU() const;
+
+	// Bluetooth Classic Discovery API (thread-safe)
+	std::vector<BTClassicDevice> getDiscoveredDevices();
+	bool isDiscoveryInProgress() const;
+	void clearDiscoveredDevices();
+
+	// Bluetooth Classic Pairing API
+	bool removePairing(const char *macAddress);
+	bool startPairing(const char *macAddress);
+	bool isPairingInProgress() const;
+
+	// HID Host API
+	bool hidConnect(const char *macAddress);
+	bool hidDisconnect(const char *macAddress);
+	std::vector<HIDDevice> getConnectedHIDDevices();
 };
 
 #endif // BTREMOTE_H

@@ -5,6 +5,7 @@ import './components/ui/component.js';
 import './components/portstatus/component.js';
 import './components/blockly/component.js';
 import './components/luapreview/component.js';
+import './components/btdevicelist/component.js';
 
 const mode = import.meta.env.VITE_MODE;
 
@@ -22,6 +23,7 @@ import {
 	APP_REQUEST_TYPE_RUN_PROGRAM,
 	APP_REQUEST_TYPE_PUT_PROJECT_FILE,
 	APP_REQUEST_TYPE_DELETE_PROJECT,
+	APP_EVENT_TYPE_BTCLASSICDEVICES,
 	BLEClient
 } from './bleclient.js'
 
@@ -31,6 +33,7 @@ var blocklyEditor = null;
 var luaPreview = null;
 var uiComponents = null;
 var portstatus = null
+var btdevicelist = null
 
 // Functions
 
@@ -200,7 +203,7 @@ window.Application = {
 		if (mode === 'dev') {
 			// Dev-specific logic
 			if (filename === 'model.xml') {
-				localStorage.setItem(STRORAGE_KEY, xmlText);
+				localStorage.setItem(STRORAGE_KEY, content);
 			}
 		} else if (mode === 'bt') {
 			console.log("Saving file " + filename + " to project " + projectId);
@@ -337,6 +340,7 @@ async function initBLEConnection() {
 		const logger = document.getElementById('logger');
 
 		portstatus.initialize();
+		btdevicelist.initialize();
 
 		bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
 			const logEvent = JSON.parse(new TextDecoder().decode(data));
@@ -351,6 +355,11 @@ async function initBLEConnection() {
 		bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
 			const command = JSON.parse(new TextDecoder().decode(data));
 			uicomponents.processUIEvent(command);
+		});
+
+		bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
+			const devices = JSON.parse(new TextDecoder().decode(data));
+			btdevicelist.updateDevices(devices);
 		});
 
 		// Wildcard listener
@@ -385,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	luaPreview = document.getElementById('luapreview');
 	uiComponents = document.getElementById('uicomponents');
 	portstatus = document.getElementById("portstatus");
+	btdevicelist = document.getElementById("btdevicelist");
 
 	if (mode === 'bt') {
 		window.Application.setInitState();
@@ -415,6 +425,54 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	if (mode == "dev") {
+		// Initialize BT Device List with dummy data
+		btdevicelist.updateDevices({
+			"devices": [
+				{
+					"mac": "AA:BB:CC:11:22:33",
+					"name": "8BitDo M30 gamepad",
+					"type": 0x09, // GAMEPAD
+					"paired": true,
+					"rssi": -45,
+					"cod": 0x002508
+				},
+				{
+					"mac": "DD:EE:FF:44:55:66",
+					"name": "Logitech MX Master 3",
+					"type": 0x0B, // MOUSE
+					"paired": false,
+					"rssi": -67,
+					"cod": 0x002580
+				},
+				{
+					"mac": "11:22:33:AA:BB:CC",
+					"name": "Apple Magic Keyboard",
+					"type": 0x0A, // KEYBOARD
+					"paired": true,
+					"rssi": -52,
+					"cod": 0x002540
+				},
+				{
+					"mac": "77:88:99:DD:EE:FF",
+					"name": "Unknown Device",
+					"type": 0x00, // UNKNOWN
+					"paired": false,
+					"rssi": -78,
+					"cod": 0x000000
+				},
+				{
+					"mac": "44:55:66:11:22:33",
+					"name": "Sony WH-1000XM4",
+					"type": 0x03, // AUDIO
+					"paired": true,
+					"rssi": -58,
+					"cod": 0x240404
+				}
+			],
+			"count": 5,
+			"discoveryActive": true
+		});
+
 		portstatus.updateStatus({
 			"ports" : [
 				{

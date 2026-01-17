@@ -16,6 +16,10 @@
 #include "esp_gap_ble_api.h"
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
+#include "esp_gap_bt_api.h"
+#include "esp_bt_defs.h"
+#include "esp_hidh.h"
+#include "esp_hidh_api.h"
 
 // Arduino BT helper (handles controller init correctly)
 #include "esp32-hal-bt.h"
@@ -77,9 +81,10 @@ static esp_ble_adv_params_t g_adv_params = {
 #define APP_REQUEST_TYPE_PUT_AUTOSTART	  0x09
 #define APP_REQUEST_TYPE_READY_FOR_EVENTS 0x0A
 
-#define APP_EVENT_TYPE_LOG		  0x01
-#define APP_EVENT_TYPE_PORTSTATUS 0x02
-#define APP_EVENT_TYPE_COMMAND	  0x03
+#define APP_EVENT_TYPE_LOG		         0x01
+#define APP_EVENT_TYPE_PORTSTATUS        0x02
+#define APP_EVENT_TYPE_COMMAND	         0x03
+#define APP_EVENT_TYPE_BTCLASSICDEVICES  0x04
 
 const uint32_t TASK_LOOP_DELAY_MS = 10;
 
@@ -247,6 +252,9 @@ void btMessageProcessorTask(void *param) {
 	}
 }
 
+// Bluetooth Classic discovery interval (30 seconds)
+const uint32_t BT_DISCOVERY_INTERVAL_MS = 30000;
+
 BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration)
 	: gatts_if_(ESP_GATT_IF_NONE)
 	, app_id_(0x55)
@@ -259,13 +267,22 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, nextMessageId_(0)
 	, responseQueue_(nullptr)
 	, responseSenderTaskHandle_(nullptr)
-	, indicationConfirmSemaphore_(nullptr) {
+	, indicationConfirmSemaphore_(nullptr)
+	, discoveredDevicesMutex_(nullptr)
+	, lastDiscoveryTime_(0)
+	, lastDeviceListPublishTime_(0)
+	, discoveryInProgress_(false)
+	, pairingInProgress_(false)
+	, hidDevicesMutex_(nullptr) {
 	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
+	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
+	hidDevicesMutex_ = xSemaphoreCreateMutex();
 
 	memset(&handles_, 0, sizeof(handles_));
 	memset(&connState_, 0, sizeof(connState_));
 	connState_.connected = false;
+	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
 
 	g_btremote_instance = this;
 }
@@ -316,6 +333,56 @@ void BTRemote::begin(const char *deviceName) {
 		ERROR("GAP register callback failed: %s", esp_err_to_name(ret));
 		return;
 	}
+
+	// Register Bluetooth Classic GAP callback for discovery and pairing
+	ret = esp_bt_gap_register_callback(BTRemote::gapBTEventHandler);
+	if (ret) {
+		ERROR("BT GAP register callback failed: %s", esp_err_to_name(ret));
+		return;
+	}
+	INFO("Bluetooth Classic GAP callback registered successfully");
+
+	// Set device to connectable and discoverable for Classic BT
+	ret = esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+	if (ret) {
+		ERROR("Set BT scan mode failed: %s", esp_err_to_name(ret));
+	} else {
+		INFO("Bluetooth Classic scan mode set to connectable and discoverable");
+	}
+
+	// Configure Simple Secure Pairing (SSP) - auto-accept all pairing requests
+	esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_NONE; // No input/output capability
+	ret = esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE, &iocap, sizeof(uint8_t));
+	if (ret) {
+		ERROR("Set IO capability failed: %s", esp_err_to_name(ret));
+	} else {
+		INFO("Bluetooth Classic IO capability set to NONE (auto-pairing enabled)");
+	}
+
+	// Enable auto-connect after pairing
+	esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_FIXED;
+	uint8_t pin_code_len = 4;
+	esp_bt_pin_code_t pin_code = {'0', '0', '0', '0'}; // Default PIN: 0000
+	ret = esp_bt_gap_set_pin(pin_type, pin_code_len, pin_code);
+	if (ret) {
+		WARN("Set BT PIN failed: %s (continuing without PIN)", esp_err_to_name(ret));
+	} else {
+		INFO("Bluetooth Classic PIN set to default (0000)");
+	}
+
+/*	// Initialize HID Host
+	INFO("Initializing HID Host...");
+	esp_hidh_config_t hidh_config = {
+		.callback = nullptr, // Will be set via separate API
+		.event_stack_size = 4096,
+		.callback_arg = this
+	};
+	ret = esp_hidh_init(&hidh_config);
+	if (ret) {
+		ERROR("HID Host init failed: %s", esp_err_to_name(ret));
+	} else {
+		INFO("HID Host initialized successfully");
+	}*/
 
 	ret = esp_ble_gatts_app_register(app_id_);
 	if (ret) {
@@ -386,6 +453,10 @@ void BTRemote::begin(const char *deviceName) {
 		&responseSenderTaskHandle_);
 
 	INFO("BLE Server started as ID %s, waiting for connections...", SERVICE_UUID);
+
+	// Start initial Bluetooth Classic discovery (subsequent scans triggered by discovery complete event)
+	INFO("Starting initial Bluetooth Classic device discovery (event-driven periodic scanning every 30s)");
+	startDiscoveryInternal();
 }
 
 void BTRemote::handleFragment(const uint8_t *data, size_t length) {
@@ -674,6 +745,7 @@ void BTRemote::onRequest(std::function<void(uint8_t, uint8_t, const std::vector<
 void BTRemote::loop() {
 	uint32_t now = millis();
 
+	// Fragment timeout cleanup
 	for (auto it = fragmentBuffers_.begin(); it != fragmentBuffers_.end();) {
 		if (now - it->second.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
 			WARN("Timeout: Message ID %d removed", it->first);
@@ -682,6 +754,14 @@ void BTRemote::loop() {
 		} else {
 			++it;
 		}
+	}
+
+	// Event-driven periodic Bluetooth Classic discovery (no dedicated task needed)
+	// Trigger next scan when interval has elapsed since last discovery completed
+	if (!discoveryInProgress_ && !pairingInProgress_ &&
+	    (now - lastDiscoveryTime_) >= BT_DISCOVERY_INTERVAL_MS) {
+		INFO("Triggering periodic Bluetooth Classic discovery (interval elapsed)");
+		startDiscoveryInternal();
 	}
 }
 
@@ -737,6 +817,50 @@ void BTRemote::publishPortstatus() {
 
 		status = Portstatus::instance()->waitForStatus(0);
 	}
+}
+
+void BTRemote::publishBTClassicDevices() {
+	uint32_t now = millis();
+
+	// Publish device list every 30 seconds (same interval as discovery)
+	if ((now - lastDeviceListPublishTime_) < BT_DISCOVERY_INTERVAL_MS) {
+		return; // Not yet time to publish
+	}
+
+	// Thread-safe access to discovered devices
+	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(10)) != pdTRUE) {
+		// Mutex not available, skip this cycle to avoid blocking
+		return;
+	}
+
+	// Create JSON array of discovered devices
+	std::vector<uint8_t> response;
+	createJsonResponse(response, [this](JsonDocument &responseDoc) {
+		JsonArray devices = responseDoc["devices"].to<JsonArray>();
+
+		for (const auto &pair : discoveredDevices_) {
+			const BTClassicDevice &device = pair.second;
+
+			JsonObject deviceObj = devices.add<JsonObject>();
+			deviceObj["mac"] = bdAddrToString(device.address);
+			deviceObj["name"] = String(device.name);
+			deviceObj["type"] = static_cast<uint8_t>(device.deviceType);
+			deviceObj["paired"] = device.paired;
+			deviceObj["rssi"] = device.rssi;
+			deviceObj["cod"] = device.cod;
+		}
+
+		responseDoc["count"] = discoveredDevices_.size();
+		responseDoc["discoveryActive"] = discoveryInProgress_;
+	});
+
+	xSemaphoreGive(discoveredDevicesMutex_);
+
+	// Send event with device list
+	INFO("Publishing Bluetooth Classic device list: %d devices", discoveredDevices_.size());
+	sendEvent(APP_EVENT_TYPE_BTCLASSICDEVICES, response);
+
+	lastDeviceListPublishTime_ = now;	
 }
 
 bool BTRemote::reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
@@ -813,6 +937,7 @@ void BTRemote::processMessageQueue() {
 		publishLogMessages();
 		publishCommands();
 		publishPortstatus();
+		publishBTClassicDevices();
 	}
 }
 
@@ -887,6 +1012,528 @@ bool BTRemote::reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &r
 	readyForEvents_ = true;
 	return true;
 }
+
+// ============================================================================
+// Bluetooth Classic Helper Methods
+// ============================================================================
+
+std::string BTRemote::bdAddrToString(const esp_bd_addr_t address) {
+	char addr_str[18];
+	snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+		address[0], address[1], address[2], address[3], address[4], address[5]);
+	return std::string(addr_str);
+}
+
+void BTRemote::stringToBdAddr(const std::string &str, esp_bd_addr_t address) {
+	unsigned int addr[6];
+	if (sscanf(str.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X",
+	           &addr[0], &addr[1], &addr[2], &addr[3], &addr[4], &addr[5]) == 6) {
+		for (int i = 0; i < 6; i++) {
+			address[i] = (uint8_t)addr[i];
+		}
+	} else {
+		ERROR("Invalid MAC address format: %s", str.c_str());
+		memset(address, 0, sizeof(esp_bd_addr_t));
+	}
+}
+
+BTClassicDeviceType BTRemote::classifyDevice(uint32_t cod) {
+	// Class of Device (CoD) - Major Device Class is bits 8-12
+	uint8_t major = (cod >> 8) & 0x1F;
+	uint8_t minor = (cod >> 2) & 0x3F;
+
+	INFO("Classifying device: CoD=0x%06X, Major=0x%02X, Minor=0x%02X", cod, major, minor);
+
+	switch (major) {
+		case 0x01: return BTClassicDeviceType::COMPUTER;
+		case 0x02: return BTClassicDeviceType::PHONE;
+		case 0x04: return BTClassicDeviceType::AUDIO;
+		case 0x05: // Peripheral (HID devices)
+			// Check minor device class for specific peripheral types
+			if ((minor & 0x0C) == 0x04) return BTClassicDeviceType::KEYBOARD;
+			if ((minor & 0x0C) == 0x08) return BTClassicDeviceType::MOUSE;
+			if ((minor & 0x0C) == 0x0C) return BTClassicDeviceType::JOYSTICK;
+			if (minor & 0x10) return BTClassicDeviceType::GAMEPAD; // Gamepad/Gaming control
+			return BTClassicDeviceType::PERIPHERAL;
+		case 0x06: return BTClassicDeviceType::IMAGING;
+		case 0x07: return BTClassicDeviceType::WEARABLE;
+		case 0x08: return BTClassicDeviceType::TOY;
+		case 0x09: return BTClassicDeviceType::HEALTH;
+		default:
+			INFO("Unknown device class: 0x%02X", major);
+			return BTClassicDeviceType::UNKNOWN;
+	}
+}
+
+void BTRemote::startDiscoveryInternal() {
+	if (discoveryInProgress_) {
+		WARN("Discovery already in progress, skipping");
+		return;
+	}
+
+	INFO("Starting Bluetooth Classic device discovery (mode: ESP_BT_INQ_MODE_GENERAL_INQUIRY)");
+
+	esp_err_t ret = esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
+	if (ret != ESP_OK) {
+		ERROR("Start discovery failed: %s", esp_err_to_name(ret));
+		discoveryInProgress_ = false;
+	} else {
+		INFO("Discovery started successfully");
+		discoveryInProgress_ = true;
+		lastDiscoveryTime_ = millis();
+	}
+}
+
+void BTRemote::stopDiscoveryInternal() {
+	if (!discoveryInProgress_) {
+		return;
+	}
+
+	INFO("Stopping Bluetooth Classic device discovery");
+
+	esp_err_t ret = esp_bt_gap_cancel_discovery();
+	if (ret != ESP_OK) {
+		ERROR("Stop discovery failed: %s", esp_err_to_name(ret));
+	} else {
+		INFO("Discovery stopped successfully");
+	}
+	discoveryInProgress_ = false;
+}
+
+// ============================================================================
+// Public API Methods - Bluetooth Classic Discovery
+// ============================================================================
+
+std::vector<BTClassicDevice> BTRemote::getDiscoveredDevices() {
+	std::vector<BTClassicDevice> devices;
+
+	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		INFO("Retrieving %d discovered Bluetooth Classic devices", discoveredDevices_.size());
+		for (const auto &pair : discoveredDevices_) {
+			devices.push_back(pair.second);
+		}
+		xSemaphoreGive(discoveredDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for discovered devices");
+	}
+
+	return devices;
+}
+
+bool BTRemote::isDiscoveryInProgress() const {
+	return discoveryInProgress_;
+}
+
+void BTRemote::clearDiscoveredDevices() {
+	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		INFO("Clearing %d discovered devices", discoveredDevices_.size());
+		discoveredDevices_.clear();
+		xSemaphoreGive(discoveredDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for clearing discovered devices");
+	}
+}
+
+// ============================================================================
+// Public API Methods - Pairing Management
+// ============================================================================
+
+bool BTRemote::removePairing(const char *macAddress) {
+	esp_bd_addr_t address;
+	stringToBdAddr(std::string(macAddress), address);
+
+	INFO("Removing pairing for device: %s", macAddress);
+
+	esp_err_t ret = esp_bt_gap_remove_bond_device(address);
+	if (ret != ESP_OK) {
+		ERROR("Remove bond device failed: %s", esp_err_to_name(ret));
+		return false;
+	}
+
+	INFO("Pairing removed successfully for device: %s", macAddress);
+	return true;
+}
+
+bool BTRemote::startPairing(const char *macAddress) {
+	if (pairingInProgress_) {
+		WARN("Pairing already in progress with another device");
+		return false;
+	}
+
+	stringToBdAddr(std::string(macAddress), pairingDeviceAddress_);
+
+	INFO("Starting pairing with device: %s", macAddress);
+
+	// First, stop discovery if in progress
+	if (discoveryInProgress_) {
+		stopDiscoveryInternal();
+	}
+
+	// Initiate pairing by setting device as bonding
+	esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_NONE;
+	esp_err_t ret = esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE,
+		&iocap, sizeof(uint8_t));
+
+	if (ret != ESP_OK) {
+		ERROR("Set security param failed: %s", esp_err_to_name(ret));
+		return false;
+	}
+
+	pairingInProgress_ = true;
+	INFO("Pairing initiated for device: %s (auto-accept enabled)", macAddress);
+	return true;
+}
+
+bool BTRemote::isPairingInProgress() const {
+	return pairingInProgress_;
+}
+
+// ============================================================================
+// Public API Methods - HID Host
+// ============================================================================
+
+bool BTRemote::hidConnect(const char *macAddress) {
+	esp_bd_addr_t address;
+	stringToBdAddr(std::string(macAddress), address);
+
+	INFO("Connecting to HID device: %s", macAddress);
+
+	// esp_hidh_dev_open returns the device pointer directly, not via esp_err_t
+	esp_hidh_dev_t *dev = esp_hidh_dev_open(address, ESP_HID_TRANSPORT_BT, 0);
+
+	if (dev == nullptr) {
+		ERROR("HID device open failed for address: %s", macAddress);
+		return false;
+	}
+
+	// Store device in map
+	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		HIDDevice hidDev;
+		memcpy(hidDev.address, address, sizeof(esp_bd_addr_t));
+		strncpy(hidDev.name, macAddress, sizeof(hidDev.name) - 1);
+		hidDev.state = HIDConnectionState::CONNECTED;
+		hidDev.handle = (uint32_t)(uintptr_t)dev;
+
+		std::string key = bdAddrToString(address);
+		hidDevices_[key] = hidDev;
+
+		INFO("HID device connected and stored: %s (handle: 0x%08X)", macAddress, hidDev.handle);
+		xSemaphoreGive(hidDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for HID devices");
+		esp_hidh_dev_close(dev);
+		return false;
+	}
+
+	return true;
+}
+
+bool BTRemote::hidDisconnect(const char *macAddress) {
+	esp_bd_addr_t address;
+	stringToBdAddr(std::string(macAddress), address);
+	std::string key = bdAddrToString(address);
+
+	INFO("Disconnecting HID device: %s", macAddress);
+
+	bool result = false;
+	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		auto it = hidDevices_.find(key);
+		if (it != hidDevices_.end()) {
+			esp_hidh_dev_t *dev = (esp_hidh_dev_t *)(uintptr_t)it->second.handle;
+			esp_err_t ret = esp_hidh_dev_close(dev);
+
+			if (ret != ESP_OK) {
+				ERROR("HID device close failed: %s", esp_err_to_name(ret));
+			} else {
+				INFO("HID device disconnected successfully: %s", macAddress);
+				result = true;
+			}
+
+			hidDevices_.erase(it);
+		} else {
+			WARN("HID device not found in connected devices: %s", macAddress);
+		}
+		xSemaphoreGive(hidDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for HID devices");
+	}
+
+	return result;
+}
+
+std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
+	std::vector<HIDDevice> devices;
+
+	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		INFO("Retrieving %d connected HID devices", hidDevices_.size());
+		for (const auto &pair : hidDevices_) {
+			devices.push_back(pair.second);
+		}
+		xSemaphoreGive(hidDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for HID devices");
+	}
+
+	return devices;
+}
+
+// ============================================================================
+// Bluetooth Classic GAP Event Handlers
+// ============================================================================
+
+void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
+	// Access discovery result from param union
+	// In ESP-IDF 4.4, disc_res contains: bda, num_prop, prop
+	esp_bd_addr_t bda;
+	memcpy(bda, param->disc_res.bda, sizeof(esp_bd_addr_t));
+
+	// Extract COD and RSSI from properties
+	uint32_t cod = 0;
+	int rssi = 0;
+	uint8_t *eir_data = nullptr;
+
+	for (int i = 0; i < param->disc_res.num_prop; i++) {
+		esp_bt_gap_dev_prop_t *prop = &param->disc_res.prop[i];
+		switch (prop->type) {
+			case ESP_BT_GAP_DEV_PROP_COD:
+				if (prop->len == sizeof(uint32_t)) {
+					cod = *(uint32_t *)prop->val;
+				}
+				break;
+			case ESP_BT_GAP_DEV_PROP_RSSI:
+				if (prop->len == sizeof(int8_t)) {
+					rssi = *(int8_t *)prop->val;
+				}
+				break;
+			case ESP_BT_GAP_DEV_PROP_EIR:
+				eir_data = (uint8_t *)prop->val;
+				break;
+			default:
+				break;
+		}
+	}
+
+	std::string addrStr = bdAddrToString(bda);
+	BTClassicDeviceType deviceType = classifyDevice(cod);
+
+	INFO("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d",
+		addrStr.c_str(), rssi, cod, (int)deviceType);
+
+	// Store or update device in discovered devices map (thread-safe)
+	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		BTClassicDevice device;
+		memcpy(device.address, bda, sizeof(esp_bd_addr_t));
+		device.deviceType = deviceType;
+		device.rssi = rssi;
+		device.cod = cod;
+		device.paired = false; // Will be updated by auth events
+
+		// Try to get device name from EIR data
+		uint8_t eir_len = 0;
+		uint8_t *name_ptr = nullptr;
+
+		if (eir_data != nullptr) {
+			// Parse EIR data for device name (type 0x09 = complete local name)
+			uint8_t offset = 0;
+			while (offset < ESP_BT_GAP_EIR_DATA_LEN) {
+				eir_len = eir_data[offset];
+				if (eir_len == 0) break;
+
+				uint8_t eir_type = eir_data[offset + 1];
+				if (eir_type == 0x09) { // Complete local name
+					name_ptr = &eir_data[offset + 2];
+					uint8_t name_len = eir_len - 1;
+					if (name_len > ESP_BT_GAP_MAX_BDNAME_LEN) {
+						name_len = ESP_BT_GAP_MAX_BDNAME_LEN;
+					}
+					memcpy(device.name, name_ptr, name_len);
+					device.name[name_len] = '\0';
+					INFO("Device name from EIR: %s", device.name);
+					break;
+				}
+
+				offset += eir_len + 1;
+			}
+		}
+
+		// If no name in EIR, request remote name
+		if (strlen(device.name) == 0) {
+			INFO("Requesting remote name for device: %s", addrStr.c_str());
+			esp_bt_gap_read_remote_name(bda);
+			strncpy(device.name, "Unknown", sizeof(device.name) - 1);
+		}
+
+		discoveredDevices_[addrStr] = device;
+		INFO("Device added/updated in discovered list: %s (total: %d)",
+			addrStr.c_str(), discoveredDevices_.size());
+
+		xSemaphoreGive(discoveredDevicesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for discovered devices");
+	}
+}
+
+void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
+	esp_bt_gap_discovery_state_t state = param->disc_st_chg.state;
+
+	INFO("BT Discovery state changed: %s",
+		state == ESP_BT_GAP_DISCOVERY_STOPPED ? "STOPPED" :
+		state == ESP_BT_GAP_DISCOVERY_STARTED ? "STARTED" : "UNKNOWN");
+
+	if (state == ESP_BT_GAP_DISCOVERY_STOPPED) {
+		discoveryInProgress_ = false;
+		lastDiscoveryTime_ = millis();
+		INFO("Discovery stopped, found %d devices", discoveredDevices_.size());
+
+		// Event-driven periodic scanning: schedule next discovery after interval
+		// This approach saves heap by avoiding a dedicated task
+		INFO("Next discovery will start in %d seconds (event-driven)", BT_DISCOVERY_INTERVAL_MS / 1000);
+
+	} else if (state == ESP_BT_GAP_DISCOVERY_STARTED) {
+		discoveryInProgress_ = true;
+		INFO("Discovery started");
+	}
+}
+
+void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->auth_cmpl.bda);
+
+	if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
+		INFO("BT Authentication successful for device: %s", addrStr.c_str());
+
+		// Update device paired status
+		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			auto it = discoveredDevices_.find(addrStr);
+			if (it != discoveredDevices_.end()) {
+				it->second.paired = true;
+				INFO("Device marked as paired: %s", addrStr.c_str());
+			}
+			xSemaphoreGive(discoveredDevicesMutex_);
+		}
+
+		pairingInProgress_ = false;
+		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
+	} else {
+		ERROR("BT Authentication failed for device: %s, status: %d",
+			addrStr.c_str(), param->auth_cmpl.stat);
+		pairingInProgress_ = false;
+		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
+	}
+
+	// Copy device name if available
+	if (param->auth_cmpl.device_name[0] != '\0') {
+		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			auto it = discoveredDevices_.find(addrStr);
+			if (it != discoveredDevices_.end()) {
+				strncpy(it->second.name, (char *)param->auth_cmpl.device_name,
+					ESP_BT_GAP_MAX_BDNAME_LEN);
+				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
+				INFO("Device name updated: %s -> %s", addrStr.c_str(), it->second.name);
+			}
+			xSemaphoreGive(discoveredDevicesMutex_);
+		}
+	}
+}
+
+void BTRemote::handleGapBTPinRequest(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->pin_req.bda);
+	INFO("BT PIN request from device: %s (auto-responding with default PIN)", addrStr.c_str());
+
+	// Auto-accept with default PIN: 0000
+	esp_bt_pin_code_t pin_code = {'0', '0', '0', '0'};
+	esp_bt_gap_pin_reply(param->pin_req.bda, true, 4, pin_code);
+}
+
+void BTRemote::handleGapBTCfmRequest(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->cfm_req.bda);
+	INFO("BT SSP confirmation request from device: %s, passkey: %d (auto-accepting)",
+		addrStr.c_str(), param->cfm_req.num_val);
+
+	// Auto-accept confirmation request
+	esp_bt_gap_ssp_confirm_reply(param->cfm_req.bda, true);
+}
+
+void BTRemote::handleGapBTKeyNotify(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->key_notif.bda);
+	INFO("BT SSP key notification from device: %s, passkey: %d",
+		addrStr.c_str(), param->key_notif.passkey);
+}
+
+void BTRemote::handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->key_req.bda);
+	INFO("BT SSP key request from device: %s (auto-accepting)", addrStr.c_str());
+
+	// Auto-accept key request
+	esp_bt_gap_ssp_passkey_reply(param->key_req.bda, true, 0);
+}
+
+void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->read_rmt_name.bda);
+
+	if (param->read_rmt_name.stat == ESP_BT_STATUS_SUCCESS) {
+		INFO("BT Remote name read successful: %s -> %s",
+			addrStr.c_str(), param->read_rmt_name.rmt_name);
+
+		// Update device name in discovered devices
+		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			auto it = discoveredDevices_.find(addrStr);
+			if (it != discoveredDevices_.end()) {
+				strncpy(it->second.name, (char *)param->read_rmt_name.rmt_name,
+					ESP_BT_GAP_MAX_BDNAME_LEN);
+				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
+				INFO("Device name updated: %s", it->second.name);
+			}
+			xSemaphoreGive(discoveredDevicesMutex_);
+		}
+	} else {
+		WARN("BT Remote name read failed for device: %s, status: %d",
+			addrStr.c_str(), param->read_rmt_name.stat);
+	}
+}
+
+// ============================================================================
+// Static Callback Dispatchers
+// ============================================================================
+
+void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
+	if (!g_btremote_instance) {
+		return;
+	}
+
+	switch (event) {
+		case ESP_BT_GAP_DISC_RES_EVT:
+			g_btremote_instance->handleGapBTDiscoveryResult(param);
+			break;
+		case ESP_BT_GAP_DISC_STATE_CHANGED_EVT:
+			g_btremote_instance->handleGapBTDiscoveryStateChanged(param);
+			break;
+		case ESP_BT_GAP_AUTH_CMPL_EVT:
+			g_btremote_instance->handleGapBTAuthComplete(param);
+			break;
+		case ESP_BT_GAP_PIN_REQ_EVT:
+			g_btremote_instance->handleGapBTPinRequest(param);
+			break;
+		case ESP_BT_GAP_CFM_REQ_EVT:
+			g_btremote_instance->handleGapBTCfmRequest(param);
+			break;
+		case ESP_BT_GAP_KEY_NOTIF_EVT:
+			g_btremote_instance->handleGapBTKeyNotify(param);
+			break;
+		case ESP_BT_GAP_KEY_REQ_EVT:
+			g_btremote_instance->handleGapBTKeyRequest(param);
+			break;
+		case ESP_BT_GAP_READ_REMOTE_NAME_EVT:
+			g_btremote_instance->handleGapBTReadRemoteName(param);
+			break;
+		default:
+			INFO("Unhandled BT GAP event: %d", event);
+			break;
+	}
+}
+
+// ============================================================================
+// BLE Event Handlers (existing code)
+// ============================================================================
 
 void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
 	esp_ble_gatts_cb_param_t *param) {

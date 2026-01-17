@@ -1,0 +1,500 @@
+/**
+ * Bluetooth Device List Component Styles
+ * Displays discovered Bluetooth Classic devices with pairing controls
+ */
+
+*:host {
+	/* Re-declare theme variables for Shadow DOM */
+	--vscode-bg-primary: #1e1e1e;
+	--vscode-bg-secondary: #252526;
+	--vscode-bg-elevated: #2d2d30;
+	--vscode-bg-input: #3c3c3c;
+	--vscode-accent-blue: #007acc;
+	--vscode-accent-teal: #4ec9b0;
+	--vscode-accent-yellow: #dcdcaa;
+	--vscode-accent-orange: #ce9178;
+	--vscode-accent-red: #f48771;
+	--vscode-text-primary: #cccccc;
+	--vscode-text-link: #9cdcfe;
+	--vscode-text-secondary: #858585;
+	--vscode-border-light: #3c3c3c;
+	--spacing-xs: 0.25rem;
+	--spacing-sm: 0.5rem;
+	--spacing-md: 0.75rem;
+	--radius-sm: 2px;
+	--radius-md: 3px;
+	--transition-fast: 0.15s ease;
+	--font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+	--font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
+	--font-fixed-10: 0.625rem;
+	--font-fixed-11: 0.688rem;
+	--font-fixed-12: 0.75rem;
+	--font-fixed-13: 0.813rem;
+	--font-fixed-14: 0.875rem;
+
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+	background: transparent;
+	color: var(--vscode-text-primary);
+
+	/* Mobile: Minimal padding to fit in sidebar */
+	padding: 0;
+	font-size: var(--font-xs);
+}
+
+/* Desktop: Original padding and font size */
+@media (min-width: 768px) {
+	*:host {
+		padding: var(--spacing-md);
+		font-size: var(--font-sm);
+	}
+}
+
+/* Container */
+.bt-devices-container {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-md);
+}
+
+/* Header */
+.bt-devices-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--spacing-sm);
+	border-bottom: 1px solid var(--vscode-border-light);
+	gap: var(--spacing-sm);
+	cursor: pointer;
+	user-select: none;
+	transition: background-color var(--transition-fast);
+}
+
+.bt-devices-header:hover {
+	background: var(--vscode-bg-secondary);
+}
+
+@media (min-width: 768px) {
+	.bt-devices-header {
+		padding-bottom: var(--spacing-sm);
+		cursor: default;
+		background: transparent;
+	}
+
+	.bt-devices-header:hover {
+		background: transparent;
+	}
+}
+
+.bt-devices-title {
+	margin: 0;
+	font-weight: 600;
+	color: var(--vscode-text-primary);
+	font-size: var(--font-fixed-11);
+	flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+	.bt-devices-title {
+		font-size: var(--font-fixed-13);
+	}
+}
+
+.header-right {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-sm);
+	flex-shrink: 0;
+}
+
+/* Discovery Status */
+.discovery-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 8px;
+	background: var(--vscode-bg-secondary);
+	border-radius: var(--radius-md);
+}
+
+.discovery-indicator {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vscode-accent-teal);
+	flex-shrink: 0;
+}
+
+.discovery-indicator.active {
+	animation: pulse 2s infinite;
+	box-shadow: 0 0 4px var(--vscode-accent-teal);
+}
+
+.discovery-indicator.idle {
+	background: var(--vscode-text-secondary);
+	animation: none;
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.6;
+	}
+}
+
+.discovery-text {
+	color: var(--vscode-text-secondary);
+	font-size: var(--font-fixed-10);
+	white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+	.discovery-text {
+		font-size: var(--font-fixed-11);
+	}
+}
+
+/* Collapse Toggle Button */
+.collapse-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: none;
+	color: var(--vscode-text-secondary);
+	cursor: pointer;
+	padding: var(--spacing-xs);
+	transition: all var(--transition-fast);
+	min-width: 24px;
+	min-height: 24px;
+}
+
+.collapse-toggle:hover {
+	color: var(--vscode-text-primary);
+	background: var(--vscode-bg-elevated);
+	border-radius: var(--radius-sm);
+}
+
+.collapse-icon {
+	font-size: 10px;
+	transition: transform var(--transition-fast);
+	display: inline-block;
+}
+
+.bt-devices-container.collapsed .collapse-icon {
+	transform: rotate(-90deg);
+}
+
+/* Hide collapse button on desktop */
+@media (min-width: 768px) {
+	.collapse-toggle {
+		display: none;
+	}
+}
+
+/* Content Area */
+.bt-devices-content {
+	overflow: hidden;
+	transition: max-height var(--transition-medium), opacity var(--transition-medium);
+	max-height: 2000px;
+	opacity: 1;
+}
+
+.bt-devices-container.collapsed .bt-devices-content {
+	max-height: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Always expanded on desktop */
+@media (min-width: 768px) {
+	.bt-devices-content {
+		max-height: none !important;
+		opacity: 1 !important;
+		pointer-events: all !important;
+	}
+}
+
+/* Devices List */
+.bt-devices-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-xs);
+}
+
+@media (min-width: 768px) {
+	.bt-devices-list {
+		gap: 6px;
+	}
+}
+
+.bt-devices-list:empty {
+	display: none;
+}
+
+/* No Devices Message */
+.no-devices {
+	padding: 16px;
+	text-align: center;
+	color: var(--vscode-text-secondary);
+	font-style: italic;
+	font-size: var(--font-fixed-11);
+	background: var(--vscode-bg-secondary);
+	border-radius: var(--radius-md);
+}
+
+@media (min-width: 768px) {
+	.no-devices {
+		font-size: var(--font-fixed-12);
+	}
+}
+
+.no-devices.hidden {
+	display: none;
+}
+
+/* Device Card */
+.device-card {
+	background: var(--vscode-bg-secondary);
+	border-radius: var(--radius-md);
+	border-left: 2px solid var(--vscode-border-light);
+	transition: all var(--transition-fast);
+	padding: 6px;
+}
+
+@media (min-width: 768px) {
+	.device-card {
+		padding: 10px;
+	}
+}
+
+.device-card:hover {
+	background: var(--vscode-bg-elevated);
+	border-left-color: var(--vscode-accent-blue);
+}
+
+.device-card.paired {
+	border-left-color: var(--vscode-accent-teal);
+}
+
+/* Device Header */
+.device-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 6px;
+	gap: var(--spacing-sm);
+}
+
+.device-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+	min-width: 0;
+}
+
+.device-name {
+	font-weight: 600;
+	color: var(--vscode-text-primary);
+	font-size: var(--font-xs);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+	.device-name {
+		font-size: var(--font-fixed-12);
+	}
+}
+
+.device-mac {
+	color: var(--vscode-text-secondary);
+	font-size: var(--font-fixed-10);
+	font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+@media (min-width: 768px) {
+	.device-mac {
+		font-size: var(--font-fixed-11);
+	}
+}
+
+/* Device Status */
+.device-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.device-type-badge {
+	padding: 3px 6px;
+	background: var(--vscode-bg-input);
+	border-radius: var(--radius-sm);
+	color: var(--vscode-accent-yellow);
+	font-size: var(--font-fixed-10);
+	white-space: nowrap;
+	border: 1px solid #4a4a4a;
+}
+
+@media (min-width: 768px) {
+	.device-type-badge {
+		font-size: var(--font-fixed-11);
+	}
+}
+
+.paired-indicator {
+	padding: 3px 6px;
+	background: var(--vscode-accent-teal);
+	color: #1e1e1e;
+	border-radius: var(--radius-sm);
+	font-size: var(--font-fixed-10);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+	.paired-indicator {
+		font-size: var(--font-fixed-11);
+	}
+}
+
+/* Device Details */
+.device-details {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 6px;
+	padding-top: 6px;
+	border-top: 1px solid var(--vscode-border-light);
+	flex-wrap: wrap;
+}
+
+.device-detail-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--vscode-text-secondary);
+	font-size: var(--font-fixed-10);
+}
+
+@media (min-width: 768px) {
+	.device-detail-item {
+		font-size: var(--font-fixed-11);
+	}
+}
+
+.device-detail-label {
+	color: var(--vscode-text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+}
+
+.device-detail-value {
+	color: var(--vscode-text-link);
+	font-weight: 500;
+}
+
+.rssi-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.rssi-bar {
+	width: 3px;
+	background: var(--vscode-text-secondary);
+	border-radius: 1px;
+}
+
+.rssi-bar.bar-1 {
+	height: 4px;
+}
+
+.rssi-bar.bar-2 {
+	height: 7px;
+}
+
+.rssi-bar.bar-3 {
+	height: 10px;
+}
+
+.rssi-bar.active {
+	background: var(--vscode-accent-teal);
+}
+
+/* Device Actions */
+.device-actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.device-action-btn {
+	flex: 1;
+	padding: 6px 12px;
+	background: var(--vscode-bg-input);
+	border: 1px solid var(--vscode-border-light);
+	border-radius: var(--radius-sm);
+	color: var(--vscode-text-primary);
+	font-size: var(--font-fixed-11);
+	font-weight: 500;
+	cursor: pointer;
+	transition: all var(--transition-fast);
+	white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+	.device-action-btn {
+		font-size: var(--font-fixed-12);
+	}
+}
+
+.device-action-btn:hover {
+	background: var(--vscode-bg-elevated);
+	border-color: var(--vscode-accent-blue);
+}
+
+.device-action-btn:active {
+	transform: scale(0.98);
+}
+
+.device-action-btn.primary {
+	background: var(--vscode-accent-blue);
+	border-color: var(--vscode-accent-blue);
+	color: #ffffff;
+}
+
+.device-action-btn.primary:hover {
+	background: #005a9e;
+	border-color: #005a9e;
+}
+
+.device-action-btn.danger {
+	background: var(--vscode-bg-input);
+	border-color: var(--vscode-accent-red);
+	color: var(--vscode-accent-red);
+}
+
+.device-action-btn.danger:hover {
+	background: var(--vscode-accent-red);
+	color: #ffffff;
+}
+
+.device-action-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.device-action-btn:disabled:hover {
+	background: var(--vscode-bg-input);
+	border-color: var(--vscode-border-light);
+	transform: none;
+}

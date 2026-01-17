@@ -198,13 +198,14 @@ button:disabled {
 
   /* 2-column button grid */
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto auto auto auto;
+  grid-template-rows: auto auto auto auto auto auto;
   grid-template-areas:
     "button1 button2"
     "button3 button4"
-    "portstatus portstatus"
     "editor editor"
-    "ui ui";
+    "ui ui"
+    "portstatus portstatus"
+    "btdevicelist btdevicelist";
 }
 
 /* Sidebar visible state (toggled via JavaScript) */
@@ -235,10 +236,11 @@ button:disabled {
     grid-template-rows: 4rem auto auto auto;
     grid-template-areas:
       "button1 button2 button3 button4"
-      "portstatus portstatus portstatus portstatus"
       "editor editor editor editor"
-      "ui ui ui ui";
-  }
+      "ui ui ui ui"
+      "portstatus portstatus portstatus portstatus"
+      "btdevicelist btdevicelist btdevicelist btdevicelist";
+    }
 }
 
 /* Button grid areas */
@@ -262,6 +264,10 @@ button:disabled {
   grid-area: editor;
   max-height: 100%;
   overflow: auto;
+}
+
+#btdevicelist {
+  grid-area: btdevicelist;
 }
 
 #uicomponents {
