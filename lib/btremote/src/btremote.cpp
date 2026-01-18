@@ -10,6 +10,8 @@
 #include <map>
 #include <vector>
 
+#include "btstack.h"
+
 // ESP-IDF Bluedroid includes
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -18,7 +20,7 @@
 #include "esp_gatts_api.h"
 #include "esp_gap_bt_api.h"
 #include "esp_bt_defs.h"
-#include "esp_hidh_api.h"
+#include "esp_hidh_api.h"  // Classic BT HID Host API
 
 // Arduino BT helper (handles controller init correctly)
 #include "esp32-hal-bt.h"
@@ -277,11 +279,9 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, suppressBLERestart_(false)
 	, hidDevicesMutex_(nullptr)
 	, gamepadStatesMutex_(nullptr)
-	, hidProtocolSetupTimer_(nullptr)
 	, hidEventQueue_(nullptr)
 	, hidEventTaskHandle_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
-	memset(&pendingProtocolSetupAddress_, 0, sizeof(pendingProtocolSetupAddress_));
 	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
@@ -291,21 +291,10 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	// Create HID event queue (10 items max)
 	hidEventQueue_ = xQueueCreate(10, sizeof(HIDEventItem));
 
-	// Create timer for deferred HID protocol setup (one-shot, 2000ms delay)
-	// NOTE: SDP query can take longer than expected, especially for complex HID devices
-	hidProtocolSetupTimer_ = xTimerCreate(
-		"HIDProtoSetup",           // Timer name
-		pdMS_TO_TICKS(2000),       // Timer period (2000ms - increased for SDP completion)
-		pdFALSE,                   // One-shot timer (not auto-reload)
-		this,                      // Timer ID (pointer to this instance)
-		hidProtocolSetupTimerCallback  // Callback function
-	);
-
 	memset(&handles_, 0, sizeof(handles_));
 	memset(&connState_, 0, sizeof(connState_));
 	connState_.connected = false;
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
-	memset(&pendingProtocolSetupAddress_, 0, sizeof(pendingProtocolSetupAddress_));
 
 	g_btremote_instance = this;
 }
@@ -434,7 +423,7 @@ void BTRemote::begin(const char *deviceName) {
 		return;
 	}
 
-	INFO("Bluedroid BLE initialization started, waiting for registration...")
+	INFO("Bluedroid BLE initialization started, waiting for registration...");
 
 	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t> &payload) {
 		INFO("Processing BT message with id %d and appRequestType %d", messageId, appRequestType);
@@ -1261,8 +1250,10 @@ bool BTRemote::startPairing(const char *macAddress) {
 		} else {
 			INFO("BLE client disconnected successfully");
 		}
-		// Give BLE time to fully disconnect and radio to stabilize
-		vTaskDelay(pdMS_TO_TICKS(500));
+		// CRITICAL: Wait for ACL link to fully disconnect
+		// Status 9 (HCI_ERR_MAX_NUM_OF_CONNECTIONS) occurs if ACL not fully cleaned up
+		INFO("Waiting 2 seconds for BLE ACL link to fully disconnect...");
+		vTaskDelay(pdMS_TO_TICKS(2000));
 	} else {
 		INFO("No active BLE client to disconnect");
 		// Give BLE time to stop advertising and radio to stabilize
@@ -1623,26 +1614,6 @@ void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
 // HID Host Event Handlers
 // ============================================================================
 
-void BTRemote::hidProtocolSetupTimerCallback(TimerHandle_t xTimer) {
-	// Retrieve the BTRemote instance from timer ID
-	BTRemote *instance = static_cast<BTRemote *>(pvTimerGetTimerID(xTimer));
-	if (instance == nullptr) {
-		ERROR("Timer callback: Invalid BTRemote instance pointer");
-		return;
-	}
-
-	// Set protocol mode to REPORT_MODE for the pending device
-	std::string addrStr = instance->bdAddrToString(instance->pendingProtocolSetupAddress_);
-	INFO("Timer callback: Setting protocol mode to REPORT_MODE for device: %s", addrStr.c_str());
-
-	esp_err_t ret = esp_bt_hid_host_set_protocol(instance->pendingProtocolSetupAddress_, ESP_HIDH_REPORT_MODE);
-	if (ret != ESP_OK) {
-		ERROR("Timer callback: Failed to set protocol mode: %s", esp_err_to_name(ret));
-	} else {
-		INFO("Timer callback: Protocol mode set command sent successfully");
-	}
-}
-
 void BTRemote::handleHIDHostInit(esp_hidh_cb_param_t *param) {
 	if (param->init.status == ESP_HIDH_OK) {
 		INFO("HID Host initialized successfully (ESP_HIDH_INIT_EVT received)");
@@ -1666,7 +1637,10 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		addrStr.c_str(), param->open.handle, param->open.status,
 		param->open.conn_status, conn_state_str, param->open.is_orig);
 
-	if (param->open.status == ESP_HIDH_OK) {
+	// CRITICAL: Only process when device is FULLY CONNECTED, not just CONNECTING
+	// ESP_HIDH_OPEN_EVT can fire multiple times during connection process
+	if (param->open.status == ESP_HIDH_OK &&
+	    param->open.conn_status == ESP_HIDH_CONN_STATE_CONNECTED) {
 
 		// Store device address for later protocol setup
 		esp_bd_addr_t device_addr;
@@ -1693,21 +1667,14 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		}
 
 		// CRITICAL: Set protocol mode to REPORT_MODE for HID devices (especially gamepads)
-		// This is required for the device to start sending input reports
-		//
-		// NOTE: Ideally we should wait for ESP_HIDH_GET_DSCP_EVT, but some devices or
-		// ESP-IDF versions may not fire this event reliably. As a fallback, we use a
-		// timer to set protocol mode after a delay, giving SDP query time to complete.
-		INFO("Scheduling protocol mode setup via timer (2000ms delay for SDP completion)...");
-
-		// Store the device address for the timer callback
-		memcpy(pendingProtocolSetupAddress_, device_addr, sizeof(esp_bd_addr_t));
-
-		// Start the one-shot timer (will fire after 2000ms)
-		if (xTimerStart(hidProtocolSetupTimer_, 0) != pdPASS) {
-			ERROR("Failed to start protocol setup timer!");
+		// Most HID devices default to BOOT_MODE (simplified protocol for keyboards/mice).
+		// Gamepads require REPORT_MODE to access full HID descriptor with all inputs.
+		INFO("Setting protocol mode to REPORT_MODE for device: %s", addrStr.c_str());
+		esp_err_t ret = esp_bt_hid_host_set_protocol(device_addr, ESP_HIDH_REPORT_MODE);
+		if (ret != ESP_OK) {
+			ERROR("Failed to set protocol mode: %s", esp_err_to_name(ret));
 		} else {
-			INFO("Protocol setup timer started successfully");
+			INFO("Protocol mode set command sent successfully");
 		}
 
 		// Initialize gamepad state

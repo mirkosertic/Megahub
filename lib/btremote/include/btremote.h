@@ -195,10 +195,6 @@ private:
 	std::map<std::string, GamepadState> gamepadStates_;
 	SemaphoreHandle_t gamepadStatesMutex_;
 
-	// HID protocol setup timer
-	TimerHandle_t hidProtocolSetupTimer_;
-	esp_bd_addr_t pendingProtocolSetupAddress_;
-
 	// HID event processing queue and task
 	QueueHandle_t hidEventQueue_;
 	TaskHandle_t hidEventTaskHandle_;
@@ -267,9 +263,6 @@ private:
 	BTClassicDeviceType classifyDevice(uint32_t cod);
 	std::string bdAddrToString(const esp_bd_addr_t address);
 	void stringToBdAddr(const std::string &str, esp_bd_addr_t address);
-
-	// Timer callback for deferred HID protocol setup
-	static void hidProtocolSetupTimerCallback(TimerHandle_t xTimer);
 
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
