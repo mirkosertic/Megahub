@@ -24,6 +24,9 @@ import {
 	APP_REQUEST_TYPE_PUT_PROJECT_FILE,
 	APP_REQUEST_TYPE_DELETE_PROJECT,
 	APP_EVENT_TYPE_BTCLASSICDEVICES,
+	APP_REQUEST_TYPE_REQUEST_PAIRING,	
+	APP_REQUEST_TYPE_REMOVE_PAIRING,
+	APP_REQUEST_TYPE_START_DISCOVERY,
 	BLEClient
 } from './bleclient.js'
 
@@ -277,7 +280,7 @@ window.Application = {
 	stop : async function() {
 		// clang-format off
 		if (mode === 'dev') {
-			// Dev-specific logic
+			// Nothing special
 		} else if (mode === 'bt') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_STOP_PROGRAM, JSON.stringify({}));
 		} else if (mode === 'web') {
@@ -296,6 +299,42 @@ window.Application = {
 		// clang-format on
 	},
 
+	requestPairing : async function(mac) {
+		// clang-format off
+		if (mode === 'dev') {
+			// Nothing special
+		} else if (mode === 'bt') {
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REQUEST_PAIRING, JSON.stringify({"mac" : mac}));
+		} else if (mode === 'web') {
+			// TODO
+		}
+		// clang-format on
+	},
+
+	requestRemovePairing : async function(mac) {
+		// clang-format off
+		if (mode === 'dev') {
+			// Nothing special
+		} else if (mode === 'bt') {
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REMOVE_PAIRING, JSON.stringify({"mac" : mac}));
+		} else if (mode === 'web') {
+			// TODO
+		}
+		// clang-format on
+	},
+
+	startBluetoothDiscovery : async function() {
+		// clang-format off
+		if (mode === 'dev') {
+			// Nothing special
+		} else if (mode === 'bt') {
+			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_START_DISCOVERY, JSON.stringify({}));
+		} else if (mode === 'web') {
+			// TODO
+		}
+		// clang-format on
+	},
+	
 	requestProjectsAndAutostartConfig : async function(callback) {
 		var projects = [
 			{name : 'dummy'},

@@ -15,6 +15,7 @@
 #include "esp_gatts_api.h"
 #include "esp_gap_bt_api.h"
 #include "esp_bt_defs.h"
+#include "esp_hidh_api.h"
 
 enum class ProtocolMessageType : uint8_t {
 	REQUEST = 0x01,
@@ -120,6 +121,37 @@ struct HIDReportData {
 	uint32_t timestamp;
 };
 
+// Gamepad State - Standard HID gamepad layout
+struct GamepadState {
+	esp_bd_addr_t address;
+	bool connected;
+	uint32_t timestamp;
+
+	// Buttons (bit field): 0=A, 1=B, 2=X, 3=Y, 4=L1, 5=R1, 6=L2, 7=R2,
+	//                      8=Select, 9=Start, 10=L3, 11=R3, 12-15=Reserved
+	uint16_t buttons;
+
+	// D-Pad (hat switch): 0=up, 1=up-right, 2=right, 3=down-right,
+	//                     4=down, 5=down-left, 6=left, 7=up-left, 8=center
+	uint8_t dpad;
+
+	// Analog sticks (range: -127 to 127, center=0)
+	int8_t leftStickX;
+	int8_t leftStickY;
+	int8_t rightStickX;
+	int8_t rightStickY;
+
+	// Triggers (range: 0 to 255)
+	uint8_t leftTrigger;
+	uint8_t rightTrigger;
+};
+
+// HID Event Queue Item for async processing
+struct HIDEventItem {
+	esp_hidh_cb_event_t event;
+	esp_hidh_cb_param_t param;
+};
+
 class BTRemote {
 private:
 	BLEHandles handles_;
@@ -151,15 +183,25 @@ private:
 	// Bluetooth Classic Discovery and Pairing
 	std::map<std::string, BTClassicDevice> discoveredDevices_;
 	SemaphoreHandle_t discoveredDevicesMutex_;
-	uint32_t lastDiscoveryTime_;
 	uint32_t lastDeviceListPublishTime_;
 	bool discoveryInProgress_;
 	bool pairingInProgress_;
 	esp_bd_addr_t pairingDeviceAddress_;
+	bool suppressBLERestart_; // Prevents auto-restart of BLE advertising during HID pairing
 
 	// HID Host
 	std::map<std::string, HIDDevice> hidDevices_;
 	SemaphoreHandle_t hidDevicesMutex_;
+	std::map<std::string, GamepadState> gamepadStates_;
+	SemaphoreHandle_t gamepadStatesMutex_;
+
+	// HID protocol setup timer
+	TimerHandle_t hidProtocolSetupTimer_;
+	esp_bd_addr_t pendingProtocolSetupAddress_;
+
+	// HID event processing queue and task
+	QueueHandle_t hidEventQueue_;
+	TaskHandle_t hidEventTaskHandle_;
 
 	void handleFragment(const uint8_t *data, size_t length);
 	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data);
@@ -181,6 +223,9 @@ private:
 	bool reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 	bool reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqRequestPairing(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqRemovePairing(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &responseDoc);
 
 	void sendControlMessage(ControlMessageType type, uint8_t messageId);
 	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback);
@@ -206,12 +251,25 @@ private:
 	void handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param);
 	void handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param);
 
+	// HID Host Event Handlers (called from HID event task, not callback)
+	void handleHIDHostInit(esp_hidh_cb_param_t *param);
+	void handleHIDHostOpen(esp_hidh_cb_param_t *param);
+	void handleHIDHostClose(esp_hidh_cb_param_t *param);
+	void handleHIDHostData(esp_hidh_cb_param_t *param);
+	void processGamepadReport(const esp_bd_addr_t address, const uint8_t *data, uint16_t length);
+
+	// HID event processing task
+	static void hidEventTask(void *pvParameters);
+	void processHIDEvent(const HIDEventItem &item);
+
 	// Helper methods for Bluetooth Classic
-	void startDiscoveryInternal();
 	void stopDiscoveryInternal();
 	BTClassicDeviceType classifyDevice(uint32_t cod);
 	std::string bdAddrToString(const esp_bd_addr_t address);
 	void stringToBdAddr(const std::string &str, esp_bd_addr_t address);
+
+	// Timer callback for deferred HID protocol setup
+	static void hidProtocolSetupTimerCallback(TimerHandle_t xTimer);
 
 public:
 	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
@@ -222,6 +280,7 @@ public:
 		esp_ble_gatts_cb_param_t *param);
 	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 	static void gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
+	static void hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t *param);
 
 	void publishLogMessages();
 	void publishCommands();
@@ -247,6 +306,10 @@ public:
 	bool hidConnect(const char *macAddress);
 	bool hidDisconnect(const char *macAddress);
 	std::vector<HIDDevice> getConnectedHIDDevices();
+
+	// Gamepad API
+	bool getGamepadState(const char *macAddress, GamepadState &state);
+	std::vector<GamepadState> getAllGamepadStates();
 };
 
 #endif // BTREMOTE_H

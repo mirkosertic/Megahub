@@ -109,6 +109,49 @@
 	flex-shrink: 0;
 }
 
+/* Discovery Button */
+.discovery-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-accent-blue);
+	border: 1px solid var(--vscode-accent-blue);
+	border-radius: var(--radius-sm);
+	color: #ffffff;
+	cursor: pointer;
+	padding: 5px;
+	transition: all var(--transition-fast);
+	min-width: 24px;
+	min-height: 24px;
+}
+
+.discovery-btn:hover {
+	background: #005a9e;
+	border-color: #005a9e;
+	box-shadow: 0 0 8px rgba(0, 122, 204, 0.4);
+}
+
+.discovery-btn:active {
+	transform: scale(0.95);
+}
+
+.discovery-btn svg {
+	display: block;
+}
+
+@media (min-width: 768px) {
+	.discovery-btn {
+		padding: 6px;
+		min-width: 28px;
+		min-height: 28px;
+	}
+
+	.discovery-btn svg {
+		width: 16px;
+		height: 16px;
+	}
+}
+
 /* Discovery Status */
 .discovery-status {
 	display: flex;

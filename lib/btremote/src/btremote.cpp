@@ -18,7 +18,6 @@
 #include "esp_gatts_api.h"
 #include "esp_gap_bt_api.h"
 #include "esp_bt_defs.h"
-#include "esp_hidh.h"
 #include "esp_hidh_api.h"
 
 // Arduino BT helper (handles controller init correctly)
@@ -80,6 +79,9 @@ static esp_ble_adv_params_t g_adv_params = {
 #define APP_REQUEST_TYPE_GET_AUTOSTART	  0x08
 #define APP_REQUEST_TYPE_PUT_AUTOSTART	  0x09
 #define APP_REQUEST_TYPE_READY_FOR_EVENTS 0x0A
+#define APP_REQUEST_TYPE_REQUEST_PAIRING  0x0B
+#define APP_REQUEST_TYPE_REMOVE_PAIRING   0x0C
+#define APP_REQUEST_TYPE_START_DISCOVERY  0x0D
 
 #define APP_EVENT_TYPE_LOG		         0x01
 #define APP_EVENT_TYPE_PORTSTATUS        0x02
@@ -269,20 +271,41 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, responseSenderTaskHandle_(nullptr)
 	, indicationConfirmSemaphore_(nullptr)
 	, discoveredDevicesMutex_(nullptr)
-	, lastDiscoveryTime_(0)
 	, lastDeviceListPublishTime_(0)
 	, discoveryInProgress_(false)
 	, pairingInProgress_(false)
-	, hidDevicesMutex_(nullptr) {
+	, suppressBLERestart_(false)
+	, hidDevicesMutex_(nullptr)
+	, gamepadStatesMutex_(nullptr)
+	, hidProtocolSetupTimer_(nullptr)
+	, hidEventQueue_(nullptr)
+	, hidEventTaskHandle_(nullptr) {
+	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
+	memset(&pendingProtocolSetupAddress_, 0, sizeof(pendingProtocolSetupAddress_));
 	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
 	hidDevicesMutex_ = xSemaphoreCreateMutex();
+	gamepadStatesMutex_ = xSemaphoreCreateMutex();
+
+	// Create HID event queue (10 items max)
+	hidEventQueue_ = xQueueCreate(10, sizeof(HIDEventItem));
+
+	// Create timer for deferred HID protocol setup (one-shot, 2000ms delay)
+	// NOTE: SDP query can take longer than expected, especially for complex HID devices
+	hidProtocolSetupTimer_ = xTimerCreate(
+		"HIDProtoSetup",           // Timer name
+		pdMS_TO_TICKS(2000),       // Timer period (2000ms - increased for SDP completion)
+		pdFALSE,                   // One-shot timer (not auto-reload)
+		this,                      // Timer ID (pointer to this instance)
+		hidProtocolSetupTimerCallback  // Callback function
+	);
 
 	memset(&handles_, 0, sizeof(handles_));
 	memset(&connState_, 0, sizeof(connState_));
 	connState_.connected = false;
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
+	memset(&pendingProtocolSetupAddress_, 0, sizeof(pendingProtocolSetupAddress_));
 
 	g_btremote_instance = this;
 }
@@ -370,19 +393,40 @@ void BTRemote::begin(const char *deviceName) {
 		INFO("Bluetooth Classic PIN set to default (0000)");
 	}
 
-/*	// Initialize HID Host
+	// CRITICAL: Create HID event processing task BEFORE registering callback
+	// This ensures the queue consumer is ready when events start arriving
+	INFO("Creating HID event processing task...");
+	BaseType_t taskRet = xTaskCreate(
+		hidEventTask,           // Task function
+		"HIDEventTask",         // Task name
+		4096,                   // Stack size (4KB)
+		this,                   // Task parameter (this instance)
+		5,                      // Priority (higher than default)
+		&hidEventTaskHandle_    // Task handle
+	);
+	if (taskRet != pdPASS) {
+		ERROR("Failed to create HID event task!");
+	} else {
+		INFO("HID event task created successfully");
+	}
+
+	// Initialize HID Host (CRITICAL: callback must be registered BEFORE init)
+	INFO("Registering HID Host callback...");
+	ret = esp_bt_hid_host_register_callback(BTRemote::hidHostEventHandler);
+	if (ret) {
+		ERROR("HID Host register callback failed: %s", esp_err_to_name(ret));
+	} else {
+		INFO("HID Host callback registered successfully");
+	}
+
+	// Now initialize HID Host (will trigger ESP_HIDH_INIT_EVT via callback)
 	INFO("Initializing HID Host...");
-	esp_hidh_config_t hidh_config = {
-		.callback = nullptr, // Will be set via separate API
-		.event_stack_size = 4096,
-		.callback_arg = this
-	};
-	ret = esp_hidh_init(&hidh_config);
+	ret = esp_bt_hid_host_init();
 	if (ret) {
 		ERROR("HID Host init failed: %s", esp_err_to_name(ret));
 	} else {
-		INFO("HID Host initialized successfully");
-	}*/
+		INFO("HID Host init function returned successfully");
+	}
 
 	ret = esp_ble_gatts_app_register(app_id_);
 	if (ret) {
@@ -431,11 +475,20 @@ void BTRemote::begin(const char *deviceName) {
 						case APP_REQUEST_TYPE_READY_FOR_EVENTS:
 							result = reqReadyForEvents(requestDoc, responseDoc);
 							break;
+						case APP_REQUEST_TYPE_REQUEST_PAIRING:
+							result = reqRequestPairing(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_REMOVE_PAIRING:
+							result = reqRemovePairing(requestDoc, responseDoc);
+							break;
+						case APP_REQUEST_TYPE_START_DISCOVERY:
+							result = reqStartDiscovery(requestDoc, responseDoc);
+							break;
 						default:
 							WARN("Not supported appRequestType: %d", appRequestType);
 							responseDoc["error"] = "Not supported appRequestType!";
 							break;
-					}
+					} 
 					responseDoc["result"] = result;
 				});
 			}
@@ -453,10 +506,6 @@ void BTRemote::begin(const char *deviceName) {
 		&responseSenderTaskHandle_);
 
 	INFO("BLE Server started as ID %s, waiting for connections...", SERVICE_UUID);
-
-	// Start initial Bluetooth Classic discovery (subsequent scans triggered by discovery complete event)
-	INFO("Starting initial Bluetooth Classic device discovery (event-driven periodic scanning every 30s)");
-	startDiscoveryInternal();
 }
 
 void BTRemote::handleFragment(const uint8_t *data, size_t length) {
@@ -755,14 +804,6 @@ void BTRemote::loop() {
 			++it;
 		}
 	}
-
-	// Event-driven periodic Bluetooth Classic discovery (no dedicated task needed)
-	// Trigger next scan when interval has elapsed since last discovery completed
-	if (!discoveryInProgress_ && !pairingInProgress_ &&
-	    (now - lastDiscoveryTime_) >= BT_DISCOVERY_INTERVAL_MS) {
-		INFO("Triggering periodic Bluetooth Classic discovery (interval elapsed)");
-		startDiscoveryInternal();
-	}
 }
 
 bool BTRemote::isConnected() const {
@@ -1013,6 +1054,46 @@ bool BTRemote::reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &r
 	return true;
 }
 
+bool BTRemote::reqRequestPairing(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+	String macId = requestDoc["mac"].as<String>();
+	INFO("Client requested a pairing for MAC %s", macId.c_str());
+
+	this->startPairing(macId.c_str());
+
+	return true;
+}
+
+bool BTRemote::reqRemovePairing(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+	String macId = requestDoc["mac"].as<String>();
+	INFO("Client wans to remove pairing for MAC %s", macId.c_str());
+
+	this->removePairing(macId.c_str());
+
+	return true;
+}
+
+bool BTRemote::reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+	if (discoveryInProgress_) {
+		WARN("Discovery already in progress, skipping");
+		return false;
+	}
+
+	INFO("Starting Bluetooth Classic device discovery (mode: ESP_BT_INQ_MODE_GENERAL_INQUIRY)");
+
+	esp_err_t ret = esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
+	if (ret != ESP_OK) {
+		ERROR("Start discovery failed: %s", esp_err_to_name(ret));
+		discoveryInProgress_ = false;
+		return false;
+	} else {
+		INFO("Discovery started successfully");
+		discoveryInProgress_ = true;
+	}
+
+	return true;
+}
+
+
 // ============================================================================
 // Bluetooth Classic Helper Methods
 // ============================================================================
@@ -1042,7 +1123,7 @@ BTClassicDeviceType BTRemote::classifyDevice(uint32_t cod) {
 	uint8_t major = (cod >> 8) & 0x1F;
 	uint8_t minor = (cod >> 2) & 0x3F;
 
-	INFO("Classifying device: CoD=0x%06X, Major=0x%02X, Minor=0x%02X", cod, major, minor);
+	DEBUG("Classifying device: CoD=0x%06X, Major=0x%02X, Minor=0x%02X", cod, major, minor);
 
 	switch (major) {
 		case 0x01: return BTClassicDeviceType::COMPUTER;
@@ -1062,25 +1143,6 @@ BTClassicDeviceType BTRemote::classifyDevice(uint32_t cod) {
 		default:
 			INFO("Unknown device class: 0x%02X", major);
 			return BTClassicDeviceType::UNKNOWN;
-	}
-}
-
-void BTRemote::startDiscoveryInternal() {
-	if (discoveryInProgress_) {
-		WARN("Discovery already in progress, skipping");
-		return;
-	}
-
-	INFO("Starting Bluetooth Classic device discovery (mode: ESP_BT_INQ_MODE_GENERAL_INQUIRY)");
-
-	esp_err_t ret = esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
-	if (ret != ESP_OK) {
-		ERROR("Start discovery failed: %s", esp_err_to_name(ret));
-		discoveryInProgress_ = false;
-	} else {
-		INFO("Discovery started successfully");
-		discoveryInProgress_ = true;
-		lastDiscoveryTime_ = millis();
 	}
 }
 
@@ -1160,27 +1222,67 @@ bool BTRemote::startPairing(const char *macAddress) {
 		return false;
 	}
 
-	stringToBdAddr(std::string(macAddress), pairingDeviceAddress_);
+	esp_bd_addr_t address;
+	stringToBdAddr(std::string(macAddress), address);
+	memcpy(pairingDeviceAddress_, address, sizeof(esp_bd_addr_t));
 
-	INFO("Starting pairing with device: %s", macAddress);
+	INFO("Starting pairing/connection with HID device: %s", macAddress);
 
-	// First, stop discovery if in progress
-	if (discoveryInProgress_) {
-		stopDiscoveryInternal();
+	// CRITICAL: Device must be in inquiry database before connection
+	// Check if device was discovered
+	bool deviceDiscovered = false;
+	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		deviceDiscovered = (discoveredDevices_.find(std::string(macAddress)) != discoveredDevices_.end());
+		xSemaphoreGive(discoveredDevicesMutex_);
 	}
 
-	// Initiate pairing by setting device as bonding
-	esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_NONE;
-	esp_err_t ret = esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE,
-		&iocap, sizeof(uint8_t));
+	// CRITICAL: Reduce BLE activity to allow Bluetooth Classic HID connection to succeed
+	// BLE and Classic share the same radio and compete for resources
 
+	// Step 1: Suppress BLE advertising auto-restart
+	suppressBLERestart_ = true;
+
+	// Step 2: Stop advertising (prevents new connections)
+	INFO("Stopping BLE advertising to reduce interference with Classic BT connection...");
+	esp_err_t ret = esp_ble_gap_stop_advertising();
 	if (ret != ESP_OK) {
-		ERROR("Set security param failed: %s", esp_err_to_name(ret));
-		return false;
+		WARN("Failed to stop BLE advertising: %s (continuing anyway)", esp_err_to_name(ret));
+	} else {
+		INFO("BLE advertising stopped successfully");
+	}
+
+	// Step 3: Disconnect existing BLE client if connected
+	if (connState_.connected) {
+		INFO("Disconnecting active BLE client (conn_id=%d) to free radio for HID connection...",
+			connState_.conn_id);
+		ret = esp_ble_gatts_close(gatts_if_, connState_.conn_id);
+		if (ret != ESP_OK) {
+			WARN("Failed to close BLE connection: %s (continuing anyway)", esp_err_to_name(ret));
+		} else {
+			INFO("BLE client disconnected successfully");
+		}
+		// Give BLE time to fully disconnect and radio to stabilize
+		vTaskDelay(pdMS_TO_TICKS(500));
+	} else {
+		INFO("No active BLE client to disconnect");
+		// Give BLE time to stop advertising and radio to stabilize
+		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 
 	pairingInProgress_ = true;
-	INFO("Pairing initiated for device: %s (auto-accept enabled)", macAddress);
+
+	// For HID devices, initiate connection which triggers pairing automatically
+	// Use Bluedroid Classic BT HID Host API
+	ret = esp_bt_hid_host_connect(address);
+
+	if (ret != ESP_OK) {
+		ERROR("HID Host connect failed: %s", esp_err_to_name(ret));
+		pairingInProgress_ = false;
+		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
+		return false;
+	}
+
+	INFO("HID connection initiated for device: %s (pairing will happen automatically)", macAddress);
 	return true;
 }
 
@@ -1198,30 +1300,38 @@ bool BTRemote::hidConnect(const char *macAddress) {
 
 	INFO("Connecting to HID device: %s", macAddress);
 
-	// esp_hidh_dev_open returns the device pointer directly, not via esp_err_t
-	esp_hidh_dev_t *dev = esp_hidh_dev_open(address, ESP_HID_TRANSPORT_BT, 0);
+	// Stop discovery if in progress to avoid conflicts
+	if (discoveryInProgress_) {
+		stopDiscoveryInternal();
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
 
-	if (dev == nullptr) {
-		ERROR("HID device open failed for address: %s", macAddress);
+	// Use Bluedroid Classic BT HID Host API
+	// Connection will trigger ESP_HIDH_OPEN_EVT on success
+	esp_err_t ret = esp_bt_hid_host_connect(address);
+
+	if (ret != ESP_OK) {
+		ERROR("HID device connect failed for address: %s, error: %s", macAddress, esp_err_to_name(ret));
 		return false;
 	}
 
-	// Store device in map
+	// Store device in map with CONNECTING state
+	// State will be updated to CONNECTED in handleHIDHostOpen when ESP_HIDH_OPEN_EVT arrives
 	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		std::string key = bdAddrToString(address);
+
 		HIDDevice hidDev;
 		memcpy(hidDev.address, address, sizeof(esp_bd_addr_t));
 		strncpy(hidDev.name, macAddress, sizeof(hidDev.name) - 1);
-		hidDev.state = HIDConnectionState::CONNECTED;
-		hidDev.handle = (uint32_t)(uintptr_t)dev;
+		hidDev.state = HIDConnectionState::CONNECTING;
+		hidDev.handle = 0; // Will be set in OPEN event
 
-		std::string key = bdAddrToString(address);
 		hidDevices_[key] = hidDev;
 
-		INFO("HID device connected and stored: %s (handle: 0x%08X)", macAddress, hidDev.handle);
+		INFO("HID connection initiated: %s (waiting for ESP_HIDH_OPEN_EVT)", macAddress);
 		xSemaphoreGive(hidDevicesMutex_);
 	} else {
 		WARN("Failed to acquire mutex for HID devices");
-		esp_hidh_dev_close(dev);
 		return false;
 	}
 
@@ -1231,34 +1341,20 @@ bool BTRemote::hidConnect(const char *macAddress) {
 bool BTRemote::hidDisconnect(const char *macAddress) {
 	esp_bd_addr_t address;
 	stringToBdAddr(std::string(macAddress), address);
-	std::string key = bdAddrToString(address);
 
 	INFO("Disconnecting HID device: %s", macAddress);
 
-	bool result = false;
-	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-		auto it = hidDevices_.find(key);
-		if (it != hidDevices_.end()) {
-			esp_hidh_dev_t *dev = (esp_hidh_dev_t *)(uintptr_t)it->second.handle;
-			esp_err_t ret = esp_hidh_dev_close(dev);
+	// Use Bluedroid Classic BT HID Host API
+	// Disconnection will trigger ESP_HIDH_CLOSE_EVT
+	esp_err_t ret = esp_bt_hid_host_disconnect(address);
 
-			if (ret != ESP_OK) {
-				ERROR("HID device close failed: %s", esp_err_to_name(ret));
-			} else {
-				INFO("HID device disconnected successfully: %s", macAddress);
-				result = true;
-			}
-
-			hidDevices_.erase(it);
-		} else {
-			WARN("HID device not found in connected devices: %s", macAddress);
-		}
-		xSemaphoreGive(hidDevicesMutex_);
-	} else {
-		WARN("Failed to acquire mutex for HID devices");
+	if (ret != ESP_OK) {
+		ERROR("HID device disconnect failed: %s, error: %s", macAddress, esp_err_to_name(ret));
+		return false;
 	}
 
-	return result;
+	INFO("HID disconnection initiated: %s (waiting for ESP_HIDH_CLOSE_EVT)", macAddress);
+	return true;
 }
 
 std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
@@ -1275,6 +1371,43 @@ std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
 	}
 
 	return devices;
+}
+
+// ============================================================================
+// Gamepad API
+// ============================================================================
+
+bool BTRemote::getGamepadState(const char *macAddress, GamepadState &state) {
+	std::string key(macAddress);
+	bool found = false;
+
+	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		auto it = gamepadStates_.find(key);
+		if (it != gamepadStates_.end()) {
+			state = it->second;
+			found = true;
+		}
+		xSemaphoreGive(gamepadStatesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for gamepad states");
+	}
+
+	return found;
+}
+
+std::vector<GamepadState> BTRemote::getAllGamepadStates() {
+	std::vector<GamepadState> states;
+
+	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		for (const auto &pair : gamepadStates_) {
+			states.push_back(pair.second);
+		}
+		xSemaphoreGive(gamepadStatesMutex_);
+	} else {
+		WARN("Failed to acquire mutex for gamepad states");
+	}
+
+	return states;
 }
 
 // ============================================================================
@@ -1316,7 +1449,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 	std::string addrStr = bdAddrToString(bda);
 	BTClassicDeviceType deviceType = classifyDevice(cod);
 
-	INFO("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d",
+	DEBUG("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d",
 		addrStr.c_str(), rssi, cod, (int)deviceType);
 
 	// Store or update device in discovered devices map (thread-safe)
@@ -1348,7 +1481,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 					}
 					memcpy(device.name, name_ptr, name_len);
 					device.name[name_len] = '\0';
-					INFO("Device name from EIR: %s", device.name);
+					DEBUG("Device name from EIR: %s", device.name);
 					break;
 				}
 
@@ -1358,13 +1491,13 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 
 		// If no name in EIR, request remote name
 		if (strlen(device.name) == 0) {
-			INFO("Requesting remote name for device: %s", addrStr.c_str());
+			DEBUG("Requesting remote name for device: %s", addrStr.c_str());
 			esp_bt_gap_read_remote_name(bda);
 			strncpy(device.name, "Unknown", sizeof(device.name) - 1);
 		}
 
 		discoveredDevices_[addrStr] = device;
-		INFO("Device added/updated in discovered list: %s (total: %d)",
+		DEBUG("Device added/updated in discovered list: %s (total: %d)",
 			addrStr.c_str(), discoveredDevices_.size());
 
 		xSemaphoreGive(discoveredDevicesMutex_);
@@ -1382,12 +1515,7 @@ void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
 
 	if (state == ESP_BT_GAP_DISCOVERY_STOPPED) {
 		discoveryInProgress_ = false;
-		lastDiscoveryTime_ = millis();
 		INFO("Discovery stopped, found %d devices", discoveredDevices_.size());
-
-		// Event-driven periodic scanning: schedule next discovery after interval
-		// This approach saves heap by avoiding a dedicated task
-		INFO("Next discovery will start in %d seconds (event-driven)", BT_DISCOVERY_INTERVAL_MS / 1000);
 
 	} else if (state == ESP_BT_GAP_DISCOVERY_STARTED) {
 		discoveryInProgress_ = true;
@@ -1492,8 +1620,410 @@ void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
 }
 
 // ============================================================================
+// HID Host Event Handlers
+// ============================================================================
+
+void BTRemote::hidProtocolSetupTimerCallback(TimerHandle_t xTimer) {
+	// Retrieve the BTRemote instance from timer ID
+	BTRemote *instance = static_cast<BTRemote *>(pvTimerGetTimerID(xTimer));
+	if (instance == nullptr) {
+		ERROR("Timer callback: Invalid BTRemote instance pointer");
+		return;
+	}
+
+	// Set protocol mode to REPORT_MODE for the pending device
+	std::string addrStr = instance->bdAddrToString(instance->pendingProtocolSetupAddress_);
+	INFO("Timer callback: Setting protocol mode to REPORT_MODE for device: %s", addrStr.c_str());
+
+	esp_err_t ret = esp_bt_hid_host_set_protocol(instance->pendingProtocolSetupAddress_, ESP_HIDH_REPORT_MODE);
+	if (ret != ESP_OK) {
+		ERROR("Timer callback: Failed to set protocol mode: %s", esp_err_to_name(ret));
+	} else {
+		INFO("Timer callback: Protocol mode set command sent successfully");
+	}
+}
+
+void BTRemote::handleHIDHostInit(esp_hidh_cb_param_t *param) {
+	if (param->init.status == ESP_HIDH_OK) {
+		INFO("HID Host initialized successfully (ESP_HIDH_INIT_EVT received)");
+	} else {
+		ERROR("HID Host initialization failed, status: %d", param->init.status);
+	}
+}
+
+void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->open.bd_addr);
+	const char *conn_state_str = "UNKNOWN";
+	switch (param->open.conn_status) {
+		case ESP_HIDH_CONN_STATE_CONNECTED: conn_state_str = "CONNECTED"; break;
+		case ESP_HIDH_CONN_STATE_CONNECTING: conn_state_str = "CONNECTING"; break;
+		case ESP_HIDH_CONN_STATE_DISCONNECTED: conn_state_str = "DISCONNECTED"; break;
+		case ESP_HIDH_CONN_STATE_DISCONNECTING: conn_state_str = "DISCONNECTING"; break;
+		default: break;
+	}
+
+	INFO("HID OPEN event: %s, handle: %d, status: %d, conn_status: %d (%s), is_orig: %d",
+		addrStr.c_str(), param->open.handle, param->open.status,
+		param->open.conn_status, conn_state_str, param->open.is_orig);
+
+	if (param->open.status == ESP_HIDH_OK) {
+
+		// Store device address for later protocol setup
+		esp_bd_addr_t device_addr;
+		memcpy(device_addr, param->open.bd_addr, sizeof(esp_bd_addr_t));
+
+		// Update device state
+		if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			auto it = hidDevices_.find(addrStr);
+			if (it != hidDevices_.end()) {
+				it->second.state = HIDConnectionState::CONNECTED;
+				it->second.handle = param->open.handle;
+				INFO("HID device state updated to CONNECTED");
+			} else {
+				// Device not found, create new entry
+				HIDDevice hidDev;
+				memcpy(hidDev.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
+				strncpy(hidDev.name, addrStr.c_str(), sizeof(hidDev.name) - 1);
+				hidDev.state = HIDConnectionState::CONNECTED;
+				hidDev.handle = param->open.handle;
+				hidDevices_[addrStr] = hidDev;
+				INFO("New HID device added to connected list");
+			}
+			xSemaphoreGive(hidDevicesMutex_);
+		}
+
+		// CRITICAL: Set protocol mode to REPORT_MODE for HID devices (especially gamepads)
+		// This is required for the device to start sending input reports
+		//
+		// NOTE: Ideally we should wait for ESP_HIDH_GET_DSCP_EVT, but some devices or
+		// ESP-IDF versions may not fire this event reliably. As a fallback, we use a
+		// timer to set protocol mode after a delay, giving SDP query time to complete.
+		INFO("Scheduling protocol mode setup via timer (2000ms delay for SDP completion)...");
+
+		// Store the device address for the timer callback
+		memcpy(pendingProtocolSetupAddress_, device_addr, sizeof(esp_bd_addr_t));
+
+		// Start the one-shot timer (will fire after 2000ms)
+		if (xTimerStart(hidProtocolSetupTimer_, 0) != pdPASS) {
+			ERROR("Failed to start protocol setup timer!");
+		} else {
+			INFO("Protocol setup timer started successfully");
+		}
+
+		// Initialize gamepad state
+		if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			GamepadState state;
+			memcpy(state.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
+			state.connected = true;
+			state.timestamp = millis();
+			state.buttons = 0;
+			state.dpad = 8; // Center
+			state.leftStickX = 0;
+			state.leftStickY = 0;
+			state.rightStickX = 0;
+			state.rightStickY = 0;
+			state.leftTrigger = 0;
+			state.rightTrigger = 0;
+			gamepadStates_[addrStr] = state;
+			INFO("Gamepad state initialized for device: %s", addrStr.c_str());
+			xSemaphoreGive(gamepadStatesMutex_);
+		}
+
+		// NOTE: Do NOT resume BLE advertising here!
+		// At this point conn_status is still CONNECTING - the L2CAP and SDP handshake
+		// is not complete yet. If we resume BLE now, BLE traffic will starve the
+		// gamepad connection and prevent it from completing.
+		// Instead, we'll resume BLE after protocol mode is set (ESP_HIDH_SET_PROTO_EVT)
+		// or if connection fails (ESP_HIDH_CLOSE_EVT).
+		INFO("BLE advertising remains paused to allow HID connection to complete...");
+	} else {
+		std::string addrStr = bdAddrToString(param->open.bd_addr);
+		ERROR("HID device connection failed: %s, status: %d",
+			addrStr.c_str(), param->open.status);
+
+		// Resume BLE advertising even if HID connection failed
+		INFO("Resuming BLE advertising after failed HID connection...");
+		suppressBLERestart_ = false; // Clear suppression flag
+		esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
+		if (ret != ESP_OK) {
+			WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
+		}
+	}
+}
+
+void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
+	INFO("HID device disconnected: handle=%d, reason=%d, conn_status=%d",
+		param->close.handle, param->close.reason, param->close.conn_status);
+
+	// Find device by handle and update state
+	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+		for (auto &pair : hidDevices_) {
+			if (pair.second.handle == param->close.handle) {
+				pair.second.state = HIDConnectionState::DISCONNECTED;
+				INFO("HID device state updated to DISCONNECTED: %s", pair.first.c_str());
+
+				// Mark gamepad as disconnected
+				if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+					auto it = gamepadStates_.find(pair.first);
+					if (it != gamepadStates_.end()) {
+						it->second.connected = false;
+						it->second.timestamp = millis();
+						INFO("Gamepad marked as disconnected: %s", pair.first.c_str());
+					}
+					xSemaphoreGive(gamepadStatesMutex_);
+				}
+				break;
+			}
+		}
+		xSemaphoreGive(hidDevicesMutex_);
+	}
+
+	// Resume BLE advertising after HID disconnection
+	INFO("HID device closed - resuming BLE advertising...");
+	suppressBLERestart_ = false; // Clear suppression flag
+	esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
+	if (ret != ESP_OK) {
+		WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
+	} else {
+		INFO("BLE advertising resumed successfully after HID disconnection");
+	}
+}
+
+void BTRemote::handleHIDHostData(esp_hidh_cb_param_t *param) {
+	DEBUG("HID data received: handle=%d, length=%d, proto_mode=%d",
+		param->data_ind.handle, param->data_ind.len, param->data_ind.proto_mode);
+
+	// Find device by handle to get address
+	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(10)) == pdTRUE) {
+		for (const auto &pair : hidDevices_) {
+			if (pair.second.handle == param->data_ind.handle) {
+				// Process gamepad report data (proto_mode: ESP_HIDH_REPORT_MODE = 0x01)
+				if (param->data_ind.len > 0) {
+					processGamepadReport(pair.second.address, param->data_ind.data, param->data_ind.len);
+				}
+				break;
+			}
+		}
+		xSemaphoreGive(hidDevicesMutex_);
+	}
+}
+
+void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *data, uint16_t length) {
+	std::string addrStr = bdAddrToString(address);
+
+	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(10)) != pdTRUE) {
+		return; // Skip if mutex not available
+	}
+
+	auto it = gamepadStates_.find(addrStr);
+	if (it == gamepadStates_.end()) {
+		xSemaphoreGive(gamepadStatesMutex_);
+		return; // Device not found
+	}
+
+	GamepadState &state = it->second;
+	state.timestamp = millis();
+
+	// Standard HID gamepad report format (most common):
+	// Byte 0: Report ID (optional, depends on device)
+	// Bytes 0-1 (or 1-2): Buttons (16 bits)
+	// Byte 2 (or 3): D-Pad / Hat Switch
+	// Byte 3-4 (or 4-5): Left Stick X, Y
+	// Byte 5-6 (or 6-7): Right Stick X, Y
+	// Byte 7-8 (or 8-9): Left/Right Triggers
+
+	// Handle different report formats
+	uint8_t offset = 0;
+
+	// Check if first byte looks like a report ID (usually 0x01 or very small number)
+	if (length > 0 && data[0] <= 0x0F) {
+		offset = 1; // Skip report ID
+	}
+
+	if (length >= offset + 8) {
+		// Parse buttons (16-bit little-endian)
+		state.buttons = data[offset] | (data[offset + 1] << 8);
+
+		// Parse D-Pad (hat switch)
+		state.dpad = data[offset + 2];
+
+		// Parse left stick (signed 8-bit, center = 0x80, convert to -127 to 127)
+		state.leftStickX = (int8_t)(data[offset + 3] - 0x80);
+		state.leftStickY = (int8_t)(data[offset + 4] - 0x80);
+
+		// Parse right stick
+		state.rightStickX = (int8_t)(data[offset + 5] - 0x80);
+		state.rightStickY = (int8_t)(data[offset + 6] - 0x80);
+
+		// Parse triggers (unsigned 8-bit)
+		if (length >= offset + 9) {
+			state.leftTrigger = data[offset + 7];
+			state.rightTrigger = data[offset + 8];
+		}
+
+		DEBUG("Gamepad %s: Buttons=0x%04X, DPad=%d, LS=(%d,%d), RS=(%d,%d), T=(%d,%d)",
+			addrStr.c_str(), state.buttons, state.dpad,
+			state.leftStickX, state.leftStickY,
+			state.rightStickX, state.rightStickY,
+			state.leftTrigger, state.rightTrigger);
+	} else {
+		DEBUG("HID report too short (%d bytes) for gamepad parsing", length);
+	}
+
+	xSemaphoreGive(gamepadStatesMutex_);
+}
+
+// ============================================================================
 // Static Callback Dispatchers
 // ============================================================================
+
+void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t *param) {
+	if (!g_btremote_instance) {
+		return;
+	}
+
+	// CRITICAL: Do NOT block this callback - it runs in Bluedroid's task!
+	// Queue the event for processing in dedicated task
+	HIDEventItem item;
+	item.event = event;
+	item.param = *param;  // Copy param data
+
+	// Try to queue the event (don't block - drop if queue full)
+	if (xQueueSend(g_btremote_instance->hidEventQueue_, &item, 0) != pdTRUE) {
+		ERROR("HID event queue full - dropping event %d", event);
+	}
+}
+
+// HID event processing task - runs independently from Bluedroid callbacks
+void BTRemote::hidEventTask(void *pvParameters) {
+	BTRemote *instance = static_cast<BTRemote *>(pvParameters);
+	HIDEventItem item;
+
+	INFO("HID event task started");
+
+	while (true) {
+		// Wait for events from queue (blocks until event available)
+		if (xQueueReceive(instance->hidEventQueue_, &item, portMAX_DELAY) == pdTRUE) {
+			instance->processHIDEvent(item);
+		}
+	}
+}
+
+// Process HID event (called from dedicated task, not callback)
+void BTRemote::processHIDEvent(const HIDEventItem &item) {
+	// Make a non-const copy of param so we can pass pointer to handlers
+	esp_hidh_cb_param_t param = item.param;
+
+	switch (item.event) {
+		case ESP_HIDH_INIT_EVT:
+			handleHIDHostInit(&param);
+			break;
+		case ESP_HIDH_OPEN_EVT:
+			handleHIDHostOpen(&param);
+			break;
+		case ESP_HIDH_CLOSE_EVT:
+			handleHIDHostClose(&param);
+			break;
+		case ESP_HIDH_DATA_IND_EVT:
+			handleHIDHostData(&param);
+			break;
+		case ESP_HIDH_DATA_EVT:
+			INFO("HID data sent confirmation");
+			break;
+		case ESP_HIDH_SET_PROTO_EVT:
+			INFO("HID Set Protocol complete: handle=%d, status=%d",
+				param.set_proto.handle, param.set_proto.status);
+			if (param.set_proto.status == ESP_HIDH_OK) {
+				INFO("Protocol mode successfully set - device should now send reports");
+
+				// CRITICAL: Now that protocol mode is set, the HID connection is fully
+				// established and ready. Resume BLE advertising now that the critical
+				// phase of the HID connection is complete.
+				INFO("HID connection complete - resuming BLE advertising...");
+				suppressBLERestart_ = false; // Clear suppression flag
+				esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
+				if (ret != ESP_OK) {
+					WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
+				} else {
+					INFO("BLE advertising resumed successfully after HID connection complete");
+				}
+			} else {
+				ERROR("Failed to set protocol mode, status: %d", param.set_proto.status);
+
+				// Resume BLE even on failure
+				INFO("Resuming BLE advertising after HID protocol setup failure...");
+				suppressBLERestart_ = false; // Clear suppression flag
+				esp_ble_gap_start_advertising(&g_adv_params);
+			}
+			break;
+		case ESP_HIDH_GET_IDLE_EVT:
+			INFO("HID Get Idle: handle=%d, status=%d, idle_rate=%d",
+				param.get_idle.handle, param.get_idle.status, param.get_idle.idle_rate);
+			break;
+		case ESP_HIDH_SET_IDLE_EVT:
+			INFO("HID Set Idle: handle=%d, status=%d",
+				param.set_idle.handle, param.set_idle.status);
+			break;
+		case ESP_HIDH_ADD_DEV_EVT:
+			INFO("HID Add Device event: handle=%d, status=%d",
+				param.add_dev.handle, param.add_dev.status);
+			if (param.add_dev.status == ESP_HIDH_OK) {
+				INFO("Device added successfully to HID Host database");
+			}
+			break;
+		case ESP_HIDH_RMV_DEV_EVT:
+			INFO("HID Remove Device event: handle=%d, status=%d",
+				param.rmv_dev.handle, param.rmv_dev.status);
+			break;
+		case ESP_HIDH_VC_UNPLUG_EVT:
+			INFO("HID Virtual Cable Unplug: handle=%d, status=%d",
+				param.unplug.handle, param.unplug.status);
+			break;
+		case ESP_HIDH_SET_INFO_EVT:
+			INFO("HID Set Info: handle=%d, status=%d",
+				param.set_info.handle, param.set_info.status);
+			break;
+		case ESP_HIDH_GET_PROTO_EVT:
+			INFO("HID Get Protocol: handle=%d, proto_mode=%d",
+				param.get_proto.handle, param.get_proto.proto_mode);
+			break;
+		case ESP_HIDH_GET_RPT_EVT:
+			INFO("HID Get Report complete: handle=%d, len=%d",
+				param.get_rpt.handle, param.get_rpt.len);
+			break;
+		case ESP_HIDH_GET_DSCP_EVT:
+			INFO("HID Descriptor received: handle=%d, status=%d, added=%d, VID=0x%04x, PID=0x%04x",
+				param.dscp.handle, param.dscp.status, param.dscp.added,
+				param.dscp.vendor_id, param.dscp.product_id);
+
+			if (param.dscp.status == ESP_HIDH_OK) {
+				// SDP query complete! Now it's safe to set protocol mode
+				INFO("SDP query complete - setting protocol mode to REPORT_MODE");
+
+				// Find the device by handle to get its address
+				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+					for (auto &entry : hidDevices_) {
+						if (entry.second.handle == param.dscp.handle) {
+							esp_err_t ret = esp_bt_hid_host_set_protocol(entry.second.address, ESP_HIDH_REPORT_MODE);
+							if (ret != ESP_OK) {
+								ERROR("Failed to set protocol mode: %s", esp_err_to_name(ret));
+							} else {
+								INFO("Protocol mode set command sent successfully for device: %s", entry.first.c_str());
+							}
+							break;
+						}
+					}
+					xSemaphoreGive(hidDevicesMutex_);
+				}
+			} else {
+				ERROR("Failed to retrieve HID descriptor, status: %d", param.dscp.status);
+			}
+			break;
+		default:
+			INFO("Unhandled HID Host event: %d", item.event);
+			break;
+	}
+}
 
 void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
 	if (!g_btremote_instance) {
@@ -1827,7 +2357,12 @@ void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
 
 	INFO("Client disconnected, conn_id=%d", param->disconnect.conn_id);
 
-	esp_ble_gap_start_advertising(&g_adv_params);
+	// Only restart advertising if not suppressed (during HID pairing)
+	if (!suppressBLERestart_) {
+		esp_ble_gap_start_advertising(&g_adv_params);
+	} else {
+		INFO("BLE advertising restart suppressed (HID pairing in progress)");
+	}
 }
 
 void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {

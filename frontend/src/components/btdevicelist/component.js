@@ -11,10 +11,6 @@ class BTDeviceListElement extends HTMLElement {
 	discoveryActive = false;
 	isCollapsed = false;
 
-	// Event listeners for pairing actions
-	pairCallbacks = new Map();
-	unpairCallbacks = new Map();
-
 	connectedCallback() {
 		const shadow = this.attachShadow({ mode: 'open' });
 
@@ -27,6 +23,10 @@ class BTDeviceListElement extends HTMLElement {
 
 		// Set up collapse toggle functionality
 		this.setupCollapseToggle();
+
+		this.shadowRoot.getElementById("startdiscovery").addEventListener("click", () => {
+			window.Application.startBluetoothDiscovery();
+		});
 	}
 
 	/**
@@ -291,18 +291,7 @@ class BTDeviceListElement extends HTMLElement {
 	handlePair(macAddress) {
 		console.log('Pair requested for device:', macAddress);
 
-		// Dispatch custom event
-		this.dispatchEvent(new CustomEvent('pair', {
-			detail: { macAddress },
-			bubbles: true,
-			composed: true
-		}));
-
-		// Execute registered callback if exists
-		const callback = this.pairCallbacks.get(macAddress);
-		if (callback) {
-			callback(macAddress);
-		}
+		window.Application.requestPairing(macAddress);
 	}
 
 	/**
@@ -312,57 +301,8 @@ class BTDeviceListElement extends HTMLElement {
 	handleUnpair(macAddress) {
 		console.log('Unpair requested for device:', macAddress);
 
-		// Dispatch custom event
-		this.dispatchEvent(new CustomEvent('unpair', {
-			detail: { macAddress },
-			bubbles: true,
-			composed: true
-		}));
-
-		// Execute registered callback if exists
-		const callback = this.unpairCallbacks.get(macAddress);
-		if (callback) {
-			callback(macAddress);
-		}
+		window.Application.requestRemovePairing(macAddress);
 	}
-
-	/**
-	 * Register callback for pair action
-	 * @param {string} macAddress - Device MAC address (or '*' for all devices)
-	 * @param {Function} callback - Callback function(macAddress)
-	 */
-	onPair(macAddress, callback) {
-		this.pairCallbacks.set(macAddress, callback);
-	}
-
-	/**
-	 * Register callback for unpair action
-	 * @param {string} macAddress - Device MAC address (or '*' for all devices)
-	 * @param {Function} callback - Callback function(macAddress)
-	 */
-	onUnpair(macAddress, callback) {
-		this.unpairCallbacks.set(macAddress, callback);
-	}
-
-	/**
-	 * Register global pair handler for all devices
-	 * @param {Function} callback - Callback function(macAddress)
-	 */
-	onAnyPair(callback) {
-		this.addEventListener('pair', (event) => {
-			callback(event.detail.macAddress);
-		});
-	}
-
-	/**
-	 * Register global unpair handler for all devices
-	 * @param {Function} callback - Callback function(macAddress)
-	 */
-	onAnyUnpair(callback) {
-		this.addEventListener('unpair', (event) => {
-			callback(event.detail.macAddress);
-		});
-	}
-}
+};
 
 customElements.define('custom-btdevicelist', BTDeviceListElement);

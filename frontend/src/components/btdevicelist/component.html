@@ -2,6 +2,12 @@
 	<div class="bt-devices-header" id="headerToggle">
 		<h3 class="bt-devices-title">Bluetooth Devices</h3>
 		<div class="header-right">
+			<button id="startdiscovery" class="discovery-btn" title="Start Bluetooth Discovery">
+				<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M8 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0-1.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+					<path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z"/>
+				</svg>
+			</button>
 			<div class="discovery-status">
 				<span class="discovery-indicator" id="discoveryIndicator"></span>
 				<span class="discovery-text" id="discoveryText">Scanning...</span>
@@ -13,6 +19,6 @@
 	</div>
 	<div class="bt-devices-content" id="devicesContent">
 		<div class="bt-devices-list" id="devicesList"></div>
-		<div class="no-devices" id="noDevices">No devices discovered yet</div>
+		<div class="no-devices" id="noDevices">No devices discovered yet.</div>
 	</div>
 </div>
