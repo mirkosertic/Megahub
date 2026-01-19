@@ -10,6 +10,8 @@
 #include "logging.h"
 #include "megahub.h"
 #include "statusmonitor.h"
+#include "commands.h"
+#include "portstatus.h"
 
 #include <FS.h>
 #include <SD.h>
@@ -48,7 +50,10 @@ void setup() {
 	INFO("Max  PSRAM is %d", ESP.getPsramSize());
 	INFO("Free PSRAM is %d", ESP.getFreePsram());
 
+	// Force init at this point
 	Statusmonitor::instance()->setStatus(BOOTING);
+	Commands::instance();
+	Portstatus::instance();
 
 	INFO("Initializing SPI bus...");
 	SPI.begin(GPIO_SPI_SCK, GPIO_SPI_MISO, GPIO_SPI_MOSI, GPIO_SPI_SS);
@@ -79,6 +84,7 @@ void setup() {
 			INFO("SD Card Size: %lluMB", cardSize);
 		}
 	}
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Initializing SC16IS752 1 on I2C bus...");
 	i2cuart1 = new SC16IS752(SC16IS750_PROTOCOL_I2C, SC16IS750_ADDRESS_AA);
@@ -103,25 +109,30 @@ void setup() {
 
 	INFO("Initializing IMU");
 	imu = new IMU();
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Initializing Megahub...")
 	megahub = new Megahub(legodevice1, legodevice2, legodevice3, legodevice4, imu);
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Loading configuration");
 	configuration = new Configuration(&SD, megahub);
 	configuration->load();
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	if (configuration->isWiFiEnabled()) {
 		configuration->connectToWiFiOrShowConfigPortal();
 		// We only reach this point in case there is no configuration needed...
 		INFO("Initializing WebServer instance")
 		webserver = new HubWebServer(80, &SD, megahub, loggingOutput, configuration);
+		INFO("Free HEAP  is %d", ESP.getFreeHeap());
 	}
 
 	if (configuration->isBTEnabled()) {
 		INFO("Initializing BT Remote interface")
 		btremote = new BTRemote(&SD, megahub, loggingOutput, configuration);
 		btremote->begin(megahub->name().c_str());
+		INFO("Free HEAP  is %d", ESP.getFreeHeap());
 	}
 
 	INFO("Setup completed");

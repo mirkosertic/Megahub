@@ -5,7 +5,7 @@
 
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include <WiFiManager.h>
+#include <IotWebConf.h>
 
 Configuration::Configuration(FS *fs, Megahub *hub)
 	: hub_(hub)
@@ -18,13 +18,14 @@ Configuration::Configuration(FS *fs, Megahub *hub)
 
 void Configuration::enterWiFiConfiguration() {
 
+	/*
 	// We need to start the WifiManager portal here
-	WiFiManager wm;
+	//WiFiManager wm;
 
 	Statusmonitor::instance()->setStatus(CONFIGURATION_ACTIVE);
 
 	// Reset settings for testing (comment out in production)
-	wm.resetSettings();
+	resetSettings();
 
 	INFO("Entering configuration portal mode");
 
@@ -32,7 +33,7 @@ void Configuration::enterWiFiConfiguration() {
 	wm.setConfigPortalTimeout(180); // 3 minutes timeout
 
 	// Callback when entering config mode
-	wm.setAPCallback([](WiFiManager *myWiFiManager) {
+	/*wm.setAPCallback([](WiFiManager *myWiFiManager) {
 		INFO("Entered config mode SSID %s IP %s", myWiFiManager->getConfigPortalSSID().c_str(), WiFi.softAPIP().toString().c_str());
 	});
 
@@ -67,7 +68,7 @@ void Configuration::enterWiFiConfiguration() {
 	} else {
 		Serial.println("Failed to configure WiFi");
 		ESP.restart();
-	}
+	}*/
 }
 
 void Configuration::load() {

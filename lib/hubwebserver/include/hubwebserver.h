@@ -5,15 +5,15 @@
 #include "megahub.h"
 
 #include <FS.h>
-#include <PsychicHttp.h>
+//#include <PsychicHttp.h>
 #include <WiFiUdp.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
 class HubWebServer {
 private:
-	PsychicHttpServer *server_;
-	PsychicEventSource eventSource_;
+	//PsychicHttpServer *server_;
+	//PsychicEventSource eventSource_;
 	SerialLoggingOutput *loggingOutput_;
 	TaskHandle_t logforwarderTaskHandle_;
 	Configuration *configuration_;

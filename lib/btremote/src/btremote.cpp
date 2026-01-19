@@ -251,6 +251,16 @@ struct MessageProcessorItem {
 void btMessageProcessorTask(void *param) {
 	BTRemote *server = (BTRemote *) param;
 	while (true) {
+
+		static unsigned long lastHeapLog = 0;
+		unsigned long currentMillis = millis();
+
+		// Log stack utilization every 10 seconds
+		if (currentMillis - lastHeapLog >= 10000) {
+			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
+			lastHeapLog = currentMillis;
+		}
+
 		server->processMessageQueue();
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
@@ -1845,7 +1855,7 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 				state.rightStickX, state.rightStickY);
 
 		} else {
-			WARN("Ignoring Page %d of report with site %d", data[0], length);
+			WARN("Ignoring Page %d of report with size %d", data[0], length);
 		}
 	} else {
 		WARN("No XInput data, expected vendor id 0x045E and length 16 bytes");

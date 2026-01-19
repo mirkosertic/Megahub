@@ -1,9 +1,7 @@
 #include "logging.h"
 
 #define LOGGING_MESSAGE_SIZE 512
-#define LOGGING_QUEUE_LENGTH 50
-
-Logging *GLOBAL_LOGGING_INSTANCE = nullptr;
+#define LOGGING_QUEUE_LENGTH 10
 
 LoggingOutput::~LoggingOutput() {
 }
@@ -43,10 +41,8 @@ String SerialLoggingOutput::waitForLogMessage(TickType_t ticksToWait) {
 }
 
 Logging *Logging::instance() {
-	if (GLOBAL_LOGGING_INSTANCE == nullptr) {
-		GLOBAL_LOGGING_INSTANCE = new Logging(new NoopLoggingOutput);
-	}
-	return GLOBAL_LOGGING_INSTANCE;
+	static Logging instance(new NoopLoggingOutput());
+	return &instance;
 }
 
 Logging::Logging(LoggingOutput *output) {

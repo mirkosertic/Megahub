@@ -11,6 +11,7 @@
 #include <ArduinoJson.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <esp_mac.h>
 
 #define MEGAHUBREF_NAME "MEGAHUBTHISREF"
 
@@ -32,6 +33,15 @@ void status_reporter_task(void *parameters) {
 	INFO("Starting task reporter task");
 	while (true) {
 		DEBUG("Sending Portstatus");
+
+		static unsigned long lastHeapLog = 0;
+		unsigned long currentMillis = millis();
+
+		// Log stack utilization every 10 seconds
+		if (currentMillis - lastHeapLog >= 10000) {
+			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
+			lastHeapLog = currentMillis;
+		}
 
 		i2c_lock();
 		JsonDocument status;
@@ -411,10 +421,10 @@ Megahub::Megahub(LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, 
 
 	globalLuaState_ = newLuaState();
 
-	device1->initialize();
-	device2->initialize();
-	device3->initialize();
-	device4->initialize();
+	device1_->initialize();
+	device2_->initialize();
+	device3_->initialize();
+	device4_->initialize();
 
 	currentprogramstate_ = nullptr;
 
@@ -465,7 +475,7 @@ IMU *Megahub::imu() {
 
 String Megahub::deviceUid() {
 	uint8_t chipId[6];
-	esp_efuse_mac_get_default(chipId);
+	esp_read_mac(chipId, ESP_MAC_WIFI_STA);
 
 	uint32_t serialNumber = 0;
 	for (int i = 0; i < 6; i++) {
@@ -487,7 +497,7 @@ String Megahub::manufacturer() {
 }
 
 String Megahub::deviceType() {
-	return "Robotic Hub";
+	return "Megahub";
 }
 
 String Megahub::version() {

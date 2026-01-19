@@ -1,12 +1,16 @@
 #include "commands.h"
 
-#define COMMAND_MESSAGE_SIZE 512
-#define COMMAND_QUEUE_LENGTH 20
+#include "logging.h"
 
-Commands *GLOBAL_COMMANDS_INSTANCE = nullptr;
+#define COMMAND_MESSAGE_SIZE 512
+#define COMMAND_QUEUE_LENGTH 10
 
 Commands::Commands() {
 	commandQueue_ = xQueueCreate(COMMAND_QUEUE_LENGTH, COMMAND_MESSAGE_SIZE);
+	if (!commandQueue_) {
+		ERROR("Failed to initialize queue!");
+		while(true);
+	}
 }
 
 void Commands::queue(String command) {
@@ -27,8 +31,6 @@ String Commands::waitForCommand(TickType_t ticksToWait) {
 }
 
 Commands *Commands::instance() {
-	if (GLOBAL_COMMANDS_INSTANCE == nullptr) {
-		GLOBAL_COMMANDS_INSTANCE = new Commands();
-	}
-	return GLOBAL_COMMANDS_INSTANCE;
+	static Commands instance;
+	return &instance;
 }

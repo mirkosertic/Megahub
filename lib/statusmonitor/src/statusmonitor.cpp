@@ -12,6 +12,16 @@ void statusMonitorTask(void *parameter) {
 	Statusmonitor *monitor = (Statusmonitor *) parameter;
 	pinMode(STATUS_LED_PIN, OUTPUT);
 	while (true) {
+
+		static unsigned long lastHeapLog = 0;
+		unsigned long currentMillis = millis();
+
+		// Log stack utilization every 10 seconds
+		if (currentMillis - lastHeapLog >= 10000) {
+			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
+			lastHeapLog = currentMillis;
+		}
+
 		switch (monitor->status()) {
 			case BOOTING:
 				digitalWrite(STATUS_LED_PIN, LOW);
@@ -45,7 +55,7 @@ Statusmonitor::Statusmonitor() {
 	xTaskCreate(
 		statusMonitorTask,
 		"StatusMonitor",
-		4096,
+		2048,
 		(void *) this,
 		1,
 		&taskHandle_ // Store task handle for cancellation
