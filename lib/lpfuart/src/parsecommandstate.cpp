@@ -4,8 +4,6 @@
 #include "logging.h"
 #include "waitingstate.h"
 
-#include <string>
-
 ParseCommandState::ParseCommandState(LegoDevice *legoDevice, int messageType, int messageMode, int messageSize)
 	: legoDevice(legoDevice)
 	, messageMode(messageMode)

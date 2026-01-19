@@ -1,6 +1,7 @@
 #include "btremote.h"
 
 #include "commands.h"
+#include "hidreportparser.h"
 #include "logging.h"
 #include "portstatus.h"
 
@@ -12,13 +13,13 @@
 
 // ESP-IDF Bluedroid includes
 #include "esp_bt.h"
+#include "esp_bt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_gap_ble_api.h"
+#include "esp_gap_bt_api.h"
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
-#include "esp_gap_bt_api.h"
-#include "esp_bt_defs.h"
-#include "esp_hidh_api.h"  // Classic BT HID Host API
+#include "esp_hidh_api.h" // Classic BT HID Host API
 
 // Arduino BT helper (handles controller init correctly)
 #include "esp32-hal-bt.h"
@@ -41,8 +42,9 @@ static esp_bt_uuid_t stringToUUID128(const char *uuid_str) {
 
 	for (int i = 0; i < strlen(uuid_str) && idx < 16; i++) {
 		char c = uuid_str[i];
-		if (c == '-')
+		if (c == '-') {
 			continue;
+		}
 
 		char hex[3] = {uuid_str[i], uuid_str[i + 1], 0};
 		tmp[idx++] = (uint8_t) strtol(hex, NULL, 16);
@@ -80,13 +82,13 @@ static esp_ble_adv_params_t g_adv_params = {
 #define APP_REQUEST_TYPE_PUT_AUTOSTART	  0x09
 #define APP_REQUEST_TYPE_READY_FOR_EVENTS 0x0A
 #define APP_REQUEST_TYPE_REQUEST_PAIRING  0x0B
-#define APP_REQUEST_TYPE_REMOVE_PAIRING   0x0C
+#define APP_REQUEST_TYPE_REMOVE_PAIRING	  0x0C
 #define APP_REQUEST_TYPE_START_DISCOVERY  0x0D
 
-#define APP_EVENT_TYPE_LOG		         0x01
-#define APP_EVENT_TYPE_PORTSTATUS        0x02
-#define APP_EVENT_TYPE_COMMAND	         0x03
-#define APP_EVENT_TYPE_BTCLASSICDEVICES  0x04
+#define APP_EVENT_TYPE_LOG				0x01
+#define APP_EVENT_TYPE_PORTSTATUS		0x02
+#define APP_EVENT_TYPE_COMMAND			0x03
+#define APP_EVENT_TYPE_BTCLASSICDEVICES 0x04
 
 const uint32_t TASK_LOOP_DELAY_MS = 10;
 
@@ -222,19 +224,19 @@ struct IncomingRequest {
 // processMessageQueue() after processing.
 struct MessageProcessorItem {
 	MessageProcessorItemType type;
-	void* dataPtr;
+	void *dataPtr;
 
-	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String& project, const String& filename) {
+	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String &project, const String &filename) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::FILE_TRANSFER;
-		item.dataPtr = new PendingFileTransfer{messageId, project, filename};
+		item.dataPtr = new PendingFileTransfer {messageId, project, filename};
 		return item;
 	}
 
-	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t>& data) {
+	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::INCOMING_REQUEST;
-		item.dataPtr = new IncomingRequest{protocolType, messageId, data};
+		item.dataPtr = new IncomingRequest {protocolType, messageId, data};
 		return item;
 	}
 
@@ -384,12 +386,12 @@ void BTRemote::begin(const char *deviceName) {
 	// This ensures the queue consumer is ready when events start arriving
 	INFO("Creating HID event processing task...");
 	BaseType_t taskRet = xTaskCreate(
-		hidEventTask,           // Task function
-		"HIDEventTask",         // Task name
-		4096,                   // Stack size (4KB)
-		this,                   // Task parameter (this instance)
-		5,                      // Priority (higher than default)
-		&hidEventTaskHandle_    // Task handle
+		hidEventTask, // Task function
+		"HIDEventTask", // Task name
+		4096, // Stack size (4KB)
+		this, // Task parameter (this instance)
+		5, // Priority (higher than default)
+		&hidEventTaskHandle_ // Task handle
 	);
 	if (taskRet != pdPASS) {
 		ERROR("Failed to create HID event task!");
@@ -475,7 +477,7 @@ void BTRemote::begin(const char *deviceName) {
 							WARN("Not supported appRequestType: %d", appRequestType);
 							responseDoc["error"] = "Not supported appRequestType!";
 							break;
-					} 
+					}
 					responseDoc["result"] = result;
 				});
 			}
@@ -699,7 +701,7 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 		xSemaphoreTake(indicationConfirmSemaphore_, 0);
 
 		DEBUG("Sending indicate: gatts_if=%d, conn_id=%d, handle=%d, len=%d, protocolType=%d, msgId=%d",
-			gatts_if_, connState_.conn_id, char_handle, fragment.size(), (uint8_t)protocolType, messageId);
+			gatts_if_, connState_.conn_id, char_handle, fragment.size(), (uint8_t) protocolType, messageId);
 
 		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
 			char_handle, fragment.size(), fragment.data(), true);
@@ -888,7 +890,7 @@ void BTRemote::publishBTClassicDevices() {
 	INFO("Publishing Bluetooth Classic device list: %d devices", discoveredDevices_.size());
 	sendEvent(APP_EVENT_TYPE_BTCLASSICDEVICES, response);
 
-	lastDeviceListPublishTime_ = now;	
+	lastDeviceListPublishTime_ = now;
 }
 
 bool BTRemote::reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
@@ -916,9 +918,9 @@ void BTRemote::processMessageQueue() {
 	if (xQueueReceive(responseQueue_, &item, 0) == pdTRUE) {
 
 		if (item.type == MessageProcessorItemType::INCOMING_REQUEST) {
-			IncomingRequest* req = static_cast<IncomingRequest*>(item.dataPtr);
+			IncomingRequest *req = static_cast<IncomingRequest *>(item.dataPtr);
 			DEBUG("Processing incoming request: msgId=%d, protocolType=%d, size=%d",
-				req->messageId, (int)req->protocolType, req->data.size());
+				req->messageId, (int) req->protocolType, req->data.size());
 
 			processCompleteMessage(req->protocolType, req->messageId, req->data);
 
@@ -926,7 +928,7 @@ void BTRemote::processMessageQueue() {
 			delete req;
 
 		} else if (item.type == MessageProcessorItemType::FILE_TRANSFER) {
-			PendingFileTransfer* transfer = static_cast<PendingFileTransfer*>(item.dataPtr);
+			PendingFileTransfer *transfer = static_cast<PendingFileTransfer *>(item.dataPtr);
 			INFO("Processing queued file transfer for %s of project %s",
 				transfer->filename.c_str(), transfer->project.c_str());
 
@@ -1080,7 +1082,6 @@ bool BTRemote::reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &r
 	return true;
 }
 
-
 // ============================================================================
 // Bluetooth Classic Helper Methods
 // ============================================================================
@@ -1095,9 +1096,10 @@ std::string BTRemote::bdAddrToString(const esp_bd_addr_t address) {
 void BTRemote::stringToBdAddr(const std::string &str, esp_bd_addr_t address) {
 	unsigned int addr[6];
 	if (sscanf(str.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X",
-	           &addr[0], &addr[1], &addr[2], &addr[3], &addr[4], &addr[5]) == 6) {
+			&addr[0], &addr[1], &addr[2], &addr[3], &addr[4], &addr[5])
+		== 6) {
 		for (int i = 0; i < 6; i++) {
-			address[i] = (uint8_t)addr[i];
+			address[i] = (uint8_t) addr[i];
 		}
 	} else {
 		ERROR("Invalid MAC address format: %s", str.c_str());
@@ -1113,20 +1115,35 @@ BTClassicDeviceType BTRemote::classifyDevice(uint32_t cod) {
 	DEBUG("Classifying device: CoD=0x%06X, Major=0x%02X, Minor=0x%02X", cod, major, minor);
 
 	switch (major) {
-		case 0x01: return BTClassicDeviceType::COMPUTER;
-		case 0x02: return BTClassicDeviceType::PHONE;
-		case 0x04: return BTClassicDeviceType::AUDIO;
+		case 0x01:
+			return BTClassicDeviceType::COMPUTER;
+		case 0x02:
+			return BTClassicDeviceType::PHONE;
+		case 0x04:
+			return BTClassicDeviceType::AUDIO;
 		case 0x05: // Peripheral (HID devices)
 			// Check minor device class for specific peripheral types
-			if ((minor & 0x0C) == 0x04) return BTClassicDeviceType::KEYBOARD;
-			if ((minor & 0x0C) == 0x08) return BTClassicDeviceType::MOUSE;
-			if ((minor & 0x0C) == 0x0C) return BTClassicDeviceType::JOYSTICK;
-			if (minor & 0x10) return BTClassicDeviceType::GAMEPAD; // Gamepad/Gaming control
+			if ((minor & 0x0C) == 0x04) {
+				return BTClassicDeviceType::KEYBOARD;
+			}
+			if ((minor & 0x0C) == 0x08) {
+				return BTClassicDeviceType::MOUSE;
+			}
+			if ((minor & 0x0C) == 0x0C) {
+				return BTClassicDeviceType::JOYSTICK;
+			}
+			if (minor & 0x10) {
+				return BTClassicDeviceType::GAMEPAD; // Gamepad/Gaming control
+			}
 			return BTClassicDeviceType::PERIPHERAL;
-		case 0x06: return BTClassicDeviceType::IMAGING;
-		case 0x07: return BTClassicDeviceType::WEARABLE;
-		case 0x08: return BTClassicDeviceType::TOY;
-		case 0x09: return BTClassicDeviceType::HEALTH;
+		case 0x06:
+			return BTClassicDeviceType::IMAGING;
+		case 0x07:
+			return BTClassicDeviceType::WEARABLE;
+		case 0x08:
+			return BTClassicDeviceType::TOY;
+		case 0x09:
+			return BTClassicDeviceType::HEALTH;
 		default:
 			INFO("Unknown device class: 0x%02X", major);
 			return BTClassicDeviceType::UNKNOWN;
@@ -1206,7 +1223,7 @@ bool BTRemote::removePairing(const char *macAddress) {
 bool BTRemote::startPairing(const char *macAddress) {
 	if (pairingInProgress_) {
 		WARN("Pairing already in progress with another device");
-//		return false;
+		//		return false;
 	}
 
 	esp_bd_addr_t address;
@@ -1422,16 +1439,16 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 		switch (prop->type) {
 			case ESP_BT_GAP_DEV_PROP_COD:
 				if (prop->len == sizeof(uint32_t)) {
-					cod = *(uint32_t *)prop->val;
+					cod = *(uint32_t *) prop->val;
 				}
 				break;
 			case ESP_BT_GAP_DEV_PROP_RSSI:
 				if (prop->len == sizeof(int8_t)) {
-					rssi = *(int8_t *)prop->val;
+					rssi = *(int8_t *) prop->val;
 				}
 				break;
 			case ESP_BT_GAP_DEV_PROP_EIR:
-				eir_data = (uint8_t *)prop->val;
+				eir_data = (uint8_t *) prop->val;
 				break;
 			default:
 				break;
@@ -1442,7 +1459,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 	BTClassicDeviceType deviceType = classifyDevice(cod);
 
 	DEBUG("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d",
-		addrStr.c_str(), rssi, cod, (int)deviceType);
+		addrStr.c_str(), rssi, cod, (int) deviceType);
 
 	// Store or update device in discovered devices map (thread-safe)
 	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -1462,7 +1479,9 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 			uint8_t offset = 0;
 			while (offset < ESP_BT_GAP_EIR_DATA_LEN) {
 				eir_len = eir_data[offset];
-				if (eir_len == 0) break;
+				if (eir_len == 0) {
+					break;
+				}
 
 				uint8_t eir_type = eir_data[offset + 1];
 				if (eir_type == 0x09) { // Complete local name
@@ -1502,8 +1521,8 @@ void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
 	esp_bt_gap_discovery_state_t state = param->disc_st_chg.state;
 
 	INFO("BT Discovery state changed: %s",
-		state == ESP_BT_GAP_DISCOVERY_STOPPED ? "STOPPED" :
-		state == ESP_BT_GAP_DISCOVERY_STARTED ? "STARTED" : "UNKNOWN");
+		state == ESP_BT_GAP_DISCOVERY_STOPPED ? "STOPPED" : state == ESP_BT_GAP_DISCOVERY_STARTED ? "STARTED"
+																								  : "UNKNOWN");
 
 	if (state == ESP_BT_GAP_DISCOVERY_STOPPED) {
 		discoveryInProgress_ = false;
@@ -1545,7 +1564,7 @@ void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 			auto it = discoveredDevices_.find(addrStr);
 			if (it != discoveredDevices_.end()) {
-				strncpy(it->second.name, (char *)param->auth_cmpl.device_name,
+				strncpy(it->second.name, (char *) param->auth_cmpl.device_name,
 					ESP_BT_GAP_MAX_BDNAME_LEN);
 				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				INFO("Device name updated: %s -> %s", addrStr.c_str(), it->second.name);
@@ -1598,7 +1617,7 @@ void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
 		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 			auto it = discoveredDevices_.find(addrStr);
 			if (it != discoveredDevices_.end()) {
-				strncpy(it->second.name, (char *)param->read_rmt_name.rmt_name,
+				strncpy(it->second.name, (char *) param->read_rmt_name.rmt_name,
 					ESP_BT_GAP_MAX_BDNAME_LEN);
 				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				INFO("Device name updated: %s", it->second.name);
@@ -1627,11 +1646,20 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 	std::string addrStr = bdAddrToString(param->open.bd_addr);
 	const char *conn_state_str = "UNKNOWN";
 	switch (param->open.conn_status) {
-		case ESP_HIDH_CONN_STATE_CONNECTED: conn_state_str = "CONNECTED"; break;
-		case ESP_HIDH_CONN_STATE_CONNECTING: conn_state_str = "CONNECTING"; break;
-		case ESP_HIDH_CONN_STATE_DISCONNECTED: conn_state_str = "DISCONNECTED"; break;
-		case ESP_HIDH_CONN_STATE_DISCONNECTING: conn_state_str = "DISCONNECTING"; break;
-		default: break;
+		case ESP_HIDH_CONN_STATE_CONNECTED:
+			conn_state_str = "CONNECTED";
+			break;
+		case ESP_HIDH_CONN_STATE_CONNECTING:
+			conn_state_str = "CONNECTING";
+			break;
+		case ESP_HIDH_CONN_STATE_DISCONNECTED:
+			conn_state_str = "DISCONNECTED";
+			break;
+		case ESP_HIDH_CONN_STATE_DISCONNECTING:
+			conn_state_str = "DISCONNECTING";
+			break;
+		default:
+			break;
 	}
 
 	INFO("HID OPEN event: %s, handle: %d, status: %d, conn_status: %d (%s), is_orig: %d",
@@ -1640,8 +1668,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 
 	// CRITICAL: Only process when device is FULLY CONNECTED, not just CONNECTING
 	// ESP_HIDH_OPEN_EVT can fire multiple times during connection process
-	if (param->open.status == ESP_HIDH_OK &&
-	    param->open.conn_status == ESP_HIDH_CONN_STATE_CONNECTED) {
+	if (param->open.status == ESP_HIDH_OK && param->open.conn_status == ESP_HIDH_CONN_STATE_CONNECTED) {
 
 		// Store device address for later protocol setup
 		esp_bd_addr_t device_addr;
@@ -1690,8 +1717,6 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 			state.leftStickY = 0;
 			state.rightStickX = 0;
 			state.rightStickY = 0;
-			state.leftTrigger = 0;
-			state.rightTrigger = 0;
 			gamepadStates_[addrStr] = state;
 			INFO("Gamepad state initialized for device: %s", addrStr.c_str());
 			xSemaphoreGive(gamepadStatesMutex_);
@@ -1711,7 +1736,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 
 		// Resume BLE advertising even if HID connection failed
 		INFO("Resuming BLE advertising after failed HID connection...");
-		suppressBLERestart_ = true; // Clear suppression flag
+		suppressBLERestart_ = false; // Clear suppression flag
 		esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 		if (ret != ESP_OK) {
 			WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1748,7 +1773,7 @@ void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
 
 	// Resume BLE advertising after HID disconnection
 	INFO("HID device closed - resuming BLE advertising...");
-	suppressBLERestart_ = true; // Clear suppression flag
+	suppressBLERestart_ = false; // Clear suppression flag
 	esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 	if (ret != ESP_OK) {
 		WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1784,6 +1809,10 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 	}
 
 	INFO("Got report with length %d", length);
+	for (int i = 0; i < length; i++) {
+		DEBUG("Byte[%d]: dec=%3d bin=%s hex=0x%02X", i, data[i],
+			String(data[i], BIN).c_str(), data[i]);
+	}
 
 	auto it = gamepadStates_.find(addrStr);
 	if (it == gamepadStates_.end()) {
@@ -1794,50 +1823,32 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 	GamepadState &state = it->second;
 	state.timestamp = millis();
 
-	// Standard HID gamepad report format (most common):
-	// Byte 0: Report ID (optional, depends on device)
-	// Bytes 0-1 (or 1-2): Buttons (16 bits)
-	// Byte 2 (or 3): D-Pad / Hat Switch
-	// Byte 3-4 (or 4-5): Left Stick X, Y
-	// Byte 5-6 (or 6-7): Right Stick X, Y
-	// Byte 7-8 (or 8-9): Left/Right Triggers
+	INFO("Parsing gamepad report: VID=0x%04X PID=0x%04X", state.vendorId, state.productId);
 
-	// Handle different report formats
-	uint8_t offset = 0;
+	if (state.vendorId == 0x045E) {
+		// We can only parse page 1 for now....
+		if (data[0] == 1 && length == 16) {
+			// 16-bit little-endian values (low byte first, then high byte)
+			state.leftStickX = ((int16_t) data[2] * 256 + data[1]) - 32768;
+			state.leftStickY = ((int16_t) data[4] * 256 + data[3]) - 32768;
+			state.rightStickX = ((int16_t) data[6] * 256 + data[5]) - 32768;
+			state.rightStickY = ((int16_t) data[8] * 256 + data[7]) - 32768;
 
-	// Check if first byte looks like a report ID (usually 0x01 or very small number)
-	if (length > 0 && data[0] <= 0x0F) {
-		offset = 1; // Skip report ID
-	}
+			// Don't know where to get the dpad status from,
+			// Also the shoulder buttons are somehow strange...
 
-	if (length >= offset + 8) {
-		// Parse buttons (16-bit little-endian)
-		state.buttons = data[offset] | (data[offset + 1] << 8);
+			state.buttons = ((int16_t) data[13] * 256 + data[14]);
 
-		// Parse D-Pad (hat switch)
-		state.dpad = data[offset + 2];
+			INFO("Standard Gamepad: Buttons=0x%02X, DPad=%d, Left Stick=(%d,%d), Right Stick=(%d,%d)",
+				state.buttons, state.dpad,
+				state.leftStickX, state.leftStickY,
+				state.rightStickX, state.rightStickY);
 
-		// Parse left stick (signed 8-bit, center = 0x80, convert to -127 to 127)
-		state.leftStickX = (int8_t)(data[offset + 3] - 0x80);
-		state.leftStickY = (int8_t)(data[offset + 4] - 0x80);
-
-		// Parse right stick
-		state.rightStickX = (int8_t)(data[offset + 5] - 0x80);
-		state.rightStickY = (int8_t)(data[offset + 6] - 0x80);
-
-		// Parse triggers (unsigned 8-bit)
-		if (length >= offset + 9) {
-			state.leftTrigger = data[offset + 7];
-			state.rightTrigger = data[offset + 8];
+		} else {
+			WARN("Ignoring Page %d of report with site %d", data[0], length);
 		}
-
-		INFO("Gamepad %s: Buttons=0x%04X, DPad=%d, LS=(%d,%d), RS=(%d,%d), T=(%d,%d)",
-			addrStr.c_str(), state.buttons, state.dpad,
-			state.leftStickX, state.leftStickY,
-			state.rightStickX, state.rightStickY,
-			state.leftTrigger, state.rightTrigger);
 	} else {
-		DEBUG("HID report too short (%d bytes) for gamepad parsing", length);
+		WARN("No XInput data, expected vendor id 0x045E and length 16 bytes");
 	}
 
 	xSemaphoreGive(gamepadStatesMutex_);
@@ -1856,7 +1867,7 @@ void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_
 	// Queue the event for processing in dedicated task
 	HIDEventItem item;
 	item.event = event;
-	item.param = *param;  // Copy param data
+	item.param = *param; // Copy param data
 
 	// Try to queue the event (don't block - drop if queue full)
 	if (xQueueSend(g_btremote_instance->hidEventQueue_, &item, 0) != pdTRUE) {
@@ -1967,13 +1978,31 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 				param.dscp.vendor_id, param.dscp.product_id);
 
 			if (param.dscp.status == ESP_HIDH_OK) {
+				// Note: param.dscp.dsc_list contains SDP attribute data, not the raw HID descriptor
+				// The actual HID report descriptor is embedded within the SDP data and would
+				// require complex SDP parsing to extract. For now, we'll use device-specific
+				// parsing based on VID/PID instead.
+				INFO("Device VID=0x%04X PID=0x%04X - use device-specific report parsing",
+					param.dscp.vendor_id, param.dscp.product_id);
 				// SDP query complete! Now it's safe to set protocol mode
 				INFO("SDP query complete - setting protocol mode to REPORT_MODE");
 
-				// Find the device by handle to get its address
+				// Find the device by handle to get its address and store VID/PID
 				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 					for (auto &entry : hidDevices_) {
 						if (entry.second.handle == param.dscp.handle) {
+							// Store VID/PID in gamepad state for device-specific parsing
+							if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+								auto it = gamepadStates_.find(entry.first);
+								if (it != gamepadStates_.end()) {
+									it->second.vendorId = param.dscp.vendor_id;
+									it->second.productId = param.dscp.product_id;
+									INFO("Stored VID/PID for gamepad %s", entry.first.c_str());
+								}
+								xSemaphoreGive(gamepadStatesMutex_);
+							}
+
+							// Set protocol mode
 							esp_err_t ret = esp_bt_hid_host_set_protocol(entry.second.address, ESP_HIDH_REPORT_MODE);
 							if (ret != ESP_OK) {
 								ERROR("Failed to set protocol mode: %s", esp_err_to_name(ret));
@@ -2109,9 +2138,9 @@ void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_para
 
 	esp_gatt_srvc_id_t service_id = {
 		.id = {
-			.uuid = stringToUUID128(SERVICE_UUID),
-			.inst_id = 0,
-		},
+			   .uuid = stringToUUID128(SERVICE_UUID),
+			   .inst_id = 0,
+			   },
 		.is_primary = true,
 	};
 
@@ -2371,16 +2400,18 @@ void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
 	const uint8_t *data = param->write.value;
 	size_t length = param->write.len;
 
-	if (param->write.handle == handles_.response_cccd_handle ||
-		param->write.handle == handles_.event_cccd_handle ||
-		param->write.handle == handles_.control_cccd_handle) {
+	if (param->write.handle == handles_.response_cccd_handle || param->write.handle == handles_.event_cccd_handle || param->write.handle == handles_.control_cccd_handle) {
 
 		if (length == 2) {
 			uint16_t descr_value = data[0] | (data[1] << 8);
 			const char *char_name = "Unknown";
-			if (param->write.handle == handles_.response_cccd_handle) char_name = "Response";
-			else if (param->write.handle == handles_.event_cccd_handle) char_name = "Event";
-			else if (param->write.handle == handles_.control_cccd_handle) char_name = "Control";
+			if (param->write.handle == handles_.response_cccd_handle) {
+				char_name = "Response";
+			} else if (param->write.handle == handles_.event_cccd_handle) {
+				char_name = "Event";
+			} else if (param->write.handle == handles_.control_cccd_handle) {
+				char_name = "Control";
+			}
 
 			INFO("CCCD write for %s characteristic: 0x%04x (Notify=%s, Indicate=%s)",
 				char_name, descr_value,

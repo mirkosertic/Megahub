@@ -2,20 +2,19 @@
 #define BTREMOTE_H
 
 #include "configuration.h"
+#include "esp_bt.h"
+#include "esp_bt_defs.h"
+#include "esp_bt_main.h"
+#include "esp_gap_ble_api.h"
+#include "esp_gap_bt_api.h"
+#include "esp_gatt_common_api.h"
+#include "esp_gatts_api.h"
+#include "esp_hidh_api.h"
 #include "megahub.h"
 
 #include <ArduinoJson.h>
 #include <map>
 #include <vector>
-
-#include "esp_bt.h"
-#include "esp_bt_main.h"
-#include "esp_gap_ble_api.h"
-#include "esp_gatt_common_api.h"
-#include "esp_gatts_api.h"
-#include "esp_gap_bt_api.h"
-#include "esp_bt_defs.h"
-#include "esp_hidh_api.h"
 
 enum class ProtocolMessageType : uint8_t {
 	REQUEST = 0x01,
@@ -112,38 +111,23 @@ struct HIDDevice {
 	uint32_t handle;
 };
 
-// HID Report Data for Gamepad Processing
-struct HIDReportData {
-	uint8_t reportId;
-	uint8_t reportType;
-	uint16_t length;
-	uint8_t data[64]; // Max HID report size
-	uint32_t timestamp;
-};
-
 // Gamepad State - Standard HID gamepad layout
 struct GamepadState {
 	esp_bd_addr_t address;
 	bool connected;
 	uint32_t timestamp;
+	uint16_t vendorId;
+	uint16_t productId;
 
-	// Buttons (bit field): 0=A, 1=B, 2=X, 3=Y, 4=L1, 5=R1, 6=L2, 7=R2,
-	//                      8=Select, 9=Start, 10=L3, 11=R3, 12-15=Reserved
 	uint16_t buttons;
 
-	// D-Pad (hat switch): 0=up, 1=up-right, 2=right, 3=down-right,
-	//                     4=down, 5=down-left, 6=left, 7=up-left, 8=center
 	uint8_t dpad;
 
-	// Analog sticks (range: -127 to 127, center=0)
-	int8_t leftStickX;
-	int8_t leftStickY;
-	int8_t rightStickX;
-	int8_t rightStickY;
-
-	// Triggers (range: 0 to 255)
-	uint8_t leftTrigger;
-	uint8_t rightTrigger;
+	// Analog sticks (16-bit signed, range: -32768 to 32767, center=0)
+	int16_t leftStickX;
+	int16_t leftStickY;
+	int16_t rightStickX;
+	int16_t rightStickY;
 };
 
 // HID Event Queue Item for async processing

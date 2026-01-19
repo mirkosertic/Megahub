@@ -1,15 +1,15 @@
 # Megahub
 
-[![PlatformIO CI](https://github.com/mirkosertic/Megahub/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/mirkosertic/Megahub/actions/workflows/build.yml)
+![PlatformIO CI](https://github.com/mirkosertic/Megahub/actions/workflows/build.yml/badge.svg?branch=main)
 
 ## Introduction
 
-Megahub is an ESP32-based alternative hub designed for LEGO&copy; enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for LEGO&copy; WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
+Megahub is an ESP32-based alternative hub designed for LEGO© enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for LEGO© WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
 
-This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO&copy; sensors and motors.
+This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO© sensors and motors.
 It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
 
-** Build and use it at your own Risk!! **
+\*\* Build and use it at your own Risk!! \*\*
 
 ## Key Features
 
@@ -19,7 +19,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 - **IDE**: Configure and program Megahub through the intuitive [Megahub IDE](https://mirkosertic.github.io/Megahub/)
 - **Visual Programming Interface**: Blockly visual programming for beginners
 - **SD-Card**: Built-in SD-card reader to store multiple projects (autostart possible)
-- **4 UART Ports**: Connect up to 4 LEGO&copy; WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
+- **4 UART Ports**: Connect up to 4 LEGO© WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
 - **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
 - **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
 - **Flexible GPIO**: Additional GPIO pins available for custom sensors, buttons, and peripherals
@@ -36,7 +36,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ## How It Differs from Existing Solutions
 
-### vs. LEGO&copy; Powered Up!
+### vs. LEGO© Powered Up!
 
 - **Open Source**: Complete control over firmware and functionality
 - **Expandable**: Access to additional GPIO pins for custom hardware
@@ -44,9 +44,9 @@ It comes with the hardware schematics, production files and the Megahub firmware
 - **Built-in Features**: Integrated IMU and LED controller without additional hubs
 - **Cost-effective**: Based on affordable ESP32 hardware
 
-### vs. fischertechnik&copy; RX Controller
+### vs. fischertechnik© RX Controller
 
-- **LEGO Compatibility**: Native support for LEGO&copy; WeDo 2.0 protocol
+- **LEGO Compatibility**: Native support for LEGO© WeDo 2.0 protocol
 - **Web-based Programming**: No proprietary software required
 - **Cost-effective**: Based on affordable ESP32 hardware
 - **Visual Programming**: Blockly support makes it accessible for all skill levels
@@ -64,4 +64,3 @@ It comes with the hardware schematics, production files and the Megahub firmware
 ## Getting Started
 
 Documentation coming soon...
-

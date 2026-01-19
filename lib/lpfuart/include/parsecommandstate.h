@@ -3,6 +3,8 @@
 
 #include "protocolstate.h"
 
+#include <string>
+
 class LegoDevice;
 
 class ParseCommandState : public ProtocolState {
