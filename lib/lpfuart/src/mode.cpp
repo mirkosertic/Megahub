@@ -112,6 +112,12 @@ float Mode::getSiMax() {
 }
 
 void Mode::processDataPacket(int *payload, int payloadSize) {
+
+	if (format_ == nullptr) {
+		DEBUG("Not fully initialized yet!");
+		return;
+	}
+
 	const char hexChars[] = "0123456789ABCDEF";
 	std::string payloadHex;
 	payloadHex.reserve(payloadSize * 3); // 2 chars + space per byte

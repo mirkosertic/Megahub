@@ -10,8 +10,6 @@
 #include <map>
 #include <vector>
 
-#include "btstack.h"
-
 // ESP-IDF Bluedroid includes
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -1208,7 +1206,7 @@ bool BTRemote::removePairing(const char *macAddress) {
 bool BTRemote::startPairing(const char *macAddress) {
 	if (pairingInProgress_) {
 		WARN("Pairing already in progress with another device");
-		return false;
+//		return false;
 	}
 
 	esp_bd_addr_t address;
@@ -1230,6 +1228,9 @@ bool BTRemote::startPairing(const char *macAddress) {
 
 	// Step 1: Suppress BLE advertising auto-restart
 	suppressBLERestart_ = true;
+	stopDiscoveryInternal();
+
+	vTaskDelay(pdMS_TO_TICKS(500));
 
 	// Step 2: Stop advertising (prevents new connections)
 	INFO("Stopping BLE advertising to reduce interference with Classic BT connection...");
@@ -1710,7 +1711,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 
 		// Resume BLE advertising even if HID connection failed
 		INFO("Resuming BLE advertising after failed HID connection...");
-		suppressBLERestart_ = false; // Clear suppression flag
+		suppressBLERestart_ = true; // Clear suppression flag
 		esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 		if (ret != ESP_OK) {
 			WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1747,7 +1748,7 @@ void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
 
 	// Resume BLE advertising after HID disconnection
 	INFO("HID device closed - resuming BLE advertising...");
-	suppressBLERestart_ = false; // Clear suppression flag
+	suppressBLERestart_ = true; // Clear suppression flag
 	esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 	if (ret != ESP_OK) {
 		WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1781,6 +1782,8 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(10)) != pdTRUE) {
 		return; // Skip if mutex not available
 	}
+
+	INFO("Got report with length %d", length);
 
 	auto it = gamepadStates_.find(addrStr);
 	if (it == gamepadStates_.end()) {
@@ -1828,7 +1831,7 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 			state.rightTrigger = data[offset + 8];
 		}
 
-		DEBUG("Gamepad %s: Buttons=0x%04X, DPad=%d, LS=(%d,%d), RS=(%d,%d), T=(%d,%d)",
+		INFO("Gamepad %s: Buttons=0x%04X, DPad=%d, LS=(%d,%d), RS=(%d,%d), T=(%d,%d)",
 			addrStr.c_str(), state.buttons, state.dpad,
 			state.leftStickX, state.leftStickY,
 			state.rightStickX, state.rightStickY,
@@ -1907,7 +1910,7 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 				// established and ready. Resume BLE advertising now that the critical
 				// phase of the HID connection is complete.
 				INFO("HID connection complete - resuming BLE advertising...");
-				suppressBLERestart_ = false; // Clear suppression flag
+				suppressBLERestart_ = true; // Clear suppression flag
 				esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 				if (ret != ESP_OK) {
 					WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1919,7 +1922,7 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 
 				// Resume BLE even on failure
 				INFO("Resuming BLE advertising after HID protocol setup failure...");
-				suppressBLERestart_ = false; // Clear suppression flag
+				suppressBLERestart_ = true; // Clear suppression flag
 				esp_ble_gap_start_advertising(&g_adv_params);
 			}
 			break;
