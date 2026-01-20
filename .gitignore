@@ -16,3 +16,4 @@ data
 managed_components
 .claude
 compile_commands.json
+.sync-exclude.lst
