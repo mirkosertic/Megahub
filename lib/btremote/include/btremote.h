@@ -10,6 +10,7 @@
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
 #include "esp_hidh_api.h"
+#include "inputdevices.h"
 #include "megahub.h"
 
 #include <ArduinoJson.h>
@@ -111,25 +112,6 @@ struct HIDDevice {
 	uint32_t handle;
 };
 
-// Gamepad State - Standard HID gamepad layout
-struct GamepadState {
-	esp_bd_addr_t address;
-	bool connected;
-	uint32_t timestamp;
-	uint16_t vendorId;
-	uint16_t productId;
-
-	uint16_t buttons;
-
-	uint8_t dpad;
-
-	// Analog sticks (16-bit signed, range: -32768 to 32767, center=0)
-	int16_t leftStickX;
-	int16_t leftStickY;
-	int16_t rightStickX;
-	int16_t rightStickY;
-};
-
 // HID Event Queue Item for async processing
 struct HIDEventItem {
 	esp_hidh_cb_event_t event;
@@ -143,6 +125,7 @@ private:
 	uint16_t gatts_if_;
 	uint16_t app_id_;
 
+	InputDevices *inputDevices_;
 	SerialLoggingOutput *loggingOutput_;
 	Configuration *configuration_;
 	Megahub *hub_;
@@ -176,8 +159,6 @@ private:
 	// HID Host
 	std::map<std::string, HIDDevice> hidDevices_;
 	SemaphoreHandle_t hidDevicesMutex_;
-	std::map<std::string, GamepadState> gamepadStates_;
-	SemaphoreHandle_t gamepadStatesMutex_;
 
 	// HID event processing queue and task
 	QueueHandle_t hidEventQueue_;
@@ -249,7 +230,7 @@ private:
 	void stringToBdAddr(const std::string &str, esp_bd_addr_t address);
 
 public:
-	BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
+	BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
 
 	void begin(const char *deviceName);
 
@@ -283,10 +264,6 @@ public:
 	bool hidConnect(const char *macAddress);
 	bool hidDisconnect(const char *macAddress);
 	std::vector<HIDDevice> getConnectedHIDDevices();
-
-	// Gamepad API
-	bool getGamepadState(const char *macAddress, GamepadState &state);
-	std::vector<GamepadState> getAllGamepadStates();
 };
 
 #endif // BTREMOTE_H

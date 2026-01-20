@@ -9,11 +9,12 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
+#include <esp_mac.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#include <esp_mac.h>
 
-#define MEGAHUBREF_NAME "MEGAHUBTHISREF"
+#define MEGAHUBREF_NAME		 "MEGAHUBTHISREF"
+#define INPUTDEVICESREF_NAME "MEGAHUBINPUTDEVICESREF"
 
 SemaphoreHandle_t lua_global_mutex = xSemaphoreCreateMutex();
 
@@ -28,20 +29,18 @@ Megahub *getMegaHubRef(lua_State *L) {
 	return (Megahub *) (userdata ? *userdata : NULL);
 }
 
+InputDevices *getInputDevicesRef(lua_State *L) {
+	lua_getfield(L, LUA_REGISTRYINDEX, INPUTDEVICESREF_NAME);
+	void **userdata = (void **) lua_touserdata(L, -1);
+	lua_pop(L, 1); // Clean up stack
+	return (InputDevices *) (userdata ? *userdata : NULL);
+}
+
 void status_reporter_task(void *parameters) {
 	Megahub *hub = (Megahub *) parameters;
 	INFO("Starting task reporter task");
 	while (true) {
 		DEBUG("Sending Portstatus");
-
-		static unsigned long lastHeapLog = 0;
-		unsigned long currentMillis = millis();
-
-		// Log stack utilization every 10 seconds
-		if (currentMillis - lastHeapLog >= 10000) {
-			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
-			lastHeapLog = currentMillis;
-		}
 
 		i2c_lock();
 		JsonDocument status;
@@ -63,16 +62,16 @@ void status_reporter_task(void *parameters) {
 				Mode *mode = device1->getMode(i);
 
 				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;				
+				singleMode["id"] = i;
 				singleMode["name"] = String(mode->getName().c_str());
 				singleMode["units"] = String(mode->getUnits().c_str());
-				Format* format = mode->getFormat();
+				Format *format = mode->getFormat();
 				if (format != nullptr) {
 					singleMode["datasets"] = format->getDatasets();
 					singleMode["figures"] = format->getFigures();
 					singleMode["decimals"] = format->getDecimals();
 
-					switch(format->getFormatType()) {
+					switch (format->getFormatType()) {
 						case Format::FormatType::DATA8: {
 							singleMode["type"] = "DATA8";
 							break;
@@ -113,16 +112,16 @@ void status_reporter_task(void *parameters) {
 				Mode *mode = device2->getMode(i);
 
 				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;				
+				singleMode["id"] = i;
 				singleMode["name"] = String(mode->getName().c_str());
 				singleMode["units"] = String(mode->getUnits().c_str());
-				Format* format = mode->getFormat();
+				Format *format = mode->getFormat();
 				if (format != nullptr) {
 					singleMode["datasets"] = format->getDatasets();
 					singleMode["figures"] = format->getFigures();
 					singleMode["decimals"] = format->getDecimals();
 
-					switch(format->getFormatType()) {
+					switch (format->getFormatType()) {
 						case Format::FormatType::DATA8: {
 							singleMode["type"] = "DATA8";
 							break;
@@ -166,13 +165,13 @@ void status_reporter_task(void *parameters) {
 				singleMode["id"] = i;
 				singleMode["name"] = String(mode->getName().c_str());
 				singleMode["units"] = String(mode->getUnits().c_str());
-				Format* format = mode->getFormat();
+				Format *format = mode->getFormat();
 				if (format != nullptr) {
 					singleMode["datasets"] = format->getDatasets();
 					singleMode["figures"] = format->getFigures();
 					singleMode["decimals"] = format->getDecimals();
 
-					switch(format->getFormatType()) {
+					switch (format->getFormatType()) {
 						case Format::FormatType::DATA8: {
 							singleMode["type"] = "DATA8";
 							break;
@@ -194,7 +193,6 @@ void status_reporter_task(void *parameters) {
 						}
 					}
 				}
-
 			}
 		} else {
 			port3["connected"] = false;
@@ -214,16 +212,16 @@ void status_reporter_task(void *parameters) {
 				Mode *mode = device4->getMode(i);
 
 				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;				
+				singleMode["id"] = i;
 				singleMode["name"] = String(mode->getName().c_str());
 				singleMode["units"] = String(mode->getUnits().c_str());
-				Format* format = mode->getFormat();
+				Format *format = mode->getFormat();
 				if (format != nullptr) {
 					singleMode["datasets"] = format->getDatasets();
 					singleMode["figures"] = format->getFigures();
 					singleMode["decimals"] = format->getDecimals();
 
-					switch(format->getFormatType()) {
+					switch (format->getFormatType()) {
 						case Format::FormatType::DATA8: {
 							singleMode["type"] = "DATA8";
 							break;
@@ -274,6 +272,8 @@ extern int debug_library(lua_State *luaState);
 extern int ui_library(lua_State *luaState);
 
 extern int lego_library(lua_State *luaState);
+
+extern int gamepad_library(lua_State *luaState);
 
 int global_wait(lua_State *luaState) {
 	int delay = lua_tointeger(luaState, 1);
@@ -326,6 +326,8 @@ lua_State *Megahub::newLuaState() {
 	lua_pop(ls, 1); // remove lib from stack
 	luaL_requiref(ls, "lego", lego_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
+	luaL_requiref(ls, "gamepad", gamepad_library, 1);
+	lua_pop(ls, 1); // remove lib from stack
 
 	// And also global functions
 	lua_register(ls, "wait", global_wait);
@@ -336,6 +338,11 @@ lua_State *Megahub::newLuaState() {
 	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *));
 	*userdata = this;
 	lua_setfield(ls, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
+
+	// Input devices reference
+	void **inputdevicesuserdata = (void **) lua_newuserdata(ls, sizeof(void *));
+	*inputdevicesuserdata = inputdevices_.get();
+	lua_setfield(ls, LUA_REGISTRYINDEX, INPUTDEVICESREF_NAME);
 
 	// Globals
 	lua_pushinteger(ls, PORT1);
@@ -407,13 +414,28 @@ lua_State *Megahub::newLuaState() {
 	lua_pushinteger(ls, FORMAT_SIMPLE);
 	lua_setglobal(ls, "FORMAT_SIMPLE");
 
+	// Gamepad
+	lua_pushinteger(ls, GAMEPAD1);
+	lua_setglobal(ls, "GAMEPAD1");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_1);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_1");
+	lua_pushinteger(ls, GAMEPAD_LEFT_X);
+	lua_setglobal(ls, "GAMEPAD_LEFT_X");
+	lua_pushinteger(ls, GAMEPAD_LEFT_Y);
+	lua_setglobal(ls, "GAMEPAD_LEFT_Y");
+	lua_pushinteger(ls, GAMEPAD_RIGHT_X);
+	lua_setglobal(ls, "GAMEPAD_RIGHT_X");
+	lua_pushinteger(ls, GAMEPAD_RIGHT_Y);
+	lua_setglobal(ls, "GAMEPAD_RIGHT_Y");
+
 	INFO("Finished creating new Lua state");
 
 	return ls;
 }
 
-Megahub::Megahub(LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu)
-	: device1_(device1)
+Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu)
+	: inputdevices_(inputDevices)
+	, device1_(device1)
 	, device2_(device2)
 	, device3_(device3)
 	, device4_(device4)

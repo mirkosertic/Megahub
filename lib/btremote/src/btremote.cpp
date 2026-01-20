@@ -252,15 +252,6 @@ void btMessageProcessorTask(void *param) {
 	BTRemote *server = (BTRemote *) param;
 	while (true) {
 
-		static unsigned long lastHeapLog = 0;
-		unsigned long currentMillis = millis();
-
-		// Log stack utilization every 10 seconds
-		if (currentMillis - lastHeapLog >= 10000) {
-			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
-			lastHeapLog = currentMillis;
-		}
-
 		server->processMessageQueue();
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
@@ -269,9 +260,10 @@ void btMessageProcessorTask(void *param) {
 // Bluetooth Classic discovery interval (30 seconds)
 const uint32_t BT_DISCOVERY_INTERVAL_MS = 30000;
 
-BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration)
+BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration)
 	: gatts_if_(ESP_GATT_IF_NONE)
 	, app_id_(0x55)
+	, inputDevices_(inputDevices)
 	, loggingOutput_(loggingOutput)
 	, configuration_(configuration)
 	, hub_(hub)
@@ -288,7 +280,6 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	, pairingInProgress_(false)
 	, suppressBLERestart_(false)
 	, hidDevicesMutex_(nullptr)
-	, gamepadStatesMutex_(nullptr)
 	, hidEventQueue_(nullptr)
 	, hidEventTaskHandle_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
@@ -296,7 +287,6 @@ BTRemote::BTRemote(FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Con
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
 	hidDevicesMutex_ = xSemaphoreCreateMutex();
-	gamepadStatesMutex_ = xSemaphoreCreateMutex();
 
 	// Create HID event queue (10 items max)
 	hidEventQueue_ = xQueueCreate(10, sizeof(HIDEventItem));
@@ -973,7 +963,7 @@ void BTRemote::processMessageQueue() {
 	}
 
 	// Serialize all BLE communication through this task to prevent race conditions
-	if (isConnected() && readyForEvents_) {
+	if (deviceConnected_ && readyForEvents_ && !pairingInProgress_ && !suppressBLERestart_) {
 		publishLogMessages();
 		publishCommands();
 		publishPortstatus();
@@ -1393,43 +1383,6 @@ std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
 }
 
 // ============================================================================
-// Gamepad API
-// ============================================================================
-
-bool BTRemote::getGamepadState(const char *macAddress, GamepadState &state) {
-	std::string key(macAddress);
-	bool found = false;
-
-	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-		auto it = gamepadStates_.find(key);
-		if (it != gamepadStates_.end()) {
-			state = it->second;
-			found = true;
-		}
-		xSemaphoreGive(gamepadStatesMutex_);
-	} else {
-		WARN("Failed to acquire mutex for gamepad states");
-	}
-
-	return found;
-}
-
-std::vector<GamepadState> BTRemote::getAllGamepadStates() {
-	std::vector<GamepadState> states;
-
-	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-		for (const auto &pair : gamepadStates_) {
-			states.push_back(pair.second);
-		}
-		xSemaphoreGive(gamepadStatesMutex_);
-	} else {
-		WARN("Failed to acquire mutex for gamepad states");
-	}
-
-	return states;
-}
-
-// ============================================================================
 // Bluetooth Classic GAP Event Handlers
 // ============================================================================
 
@@ -1716,21 +1669,17 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		}
 
 		// Initialize gamepad state
-		if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-			GamepadState state;
-			memcpy(state.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
-			state.connected = true;
-			state.timestamp = millis();
-			state.buttons = 0;
-			state.dpad = 8; // Center
-			state.leftStickX = 0;
-			state.leftStickY = 0;
-			state.rightStickX = 0;
-			state.rightStickY = 0;
-			gamepadStates_[addrStr] = state;
-			INFO("Gamepad state initialized for device: %s", addrStr.c_str());
-			xSemaphoreGive(gamepadStatesMutex_);
-		}
+		GamepadState state;
+		memcpy(state.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
+		state.connected = true;
+		state.timestamp = millis();
+		state.buttons = 0;
+		state.dpad = 8; // Center
+		state.leftStickX = 0;
+		state.leftStickY = 0;
+		state.rightStickX = 0;
+		state.rightStickY = 0;
+		inputDevices_->registerGamepadState(addrStr, state);
 
 		// NOTE: Do NOT resume BLE advertising here!
 		// At this point conn_status is still CONNECTING - the L2CAP and SDP handshake
@@ -1765,17 +1714,11 @@ void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
 				pair.second.state = HIDConnectionState::DISCONNECTED;
 				INFO("HID device state updated to DISCONNECTED: %s", pair.first.c_str());
 
-				// Mark gamepad as disconnected
-				if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-					auto it = gamepadStates_.find(pair.first);
-					if (it != gamepadStates_.end()) {
-						it->second.connected = false;
-						it->second.timestamp = millis();
-						INFO("Gamepad marked as disconnected: %s", pair.first.c_str());
-					}
-					xSemaphoreGive(gamepadStatesMutex_);
-				}
-				break;
+				inputDevices_->updateGamepad(pair.first, [](std::string &macAddress, GamepadState &state) {
+					state.connected = false;
+					state.timestamp = millis();
+					INFO("Gamepad marked as disconnected: %s", macAddress.c_str());
+				});
 			}
 		}
 		xSemaphoreGive(hidDevicesMutex_);
@@ -1814,54 +1757,43 @@ void BTRemote::handleHIDHostData(esp_hidh_cb_param_t *param) {
 void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *data, uint16_t length) {
 	std::string addrStr = bdAddrToString(address);
 
-	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(10)) != pdTRUE) {
-		return; // Skip if mutex not available
-	}
-
-	INFO("Got report with length %d", length);
-	for (int i = 0; i < length; i++) {
-		DEBUG("Byte[%d]: dec=%3d bin=%s hex=0x%02X", i, data[i],
-			String(data[i], BIN).c_str(), data[i]);
-	}
-
-	auto it = gamepadStates_.find(addrStr);
-	if (it == gamepadStates_.end()) {
-		xSemaphoreGive(gamepadStatesMutex_);
-		return; // Device not found
-	}
-
-	GamepadState &state = it->second;
-	state.timestamp = millis();
-
-	INFO("Parsing gamepad report: VID=0x%04X PID=0x%04X", state.vendorId, state.productId);
-
-	if (state.vendorId == 0x045E) {
-		// We can only parse page 1 for now....
-		if (data[0] == 1 && length == 16) {
-			// 16-bit little-endian values (low byte first, then high byte)
-			state.leftStickX = ((int16_t) data[2] * 256 + data[1]) - 32768;
-			state.leftStickY = ((int16_t) data[4] * 256 + data[3]) - 32768;
-			state.rightStickX = ((int16_t) data[6] * 256 + data[5]) - 32768;
-			state.rightStickY = ((int16_t) data[8] * 256 + data[7]) - 32768;
-
-			// Don't know where to get the dpad status from,
-			// Also the shoulder buttons are somehow strange...
-
-			state.buttons = ((int16_t) data[13] * 256 + data[14]);
-
-			INFO("Standard Gamepad: Buttons=0x%02X, DPad=%d, Left Stick=(%d,%d), Right Stick=(%d,%d)",
-				state.buttons, state.dpad,
-				state.leftStickX, state.leftStickY,
-				state.rightStickX, state.rightStickY);
-
-		} else {
-			WARN("Ignoring Page %d of report with size %d", data[0], length);
+	inputDevices_->updateGamepad(addrStr, [data, length](std::string &macAddress, GamepadState &state) {
+		INFO("Got report with length %d", length);
+		for (int i = 0; i < length; i++) {
+			DEBUG("Byte[%d]: dec=%3d bin=%s hex=0x%02X", i, data[i],
+				String(data[i], BIN).c_str(), data[i]);
 		}
-	} else {
-		WARN("No XInput data, expected vendor id 0x045E and length 16 bytes");
-	}
 
-	xSemaphoreGive(gamepadStatesMutex_);
+		state.timestamp = millis();
+
+		INFO("Parsing gamepad report: VID=0x%04X PID=0x%04X", state.vendorId, state.productId);
+
+		if (state.vendorId == 0x045E) {
+			// We can only parse page 1 for now....
+			if (data[0] == 1 && length == 16) {
+				// 16-bit little-endian values (low byte first, then high byte)
+				state.leftStickX = ((int16_t) data[2] * 256 + data[1]) - 32768;
+				state.leftStickY = ((int16_t) data[4] * 256 + data[3]) - 32768;
+				state.rightStickX = ((int16_t) data[6] * 256 + data[5]) - 32768;
+				state.rightStickY = ((int16_t) data[8] * 256 + data[7]) - 32768;
+
+				// Don't know where to get the dpad status from,
+				// Also the shoulder buttons are somehow strange...
+
+				state.buttons = ((int16_t) data[13] * 256 + data[14]);
+
+				INFO("Standard Gamepad: Buttons=0x%02X, DPad=%d, Left Stick=(%d,%d), Right Stick=(%d,%d)",
+					state.buttons, state.dpad,
+					state.leftStickX, state.leftStickY,
+					state.rightStickX, state.rightStickY);
+
+			} else {
+				WARN("Ignoring Page %d of report with size %d", data[0], length);
+			}
+		} else {
+			WARN("No XInput data, expected vendor id 0x045E and length 16 bytes");
+		}
+	});
 }
 
 // ============================================================================
@@ -2002,15 +1934,11 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 					for (auto &entry : hidDevices_) {
 						if (entry.second.handle == param.dscp.handle) {
 							// Store VID/PID in gamepad state for device-specific parsing
-							if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-								auto it = gamepadStates_.find(entry.first);
-								if (it != gamepadStates_.end()) {
-									it->second.vendorId = param.dscp.vendor_id;
-									it->second.productId = param.dscp.product_id;
-									INFO("Stored VID/PID for gamepad %s", entry.first.c_str());
-								}
-								xSemaphoreGive(gamepadStatesMutex_);
-							}
+							inputDevices_->updateGamepad(entry.first, [param](std::string &macAddress, GamepadState &state) {
+								state.vendorId = param.dscp.vendor_id;
+								state.productId = param.dscp.product_id;
+								INFO("Stored VID/PID for gamepad %s", macAddress.c_str());
+							});
 
 							// Set protocol mode
 							esp_err_t ret = esp_bt_hid_host_set_protocol(entry.second.address, ESP_HIDH_REPORT_MODE);

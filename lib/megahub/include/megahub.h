@@ -2,6 +2,7 @@
 #define MEGAHUB_H
 
 #include "imu.h"
+#include "inputdevices.h"
 #include "legodevice.h"
 #include "logging.h"
 #include "lua.hpp"
@@ -31,6 +32,13 @@
 #define PINMODE_INPUT_PULLDOWN 3002
 #define PINMODE_OUTPUT		   3003
 
+#define GAMEPAD1		 4000
+#define GAMEPAD_BUTTON_1 5000
+#define GAMEPAD_LEFT_X	 6000
+#define GAMEPAD_LEFT_Y	 6001
+#define GAMEPAD_RIGHT_X	 6002
+#define GAMEPAD_RIGHT_Y	 6003
+
 struct LuaCheckResult {
 	bool success;
 	int parseTime;
@@ -39,7 +47,7 @@ struct LuaCheckResult {
 
 class Megahub {
 public:
-	Megahub(LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu);
+	Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu);
 	virtual ~Megahub();
 
 	void loop();
@@ -63,6 +71,7 @@ public:
 	void digitalWriteTo(int pin, int value);
 
 private:
+	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;
 	std::unique_ptr<LegoDevice> device2_;
 	std::unique_ptr<LegoDevice> device3_;

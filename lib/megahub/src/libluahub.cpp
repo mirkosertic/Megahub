@@ -17,15 +17,6 @@ void main_control_loop_task(void *parameters) {
 	INFO("Starting main control loop task");
 	while (true) {
 
-		static unsigned long lastHeapLog = 0;
-		unsigned long currentMillis = millis();
-
-		// Log stack utilization every 10 seconds
-		if (currentMillis - lastHeapLog >= 10000) {
-			INFO("Minimum Free Stack : %d", uxTaskGetStackHighWaterMark(NULL));
-			lastHeapLog = currentMillis;
-		}
-
 		// Check for cancelation
 		uint32_t notificationValue = 0;
 		if (xTaskNotifyWait(0, 0, &notificationValue, 0) == pdTRUE) {

@@ -31,6 +31,9 @@ import {definition as ui_show_value} from './ui_show_value.js'
 import {definition as mh_debug_free_heap} from './mh_debug_free_heap.js'
 import {definition as lego_get_mode_dataset} from './lego_get_mode_dataset.js'
 import {definition as lego_select_mode} from './lego_select_mode.js'
+import {definition as gamepad_buttonpressed} from './mh_gamepad_buttonpressed.js'
+import {definition as gamepad_value} from './mh_gamepad_value.js'
+import {definition as gamepad_connected} from './mh_gamepad_connected.js'
 
 import {colorLogic,
 	colorMath,
@@ -251,7 +254,13 @@ const customBlocks = {
 	
 	"mh_digitalread": mh_digitalread,
 	
-	"mh_set_motor_speed" : mh_set_motor_speed,
+	"mh_set_motor_speed": mh_set_motor_speed,
+	
+	"mh_gamepad_buttonpressed": gamepad_buttonpressed,
+
+	"mh_gamepad_value": gamepad_value,
+
+	"mh_gamepad_connected": gamepad_connected,
 
 	"lego_get_mode_dataset": lego_get_mode_dataset,
 

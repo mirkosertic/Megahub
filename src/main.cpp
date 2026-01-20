@@ -3,15 +3,16 @@
 #include "SC16IS752.h"
 #include "SC16IS752serialadapter.h"
 #include "btremote.h"
+#include "commands.h"
 #include "configuration.h"
 #include "hubwebserver.h"
 #include "imu.h"
+#include "inputdevices.h"
 #include "legodevice.h"
 #include "logging.h"
 #include "megahub.h"
-#include "statusmonitor.h"
-#include "commands.h"
 #include "portstatus.h"
+#include "statusmonitor.h"
 
 #include <FS.h>
 #include <SD.h>
@@ -26,6 +27,7 @@ Megahub *megahub = NULL;
 HubWebServer *webserver = NULL;
 Configuration *configuration = NULL;
 SerialLoggingOutput *loggingOutput = NULL;
+InputDevices *inputDevices = NULL;
 BTRemote *btremote = NULL;
 
 #define GPIO_SPI_SS	  GPIO_NUM_4
@@ -86,6 +88,9 @@ void setup() {
 	}
 	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
+	INFO("Initializing input decvices registry");
+	inputDevices = new InputDevices();
+
 	INFO("Initializing SC16IS752 1 on I2C bus...");
 	i2cuart1 = new SC16IS752(SC16IS750_PROTOCOL_I2C, SC16IS750_ADDRESS_AA);
 	i2cuart1->begin(2400, 2400);
@@ -112,7 +117,7 @@ void setup() {
 	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Initializing Megahub...")
-	megahub = new Megahub(legodevice1, legodevice2, legodevice3, legodevice4, imu);
+	megahub = new Megahub(inputDevices, legodevice1, legodevice2, legodevice3, legodevice4, imu);
 	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Loading configuration");
@@ -130,7 +135,7 @@ void setup() {
 
 	if (configuration->isBTEnabled()) {
 		INFO("Initializing BT Remote interface")
-		btremote = new BTRemote(&SD, megahub, loggingOutput, configuration);
+		btremote = new BTRemote(&SD, inputDevices, megahub, loggingOutput, configuration);
 		btremote->begin(megahub->name().c_str());
 		INFO("Free HEAP  is %d", ESP.getFreeHeap());
 	}
@@ -149,6 +154,11 @@ void loop() {
 	// Log free heap memory every 10 seconds
 	if (currentMillis - lastHeapLog >= 10000) {
 		INFO("Free HEAP: %d bytes", ESP.getFreeHeap());
+
+		char task_list_buffer[1024];
+		vTaskList(task_list_buffer);
+		printf("%s\n", task_list_buffer);
+
 		lastHeapLog = currentMillis;
 	}
 
