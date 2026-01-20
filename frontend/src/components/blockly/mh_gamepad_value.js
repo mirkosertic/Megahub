@@ -22,7 +22,7 @@ export const definition = {
 					["GAMEPAD_LEFT_X", "GAMEPAD_LEFT_X"],
 					["GAMEPAD_LEFT_Y", "GAMEPAD_LEFT_Y"],
 					["GAMEPAD_RIGHT_X", "GAMEPAD_RIGHT_X"],
-					[ "GAMEPAD_RIGHT_Y", "GAMEPAD_RIGHT_Y" ],
+					["GAMEPAD_RIGHT_Y", "GAMEPAD_RIGHT_Y"],
 				]
 			}
 		],

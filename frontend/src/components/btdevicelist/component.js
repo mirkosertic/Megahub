@@ -9,7 +9,7 @@ class BTDeviceListElement extends HTMLElement {
 
 	devices = [];
 	discoveryActive = false;
-	isCollapsed = false;
+	isCollapsed = true;
 
 	connectedCallback() {
 		const shadow = this.attachShadow({ mode: 'open' });
@@ -24,32 +24,29 @@ class BTDeviceListElement extends HTMLElement {
 		// Set up collapse toggle functionality
 		this.setupCollapseToggle();
 
-		this.shadowRoot.getElementById("startdiscovery").addEventListener("click", () => {
+		this.shadowRoot.getElementById("startdiscovery").addEventListener("click", (e) => {
+			e.stopPropagation();
 			window.Application.startBluetoothDiscovery();
 		});
 	}
 
 	/**
-	 * Set up collapse toggle button for mobile
+	 * Set up collapse toggle button
 	 */
 	setupCollapseToggle() {
 		const collapseToggle = this.shadowRoot.getElementById('collapseToggle');
 		const headerToggle = this.shadowRoot.getElementById('headerToggle');
-		const container = this.shadowRoot.querySelector('.bt-devices-container');
 
-		if (collapseToggle && container) {
+		if (collapseToggle) {
 			// Click on button
 			collapseToggle.addEventListener('click', (e) => {
 				e.stopPropagation();
 				this.toggleCollapse();
 			});
 
-			// Click on entire header (mobile only)
+			// Click on entire header
 			headerToggle.addEventListener('click', () => {
-				// Only toggle on mobile (when button is visible)
-				if (window.innerWidth < 768) {
-					this.toggleCollapse();
-				}
+				this.toggleCollapse();
 			});
 		}
 	}
@@ -64,8 +61,23 @@ class BTDeviceListElement extends HTMLElement {
 		if (container) {
 			if (this.isCollapsed) {
 				container.classList.add('collapsed');
+				this.dispatchEvent(new CustomEvent('accordion-collapse', { bubbles: true }));
 			} else {
 				container.classList.remove('collapsed');
+				this.dispatchEvent(new CustomEvent('accordion-expand', { bubbles: true }));
+			}
+		}
+	}
+
+	/**
+	 * Collapse the panel (called by accordion controller)
+	 */
+	collapse() {
+		if (!this.isCollapsed) {
+			this.isCollapsed = true;
+			const container = this.shadowRoot.querySelector('.bt-devices-container');
+			if (container) {
+				container.classList.add('collapsed');
 			}
 		}
 	}

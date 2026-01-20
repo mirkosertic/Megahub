@@ -1,6 +1,6 @@
 /**
- * UI Component Styles
- * Displays dynamic UI values from device
+ * Lua Preview Component Styles
+ * Displays Lua code with syntax highlighting in a collapsible panel
  */
 
 :host {
@@ -19,15 +19,11 @@
   --radius-md: 3px;
   --transition-fast: 0.15s ease;
   --transition-medium: 0.3s ease;
-  --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
-  --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
+  --font-fixed-10: 0.625rem;
   --font-fixed-11: 0.688rem;
   --font-fixed-13: 0.813rem;
-  --line-height-base: 1.4;
 
   display: block;
-  color: var(--vscode-text-primary);
-  line-height: var(--line-height-base);
   background: var(--vscode-bg-primary);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -40,7 +36,7 @@
   min-height: 0;
 }
 
-:host(.accordion-expanded) .ui-container {
+:host(.accordion-expanded) .lua-preview-container {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -74,7 +70,7 @@
 }
 
 /* Container */
-.ui-container {
+.lua-preview-container {
   display: flex;
   flex-direction: column;
 }
@@ -135,7 +131,7 @@
   display: inline-block;
 }
 
-.ui-container.collapsed .collapsible-icon {
+.lua-preview-container.collapsed .collapsible-icon {
   transform: rotate(-90deg);
 }
 
@@ -146,67 +142,56 @@
   transition: max-height var(--transition-medium), opacity var(--transition-medium);
   max-height: 300px;
   opacity: 1;
-  padding: var(--spacing-sm);
 }
 
 @media (min-width: 768px) {
   .collapsible-content {
-    padding: var(--spacing-md);
     max-height: 400px;
   }
 }
 
-.ui-container.collapsed .collapsible-content {
+.lua-preview-container.collapsed .collapsible-content {
   max-height: 0;
   opacity: 0;
   pointer-events: none;
-  padding-top: 0;
-  padding-bottom: 0;
   overflow: hidden;
 }
 
-/* UI Values List */
-.ui-values-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
+/* Code preview area */
+.lua-code-preview {
+  padding: var(--spacing-sm);
+  overflow-x: auto;
+  font-size: 0.65rem;
 }
 
 @media (min-width: 768px) {
-  .ui-values-list {
-    gap: var(--spacing-sm);
+  .lua-code-preview {
+    font-size: 0.7rem;
   }
 }
 
-.ui-value-entry {
-  flex: 0 1 auto;
-
-  /* Mobile: Smaller font */
-  font-size: var(--font-xs);
-}
-
-/* Desktop: Normal font */
-@media (min-width: 768px) {
-  .ui-value-entry {
-    font-size: var(--font-sm);
+@media (min-width: 1024px) {
+  .lua-code-preview {
+    font-size: 0.8rem;
   }
 }
 
-.ui-value-entry::before {
-  content: attr(data-label) ": ";
-  font-weight: bold;
-  color: var(--vscode-text-primary);
+/* Override Prism styles for better fit */
+.lua-code-preview pre {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
 }
 
-/* Placeholder text when no values */
-.no-values-message {
+.lua-code-preview code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* Placeholder text when no code */
+.no-code-message {
+  padding: var(--spacing-md);
   color: var(--vscode-text-secondary);
   font-style: italic;
   text-align: center;
   font-size: var(--font-fixed-11);
-  padding: var(--spacing-sm);
-}
-
-.no-values-message.hidden {
-  display: none;
 }

@@ -223,3 +223,86 @@ body {
   outline: 2px solid var(--vscode-accent-blue);
   outline-offset: 2px;
 }
+
+
+/* ===== Collapsible Panel Pattern ===== */
+/*
+ * Shared CSS pattern for collapsible sidebar panels.
+ * Components use Shadow DOM so these serve as reference values.
+ * Each component re-declares these in their own styles.
+ */
+
+/* Collapsible panel header styling reference */
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm);
+  background: var(--vscode-bg-secondary);
+  border-bottom: 1px solid var(--vscode-border-light);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--transition-fast);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.collapsible-header:hover {
+  background: var(--vscode-bg-elevated);
+}
+
+.collapsible-header-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--vscode-text-primary);
+  font-size: var(--font-fixed-11);
+}
+
+@media (min-width: 768px) {
+  .collapsible-header-title {
+    font-size: var(--font-fixed-13);
+  }
+}
+
+.collapsible-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: all var(--transition-fast);
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.collapsible-toggle:hover {
+  color: var(--vscode-text-primary);
+  background: var(--vscode-bg-input);
+  border-radius: var(--radius-sm);
+}
+
+.collapsible-icon {
+  font-size: 10px;
+  transition: transform var(--transition-fast);
+  display: inline-block;
+}
+
+.collapsed .collapsible-icon {
+  transform: rotate(-90deg);
+}
+
+/* Content area with smooth transition */
+.collapsible-content {
+  overflow: hidden;
+  transition: max-height var(--transition-medium), opacity var(--transition-medium);
+  max-height: 2000px;
+  opacity: 1;
+}
+
+.collapsed .collapsible-content {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}

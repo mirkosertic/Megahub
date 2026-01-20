@@ -406,6 +406,20 @@ lua_State *Megahub::newLuaState() {
 	lua_pushinteger(ls, PINMODE_OUTPUT);
 	lua_setglobal(ls, "PINMODE_OUTPUT");
 
+	// IMU
+	lua_pushinteger(ls, YAW);
+	lua_setglobal(ls, "YAW");
+	lua_pushinteger(ls, PITCH);
+	lua_setglobal(ls, "PITCH");
+	lua_pushinteger(ls, ROLL);
+	lua_setglobal(ls, "ROLL");
+	lua_pushinteger(ls, ACCELERATION_X);
+	lua_setglobal(ls, "ACCELERATION_X");
+	lua_pushinteger(ls, ACCELERATION_Y);
+	lua_setglobal(ls, "ACCELERATION_Y");
+	lua_pushinteger(ls, ACCELERATION_Z);
+	lua_setglobal(ls, "ACCELERATION_Z");
+
 	// FastLED constants
 	lua_pushinteger(ls, NEOPIXEL_TYPE);
 	lua_setglobal(ls, "NEOPIXEL");

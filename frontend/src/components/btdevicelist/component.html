@@ -1,6 +1,6 @@
-<div class="bt-devices-container">
-	<div class="bt-devices-header" id="headerToggle">
-		<h3 class="bt-devices-title">Bluetooth Devices</h3>
+<div class="bt-devices-container collapsed">
+	<div class="collapsible-header" id="headerToggle">
+		<h3 class="collapsible-header-title">Bluetooth Devices</h3>
 		<div class="header-right">
 			<button id="startdiscovery" class="discovery-btn" title="Start Bluetooth Discovery">
 				<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -12,12 +12,12 @@
 				<span class="discovery-indicator" id="discoveryIndicator"></span>
 				<span class="discovery-text" id="discoveryText">Scanning...</span>
 			</div>
-			<button class="collapse-toggle" id="collapseToggle" aria-label="Toggle device list">
-				<span class="collapse-icon">▼</span>
+			<button class="collapsible-toggle" id="collapseToggle" aria-label="Toggle device list">
+				<span class="collapsible-icon">▼</span>
 			</button>
 		</div>
 	</div>
-	<div class="bt-devices-content" id="devicesContent">
+	<div class="collapsible-content" id="devicesContent">
 		<div class="bt-devices-list" id="devicesList"></div>
 		<div class="no-devices" id="noDevices">No devices discovered yet.</div>
 	</div>

@@ -173,16 +173,16 @@ button:disabled {
 }
 
 
-/* ===== Sidebar Internal Grid ===== */
+/* ===== Sidebar Internal Layout ===== */
 
 .layout-sidebar {
   background: var(--vscode-bg-secondary);
   color: var(--vscode-text-primary);
   padding: var(--spacing-lg);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-md);
 
   /* Mobile: Hidden by default, slide-in overlay when toggled */
@@ -195,17 +195,6 @@ button:disabled {
   z-index: var(--z-sidebar-overlay);
   transition: right var(--transition-medium);
   box-shadow: var(--shadow-sidebar);
-
-  /* 2-column button grid */
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto auto auto auto auto;
-  grid-template-areas:
-    "button1 button2"
-    "button3 button4"
-    "editor editor"
-    "ui ui"
-    "portstatus portstatus"
-    "btdevicelist btdevicelist";
 }
 
 /* Sidebar visible state (toggled via JavaScript) */
@@ -230,52 +219,52 @@ button:disabled {
     height: auto;
     box-shadow: none;
     right: auto;
+  }
+}
 
-    /* 4-column button grid */
+/* Button grid within sidebar */
+.layout-sidebar .sidebar-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.layout-sidebar .sidebar-buttons > button {
+  min-width: 0;
+  width: auto;
+  margin: 5px;
+}
+
+@media (min-width: 1512px) {
+  .layout-sidebar .sidebar-buttons {
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: 4rem auto auto auto auto;
-    grid-template-areas:
-      "button1 button2 button3 button4"
-      "editor editor editor editor"
-      "ui ui ui ui"
-      "portstatus portstatus portstatus portstatus"
-      "btdevicelist btdevicelist btdevicelist btdevicelist";
-    }
+    gap: var(--spacing-lg);
+  }
 }
 
-/* Button grid areas */
-.layout-sidebar button.reset {
-  grid-area: button1;
+/* Accordion container for collapsible components */
+.layout-sidebar .sidebar-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.layout-sidebar button.syntaxcheck {
-  grid-area: button2;
+/* Accordion panel base styles */
+.layout-sidebar .sidebar-accordion > * {
+  flex-shrink: 0;
 }
 
-.layout-sidebar button.execute {
-  grid-area: button3;
-}
-
-.layout-sidebar button.stop {
-  grid-area: button4;
-}
-
-#luapreview {
-  grid-area: editor;
-  max-height: 100%;
-  overflow: auto;
-}
-
-#btdevicelist {
-  grid-area: btdevicelist;
-}
-
-#uicomponents {
-  grid-area: ui;
-}
-
-#portstatus {
-  grid-area: portstatus;
+/* Expanded panel takes available space */
+.layout-sidebar .sidebar-accordion > .accordion-expanded {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 

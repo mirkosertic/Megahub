@@ -3,7 +3,7 @@
  * Displays discovered Bluetooth Classic devices with pairing controls
  */
 
-*:host {
+:host {
 	/* Re-declare theme variables for Shadow DOM */
 	--vscode-bg-primary: #1e1e1e;
 	--vscode-bg-secondary: #252526;
@@ -24,6 +24,7 @@
 	--radius-sm: 2px;
 	--radius-md: 3px;
 	--transition-fast: 0.15s ease;
+	--transition-medium: 0.3s ease;
 	--font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
 	--font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
 	--font-fixed-10: 0.625rem;
@@ -32,39 +33,78 @@
 	--font-fixed-13: 0.813rem;
 	--font-fixed-14: 0.875rem;
 
+	display: block;
 	margin: 0;
 	padding: 0;
 	box-sizing: border-box;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-	background: transparent;
+	background: var(--vscode-bg-primary);
 	color: var(--vscode-text-primary);
-
-	/* Mobile: Minimal padding to fit in sidebar */
-	padding: 0;
 	font-size: var(--font-xs);
+	border-radius: var(--radius-md);
+	overflow: hidden;
 }
 
-/* Desktop: Original padding and font size */
+/* Desktop: Original font size */
 @media (min-width: 768px) {
-	*:host {
-		padding: var(--spacing-md);
+	:host {
 		font-size: var(--font-sm);
 	}
+}
+
+/* Accordion expanded state - fill available space */
+:host(.accordion-expanded) {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+:host(.accordion-expanded) .bt-devices-container {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+:host(.accordion-expanded) .collapsible-content {
+	flex: 1;
+	min-height: 0;
+	max-height: none;
+	overflow-y: scroll;
+}
+
+/* Scrollbar styling for Shadow DOM */
+.collapsible-content::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.collapsible-content::-webkit-scrollbar-track {
+	background: #1e1e1e;
+}
+
+.collapsible-content::-webkit-scrollbar-thumb {
+	background: #424242;
+	border-radius: 4px;
+}
+
+.collapsible-content::-webkit-scrollbar-thumb:hover {
+	background: #4e4e4e;
 }
 
 /* Container */
 .bt-devices-container {
 	display: flex;
 	flex-direction: column;
-	gap: var(--spacing-md);
 }
 
-/* Header */
-.bt-devices-header {
+/* Collapsible Header */
+.collapsible-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	padding: var(--spacing-sm);
+	background: var(--vscode-bg-secondary);
 	border-bottom: 1px solid var(--vscode-border-light);
 	gap: var(--spacing-sm);
 	cursor: pointer;
@@ -72,23 +112,11 @@
 	transition: background-color var(--transition-fast);
 }
 
-.bt-devices-header:hover {
-	background: var(--vscode-bg-secondary);
+.collapsible-header:hover {
+	background: var(--vscode-bg-elevated);
 }
 
-@media (min-width: 768px) {
-	.bt-devices-header {
-		padding-bottom: var(--spacing-sm);
-		cursor: default;
-		background: transparent;
-	}
-
-	.bt-devices-header:hover {
-		background: transparent;
-	}
-}
-
-.bt-devices-title {
+.collapsible-header-title {
 	margin: 0;
 	font-weight: 600;
 	color: var(--vscode-text-primary);
@@ -97,7 +125,7 @@
 }
 
 @media (min-width: 768px) {
-	.bt-devices-title {
+	.collapsible-header-title {
 		font-size: var(--font-fixed-13);
 	}
 }
@@ -204,7 +232,7 @@
 }
 
 /* Collapse Toggle Button */
-.collapse-toggle {
+.collapsible-toggle {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -218,50 +246,46 @@
 	min-height: 24px;
 }
 
-.collapse-toggle:hover {
+.collapsible-toggle:hover {
 	color: var(--vscode-text-primary);
-	background: var(--vscode-bg-elevated);
+	background: var(--vscode-bg-input);
 	border-radius: var(--radius-sm);
 }
 
-.collapse-icon {
+.collapsible-icon {
 	font-size: 10px;
 	transition: transform var(--transition-fast);
 	display: inline-block;
 }
 
-.bt-devices-container.collapsed .collapse-icon {
+.bt-devices-container.collapsed .collapsible-icon {
 	transform: rotate(-90deg);
 }
 
-/* Hide collapse button on desktop */
+/* Content Area */
+.collapsible-content {
+	overflow-y: scroll;
+	overflow-x: hidden;
+	transition: max-height var(--transition-medium), opacity var(--transition-medium);
+	max-height: 300px;
+	opacity: 1;
+	padding: var(--spacing-sm);
+}
+
 @media (min-width: 768px) {
-	.collapse-toggle {
-		display: none;
+	.collapsible-content {
+		padding: var(--spacing-md);
+		max-height: 400px;
 	}
 }
 
-/* Content Area */
-.bt-devices-content {
-	overflow: hidden;
-	transition: max-height var(--transition-medium), opacity var(--transition-medium);
-	max-height: 2000px;
-	opacity: 1;
-}
-
-.bt-devices-container.collapsed .bt-devices-content {
+.bt-devices-container.collapsed .collapsible-content {
 	max-height: 0;
 	opacity: 0;
 	pointer-events: none;
-}
-
-/* Always expanded on desktop */
-@media (min-width: 768px) {
-	.bt-devices-content {
-		max-height: none !important;
-		opacity: 1 !important;
-		pointer-events: all !important;
-	}
+	padding-top: 0;
+	padding-bottom: 0;
+	overflow: hidden;
 }
 
 /* Devices List */

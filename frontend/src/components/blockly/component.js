@@ -21,12 +21,7 @@ import {definition as mh_fastled_addleds} from './mh_fastled_addleds.js'
 import {definition as mh_fastled_show} from './mh_fastled_show.js'
 import {definition as mh_fastled_clear} from './mh_fastled_clear.js'
 import {definition as mh_fastled_set} from './mh_fastled_set.js'
-import {definition as mh_imu_yaw} from './mh_imu_yaw.js'
-import {definition as mh_imu_pitch} from './mh_imu_pitch.js'
-import {definition as mh_imu_roll} from './mh_imu_roll.js'
-import {definition as mh_imu_acceleration_x} from './mh_imu_acceleration_x.js'
-import {definition as mh_imu_acceleration_y} from './mh_imu_acceleration_y.js'
-import {definition as mh_imu_acceleration_z} from './mh_imu_acceleration_z.js'
+import {definition as mh_imu_value} from './mh_imu_value.js'
 import {definition as ui_show_value} from './ui_show_value.js'
 import {definition as mh_debug_free_heap} from './mh_debug_free_heap.js'
 import {definition as lego_get_mode_dataset} from './lego_get_mode_dataset.js'
@@ -274,18 +269,8 @@ const customBlocks = {
 	
 	"mh_fastled_set" : mh_fastled_set,
 
-	"mh_imu_yaw": mh_imu_yaw,
+	"mh_imu_value": mh_imu_value,
 	
-	"mh_imu_pitch": mh_imu_pitch,
-	
-	"mh_imu_roll": mh_imu_roll,
-	
-	"mh_imu_acceleration_x": mh_imu_acceleration_x,
-	
-	"mh_imu_acceleration_y": mh_imu_acceleration_y,
-	
-	"mh_imu_acceleration_z" : mh_imu_acceleration_z,
-
 	"ui_show_value" : ui_show_value,
 
 	"mh_debug_free_heap": mh_debug_free_heap,

@@ -425,6 +425,37 @@ async function initBLEConnection() {
 	}
 };
 
+/**
+ * Initialize sidebar accordion behavior
+ * Only one panel can be expanded at a time
+ */
+function initSidebarAccordion() {
+	const accordion = document.getElementById('sidebarAccordion');
+	if (!accordion) return;
+
+	const panels = accordion.querySelectorAll('[data-accordion-panel]');
+
+	// Listen for panel expand events
+	panels.forEach(panel => {
+		panel.addEventListener('accordion-expand', (e) => {
+			// Collapse all other panels
+			panels.forEach(otherPanel => {
+				if (otherPanel !== panel && otherPanel.collapse) {
+					otherPanel.collapse();
+				}
+				otherPanel.classList.remove('accordion-expanded');
+			});
+
+			// Mark this panel as expanded
+			panel.classList.add('accordion-expanded');
+		});
+
+		panel.addEventListener('accordion-collapse', (e) => {
+			panel.classList.remove('accordion-expanded');
+		});
+	});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
 	blocklyEditor = document.getElementById('blockly');
 	blocklyEditor.addChangeListener(() => {
@@ -434,6 +465,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	uiComponents = document.getElementById('uicomponents');
 	portstatus = document.getElementById("portstatus");
 	btdevicelist = document.getElementById("btdevicelist");
+
+	// Initialize accordion behavior
+	initSidebarAccordion();
 
 	if (mode === 'bt') {
 		window.Application.setInitState();

@@ -4,6 +4,7 @@ import styleSheet from './style.css?raw';
 class PortstatusElement extends HTMLElement {
 
 	status = undefined;
+	isCollapsed = true;
 
 	connectedCallback() {
 		const shadow = this.attachShadow({mode : 'open'})
@@ -14,7 +15,62 @@ class PortstatusElement extends HTMLElement {
 		shadow.adoptedStyleSheets = [ sheet ]
 
 		shadow.innerHTML = template;
+
+		// Set up collapse toggle functionality
+		this.setupCollapseToggle();
 	};
+
+	/**
+	 * Set up collapse toggle button
+	 */
+	setupCollapseToggle() {
+		const collapseToggle = this.shadowRoot.getElementById('collapseToggle');
+		const headerToggle = this.shadowRoot.getElementById('headerToggle');
+
+		if (collapseToggle) {
+			// Click on button
+			collapseToggle.addEventListener('click', (e) => {
+				e.stopPropagation();
+				this.toggleCollapse();
+			});
+
+			// Click on entire header
+			headerToggle.addEventListener('click', () => {
+				this.toggleCollapse();
+			});
+		}
+	}
+
+	/**
+	 * Toggle collapse state
+	 */
+	toggleCollapse() {
+		this.isCollapsed = !this.isCollapsed;
+		const container = this.shadowRoot.querySelector('.portstatus-container');
+
+		if (container) {
+			if (this.isCollapsed) {
+				container.classList.add('collapsed');
+				this.dispatchEvent(new CustomEvent('accordion-collapse', { bubbles: true }));
+			} else {
+				container.classList.remove('collapsed');
+				this.dispatchEvent(new CustomEvent('accordion-expand', { bubbles: true }));
+			}
+		}
+	}
+
+	/**
+	 * Collapse the panel (called by accordion controller)
+	 */
+	collapse() {
+		if (!this.isCollapsed) {
+			this.isCollapsed = true;
+			const container = this.shadowRoot.querySelector('.portstatus-container');
+			if (container) {
+				container.classList.add('collapsed');
+			}
+		}
+	}
 
 	initialize() {
 		this.updateStatus({

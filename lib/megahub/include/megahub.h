@@ -39,6 +39,13 @@
 #define GAMEPAD_RIGHT_X	 6002
 #define GAMEPAD_RIGHT_Y	 6003
 
+#define YAW			   7000
+#define PITCH		   7001
+#define ROLL		   7002
+#define ACCELERATION_X 7003
+#define ACCELERATION_Y 7004
+#define ACCELERATION_Z 7005
+
 struct LuaCheckResult {
 	bool success;
 	int parseTime;

@@ -3,7 +3,7 @@
  * Displays LEGO device port status with responsive layout
  */
 
-*:host {
+:host {
   /* Re-declare theme variables for Shadow DOM */
   --vscode-bg-primary: #1e1e1e;
   --vscode-bg-secondary: #252526;
@@ -22,30 +22,163 @@
   --radius-sm: 2px;
   --radius-md: 3px;
   --transition-fast: 0.15s ease;
+  --transition-medium: 0.3s ease;
   --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
   --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
   --font-fixed-10: 0.625rem;
   --font-fixed-11: 0.688rem;
   --font-fixed-12: 0.75rem;
+  --font-fixed-13: 0.813rem;
 
+  display: block;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   background: var(--vscode-bg-primary);
   color: var(--vscode-text-primary);
-
-  /* Mobile: Less padding, smaller font */
-  padding: var(--spacing-sm);
   font-size: var(--font-xs);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-/* Desktop: Original padding and font size */
+/* Desktop: Original font size */
 @media (min-width: 768px) {
-  *:host {
-    padding: var(--spacing-md);
+  :host {
     font-size: var(--font-sm);
   }
+}
+
+/* Accordion expanded state - fill available space */
+:host(.accordion-expanded) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+:host(.accordion-expanded) .portstatus-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:host(.accordion-expanded) .collapsible-content {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: scroll;
+}
+
+/* Scrollbar styling for Shadow DOM */
+.collapsible-content::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.collapsible-content::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.collapsible-content::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+.collapsible-content::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}
+
+/* Container */
+.portstatus-container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Collapsible Header */
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm);
+  background: var(--vscode-bg-secondary);
+  border-bottom: 1px solid var(--vscode-border-light);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--transition-fast);
+}
+
+.collapsible-header:hover {
+  background: var(--vscode-bg-elevated);
+}
+
+.collapsible-header-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--vscode-text-primary);
+  font-size: var(--font-fixed-11);
+}
+
+@media (min-width: 768px) {
+  .collapsible-header-title {
+    font-size: var(--font-fixed-13);
+  }
+}
+
+.collapsible-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: all var(--transition-fast);
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.collapsible-toggle:hover {
+  color: var(--vscode-text-primary);
+  background: var(--vscode-bg-input);
+  border-radius: var(--radius-sm);
+}
+
+.collapsible-icon {
+  font-size: 10px;
+  transition: transform var(--transition-fast);
+  display: inline-block;
+}
+
+.portstatus-container.collapsed .collapsible-icon {
+  transform: rotate(-90deg);
+}
+
+/* Collapsible Content */
+.collapsible-content {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  transition: max-height var(--transition-medium), opacity var(--transition-medium);
+  max-height: 300px;
+  opacity: 1;
+  padding: var(--spacing-sm);
+}
+
+@media (min-width: 768px) {
+  .collapsible-content {
+    padding: var(--spacing-md);
+    max-height: 400px;
+  }
+}
+
+.portstatus-container.collapsed .collapsible-content {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 /* Ports Grid */
