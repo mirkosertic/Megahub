@@ -20,17 +20,18 @@
         </div>
         <custom-blockly id="blockly" class="layout-content dynamicvisibility visible-editor"></custom-blockly>
         <div class="layout-sidebar">
-            <button class="btn btn-success reset dynamicvisibility visible-editor" id="reset">Reset
-                workspace</button>
-            <button class="btn btn-success btn syntaxcheck dynamicvisibility visible-editor" id="syntaxcheck">Syntax
-                check</button>
-            <button class="btn btn-primary execute dynamicvisibility visible-editor" id="execute">Execute!</button>
-            <button class="btn btn-success stop dynamicvisibility visible-editor" id="stop">Stop!</button>
-            <custom-lua-preview id="luapreview" class="dynamicvisibility visible-editor"></custom-lua-preview>
-            <custom-portstatus id="portstatus"
-                class="dynamicvisibility visible-management visible-editor"></custom-portstatus>
-            <custom-btdevicelist id="btdevicelist" class="dynamicvisibility visible-management visible-editor"></custom-btdevicelist>
-            <custom-ui id="uicomponents" class="dynamicvisibility visible-editor visible-management"></custom-ui>
+            <div class="sidebar-buttons dynamicvisibility visible-editor">
+                <button class="btn btn-success reset" id="reset">Reset workspace</button>
+                <button class="btn btn-success btn syntaxcheck" id="syntaxcheck">Syntax check</button>
+                <button class="btn btn-primary execute" id="execute">Execute!</button>
+                <button class="btn btn-success stop" id="stop">Stop!</button>
+            </div>
+            <div class="sidebar-accordion" id="sidebarAccordion">
+                <custom-lua-preview id="luapreview" class="dynamicvisibility visible-editor" data-accordion-panel></custom-lua-preview>
+                <custom-portstatus id="portstatus" class="dynamicvisibility visible-management visible-editor" data-accordion-panel></custom-portstatus>
+                <custom-ui id="uicomponents" class="dynamicvisibility visible-editor visible-management" data-accordion-panel></custom-ui>
+                <custom-btdevicelist id="btdevicelist" class="dynamicvisibility visible-management visible-editor" data-accordion-panel></custom-btdevicelist>
+            </div>
         </div>
         <custom-logger id="logger" class="layout-footer"></custom-logger>
     </div>
