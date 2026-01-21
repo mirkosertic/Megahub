@@ -222,25 +222,163 @@ button:disabled {
   }
 }
 
-/* Button grid within sidebar */
+/* Button grid within sidebar - icon buttons */
 .layout-sidebar .sidebar-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-xl);
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 10px !important;
   flex-shrink: 0;
-  width: 100%;
+  justify-content: center !important;
+  align-items: center;
+  padding: 8px 0;
+  margin-bottom: 8px;
 }
 
-.layout-sidebar .sidebar-buttons > button {
-  min-width: 0;
-  width: auto;
-  margin: 5px;
+/* Sidebar Icon Button Base Styles */
+.sidebar-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-height-mobile);
+  height: var(--button-height-mobile);
+  min-width: var(--button-height-mobile);
+  min-height: var(--button-height-mobile);
+  padding: var(--spacing-sm);
+  background: var(--vscode-bg-elevated);
+  color: var(--vscode-text-primary);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
 }
 
+.sidebar-icon-btn svg {
+  flex-shrink: 0;
+}
+
+.sidebar-icon-btn:hover:not(:disabled) {
+  background: var(--vscode-bg-input);
+  border-color: var(--vscode-accent-blue);
+  color: var(--vscode-text-bright);
+}
+
+.sidebar-icon-btn:active:not(:disabled) {
+  background: var(--vscode-accent-blue-dark);
+  transform: scale(0.95);
+}
+
+.sidebar-icon-btn:focus-visible {
+  outline: 2px solid var(--vscode-accent-blue);
+  outline-offset: 2px;
+}
+
+.sidebar-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Primary variant (Execute button) */
+.sidebar-icon-btn-primary {
+  background: var(--vscode-accent-blue-dark);
+  border-color: var(--vscode-accent-blue-dark);
+  color: var(--vscode-text-bright);
+}
+
+.sidebar-icon-btn-primary:hover:not(:disabled) {
+  background: var(--vscode-accent-blue-hover);
+  border-color: var(--vscode-accent-blue);
+}
+
+/* Danger variant (Stop button) */
+.sidebar-icon-btn-danger {
+  background: var(--color-error-bg);
+  border-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.sidebar-icon-btn-danger:hover:not(:disabled) {
+  background: var(--color-error-bg-hover);
+  border-color: var(--color-error);
+}
+
+/* Save variant (instant save) */
+.sidebar-icon-btn-save {
+  background: var(--vscode-bg-elevated);
+  border-color: var(--vscode-border-light);
+}
+
+.sidebar-icon-btn-save:hover:not(:disabled) {
+  background: var(--vscode-accent-blue-dark);
+  border-color: var(--vscode-accent-blue);
+  color: var(--vscode-text-bright);
+}
+
+/* Toggle variant (Auto-save) */
+.sidebar-icon-btn-toggle {
+  background: var(--vscode-bg-elevated);
+  border-color: var(--vscode-border-light);
+}
+
+.sidebar-icon-btn-toggle[aria-pressed="true"] {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--vscode-bg-primary);
+}
+
+.sidebar-icon-btn-toggle[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--vscode-accent-teal);
+  border-color: var(--vscode-accent-teal);
+}
+
+/* Tooltip styling via title attribute - CSS enhancement */
+.sidebar-icon-btn::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--vscode-bg-input);
+  color: var(--vscode-text-bright);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--vscode-border-light);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+}
+
+.sidebar-icon-btn:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Desktop: Smaller buttons */
+@media (min-width: 1024px) {
+  .sidebar-icon-btn {
+    width: var(--button-height-desktop);
+    height: var(--button-height-desktop);
+    min-width: var(--button-height-desktop);
+    min-height: var(--button-height-desktop);
+    padding: var(--spacing-xs);
+  }
+
+  .sidebar-icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Wide desktop: More spacing between buttons */
 @media (min-width: 1512px) {
   .layout-sidebar .sidebar-buttons {
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--spacing-lg);
+    gap: 12px !important;
   }
 }
 

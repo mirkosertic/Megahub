@@ -37,6 +37,8 @@ var luaPreview = null;
 var uiComponents = null;
 var portstatus = null
 var btdevicelist = null
+var autoSaveEnabled = false;
+var autoSaveIntervalId = null;
 
 // Functions
 
@@ -595,11 +597,35 @@ document.addEventListener('DOMContentLoaded', () => {
 		stopCode();
 	});
 
-	// Enable auto save every 10 seconds
-	setInterval(() => {
+	// Manual save button
+	document.getElementById("save").addEventListener("click", () => {
 		if (window.Application.activeProject) {
-			// TODO: Implement better way ti save project
-			// saveWorkspace();
+			saveWorkspace();
 		}
-	}, 10000);
+	});
+
+	// Auto-save toggle button
+	const autosaveBtn = document.getElementById("autosave");
+	autosaveBtn.addEventListener("click", () => {
+		autoSaveEnabled = !autoSaveEnabled;
+		autosaveBtn.setAttribute("aria-pressed", autoSaveEnabled ? "true" : "false");
+		autosaveBtn.setAttribute("title", autoSaveEnabled ? "Auto-save (on)" : "Auto-save (off)");
+
+		if (autoSaveEnabled) {
+			// Start auto-save interval
+			autoSaveIntervalId = setInterval(() => {
+				if (window.Application.activeProject) {
+					saveWorkspace();
+				}
+			}, 10000);
+			console.log("Auto-save enabled");
+		} else {
+			// Stop auto-save interval
+			if (autoSaveIntervalId) {
+				clearInterval(autoSaveIntervalId);
+				autoSaveIntervalId = null;
+			}
+			console.log("Auto-save disabled");
+		}
+	});
 });
