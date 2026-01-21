@@ -113,9 +113,13 @@ struct HIDDevice {
 };
 
 // HID Event Queue Item for async processing
+// CRITICAL: Must be POD (Plain Old Data) for FreeRTOS queue (uses memcpy)
+// CRITICAL: Must deep-copy pointer data from param since Bluedroid frees it after callback
 struct HIDEventItem {
 	esp_hidh_cb_event_t event;
 	esp_hidh_cb_param_t param;
+	uint8_t *data_copy;  // Deep copy of data for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT (must be freed manually)
+	uint16_t data_len;   // Length of copied data
 };
 
 class BTRemote {
@@ -138,6 +142,8 @@ private:
 
 	std::map<uint8_t, FragmentBuffer> fragmentBuffers_;
 	uint8_t nextMessageId_;
+	// CRITICAL: Mutex for fragmentBuffers_ (accessed from GATTS callback and loop task)
+	SemaphoreHandle_t fragmentBuffersMutex_;
 
 	QueueHandle_t responseQueue_;
 	TaskHandle_t responseSenderTaskHandle_;
@@ -154,7 +160,6 @@ private:
 	bool discoveryInProgress_;
 	bool pairingInProgress_;
 	esp_bd_addr_t pairingDeviceAddress_;
-	bool suppressBLERestart_; // Prevents auto-restart of BLE advertising during HID pairing
 
 	// HID Host
 	std::map<std::string, HIDDevice> hidDevices_;
@@ -211,6 +216,8 @@ private:
 	void handleGapBTKeyNotify(esp_bt_gap_cb_param_t *param);
 	void handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param);
 	void handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param);
+	void handleGapBTAclConnComplete(esp_bt_gap_cb_param_t *param);
+	void handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t *param);
 
 	// HID Host Event Handlers (called from HID event task, not callback)
 	void handleHIDHostInit(esp_hidh_cb_param_t *param);

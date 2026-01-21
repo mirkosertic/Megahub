@@ -24,7 +24,7 @@ import {
 	APP_REQUEST_TYPE_PUT_PROJECT_FILE,
 	APP_REQUEST_TYPE_DELETE_PROJECT,
 	APP_EVENT_TYPE_BTCLASSICDEVICES,
-	APP_REQUEST_TYPE_REQUEST_PAIRING,	
+	APP_REQUEST_TYPE_REQUEST_PAIRING,
 	APP_REQUEST_TYPE_REMOVE_PAIRING,
 	APP_REQUEST_TYPE_START_DISCOVERY,
 	BLEClient
@@ -334,7 +334,7 @@ window.Application = {
 		}
 		// clang-format on
 	},
-	
+
 	requestProjectsAndAutostartConfig : async function(callback) {
 		var projects = [
 			{name : 'dummy'},
@@ -431,7 +431,8 @@ async function initBLEConnection() {
  */
 function initSidebarAccordion() {
 	const accordion = document.getElementById('sidebarAccordion');
-	if (!accordion) return;
+	if (!accordion)
+		return;
 
 	const panels = accordion.querySelectorAll('[data-accordion-panel]');
 
@@ -500,50 +501,50 @@ document.addEventListener('DOMContentLoaded', () => {
 	if (mode == "dev") {
 		// Initialize BT Device List with dummy data
 		btdevicelist.updateDevices({
-			"devices": [
+			"devices" : [
 				{
-					"mac": "AA:BB:CC:11:22:33",
-					"name": "8BitDo M30 gamepad",
-					"type": 0x09, // GAMEPAD
-					"paired": true,
-					"rssi": -45,
-					"cod": 0x002508
+					"mac" : "AA:BB:CC:11:22:33",
+					"name" : "8BitDo M30 gamepad",
+					"type" : 0x09, // GAMEPAD
+					"paired" : true,
+					"rssi" : -45,
+					"cod" : 0x002508
 				},
 				{
-					"mac": "DD:EE:FF:44:55:66",
-					"name": "Logitech MX Master 3",
-					"type": 0x0B, // MOUSE
-					"paired": false,
-					"rssi": -67,
-					"cod": 0x002580
+					"mac" : "DD:EE:FF:44:55:66",
+					"name" : "Logitech MX Master 3",
+					"type" : 0x0B, // MOUSE
+					"paired" : false,
+					"rssi" : -67,
+					"cod" : 0x002580
 				},
 				{
-					"mac": "11:22:33:AA:BB:CC",
-					"name": "Apple Magic Keyboard",
-					"type": 0x0A, // KEYBOARD
-					"paired": true,
-					"rssi": -52,
-					"cod": 0x002540
+					"mac" : "11:22:33:AA:BB:CC",
+					"name" : "Apple Magic Keyboard",
+					"type" : 0x0A, // KEYBOARD
+					"paired" : true,
+					"rssi" : -52,
+					"cod" : 0x002540
 				},
 				{
-					"mac": "77:88:99:DD:EE:FF",
-					"name": "Unknown Device",
-					"type": 0x00, // UNKNOWN
-					"paired": false,
-					"rssi": -78,
-					"cod": 0x000000
+					"mac" : "77:88:99:DD:EE:FF",
+					"name" : "Unknown Device",
+					"type" : 0x00, // UNKNOWN
+					"paired" : false,
+					"rssi" : -78,
+					"cod" : 0x000000
 				},
 				{
-					"mac": "44:55:66:11:22:33",
-					"name": "Sony WH-1000XM4",
-					"type": 0x03, // AUDIO
-					"paired": true,
-					"rssi": -58,
-					"cod": 0x240404
+					"mac" : "44:55:66:11:22:33",
+					"name" : "Sony WH-1000XM4",
+					"type" : 0x03, // AUDIO
+					"paired" : true,
+					"rssi" : -58,
+					"cod" : 0x240404
 				}
 			],
-			"count": 5,
-			"discoveryActive": true
+			"count" : 5,
+			"discoveryActive" : true
 		});
 
 		portstatus.updateStatus({
@@ -597,7 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Enable auto save every 10 seconds
 	setInterval(() => {
 		if (window.Application.activeProject) {
-			saveWorkspace();
+			// TODO: Implement better way ti save project
+			// saveWorkspace();
 		}
 	}, 10000);
 });

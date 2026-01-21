@@ -35,9 +35,9 @@ int gamepad_value(lua_State *luaState) {
 				WARN("Unsupported value to retrive from gamepad %d : %d", gamepadIndex, value);
 			}
 		}
-		WARN("Invalid number of connected gamepads %d", knownpads.size());
+		DEBUG("Invalid number of connected gamepads %d", knownpads.size());
 	} else {
-		WARN("Unsupported gamepad : %d", gamepadIndex);
+		DEBUG("Unsupported gamepad : %d", gamepadIndex);
 	}
 
 	// Number 0
@@ -58,9 +58,9 @@ int gamepad_connected(lua_State *luaState) {
 			return state.connected;
 		}
 
-		WARN("Invalid number of connected gamepads %d", knownpads.size());
+		DEBUG("Invalid number of connected gamepads %d", knownpads.size());
 	} else {
-		WARN("Unsupported gamepad : %d", gamepadIndex);
+		DEBUG("Unsupported gamepad : %d", gamepadIndex);
 	}
 
 	// Not connected
@@ -88,9 +88,9 @@ int gamepad_buttonpressed(lua_State *luaState) {
 				WARN("Unsupported button to retrive from gamepad %d : %d", gamepadIndex, button);
 			}
 		}
-		WARN("Invalid number of connected gamepads %d", knownpads.size());
+		DEBUG("Invalid number of connected gamepads %d", knownpads.size());
 	} else {
-		WARN("Unsupported gamepad : %d", gamepadIndex);
+		DEBUG("Unsupported gamepad : %d", gamepadIndex);
 	}
 
 	// Not pressed

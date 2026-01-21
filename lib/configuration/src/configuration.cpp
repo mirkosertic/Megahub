@@ -5,7 +5,7 @@
 
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include <IotWebConf.h>
+// #include <IotWebConf.h>
 
 Configuration::Configuration(FS *fs, Megahub *hub)
 	: hub_(hub)

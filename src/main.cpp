@@ -19,6 +19,7 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include <nvs_flash.h>
 
 SC16IS752 *i2cuart1 = NULL;
 SC16IS752 *i2cuart2 = NULL;
@@ -134,6 +135,19 @@ void setup() {
 	}
 
 	if (configuration->isBTEnabled()) {
+		INFO("Initializing NVS for Bluetooth bonding storage...");
+		esp_err_t ret = nvs_flash_init();
+		if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+			WARN("NVS partition needs to be erased, erasing...");
+			ESP_ERROR_CHECK(nvs_flash_erase());
+			ret = nvs_flash_init();
+		}
+		if (ret != ESP_OK) {
+			ERROR("NVS initialization failed: %s", esp_err_to_name(ret));
+		} else {
+			INFO("NVS initialized successfully");
+		}
+
 		INFO("Initializing BT Remote interface")
 		btremote = new BTRemote(&SD, inputDevices, megahub, loggingOutput, configuration);
 		btremote->begin(megahub->name().c_str());
@@ -153,7 +167,7 @@ void loop() {
 
 	// Log free heap memory every 10 seconds
 	if (currentMillis - lastHeapLog >= 10000) {
-		INFO("Free HEAP: %d bytes", ESP.getFreeHeap());
+		INFO("Free HEAP: %d bytes, average cycle time for Lua main control loop is %dms", ESP.getFreeHeap(), megahub->getAverageMainControlLoopTime());
 
 		char task_list_buffer[1024];
 		vTaskList(task_list_buffer);

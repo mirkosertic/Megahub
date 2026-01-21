@@ -29,6 +29,8 @@ import {definition as lego_select_mode} from './lego_select_mode.js'
 import {definition as gamepad_buttonpressed} from './mh_gamepad_buttonpressed.js'
 import {definition as gamepad_value} from './mh_gamepad_value.js'
 import {definition as gamepad_connected} from './mh_gamepad_connected.js'
+import {definition as mh_debug_millis} from './mh_debug_millis.js'
+import {definition as mh_debug_cycletime} from './mh_debug_cycletime.js'
 
 import {colorLogic,
 	colorMath,
@@ -274,6 +276,10 @@ const customBlocks = {
 	"ui_show_value" : ui_show_value,
 
 	"mh_debug_free_heap": mh_debug_free_heap,
+
+	"mh_debug_millis": mh_debug_millis,
+	
+	"mh_debug_loop_cycletime": mh_debug_cycletime,
 };
 
 function generateToolbox(definitions) {

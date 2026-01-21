@@ -8,8 +8,8 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
-// #include <ESPmDNS.h>
-// #include <WiFi.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
 
 // #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
 #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "no-cache, no-store, must-revalidate"
@@ -25,30 +25,30 @@ void logForwarderTask(void *param) {
 
 HubWebServer::HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration) {
 	configuration_ = configuration;
-	// server_ = new PsychicHttpServer();
+	server_ = new PsychicHttpServer();
 	loggingOutput_ = loggingOutput;
 	lastSSDPNotify_ = millis();
 	wsport_ = wsport;
 	started_ = false;
 	fs_ = fs;
 	hub_ = hub;
-	// udp_ = nullptr;
+	udp_ = nullptr;
 }
 
 HubWebServer::~HubWebServer() {
-	// delete server_;
-	// if (udp_) {
-	// delete udp_;
-	//}
+	delete server_;
+	if (udp_) {
+		delete udp_;
+	}
 }
 
 void HubWebServer::announceMDNS() {
 	String technicalName = hub_->deviceUid().c_str();
-	// if (MDNS.begin(technicalName)) {
-	//	INFO("Registered as mDNS-Name %s", technicalName.c_str());
-	// } else {
-	//	WARN("Registered as mDNS-Name %s failed", technicalName.c_str());
-	// }
+	if (MDNS.begin(technicalName)) {
+		INFO("Registered as mDNS-Name %s", technicalName.c_str());
+	} else {
+		WARN("Registered as mDNS-Name %s failed", technicalName.c_str());
+	}
 }
 
 void HubWebServer::announceSSDP() {
@@ -57,14 +57,14 @@ void HubWebServer::announceSSDP() {
 	const IPAddress SSDP_MULTICAST_ADDR(239, 255, 255, 250);
 	const uint16_t SSDP_PORT = 1900;
 
-	// udp_ = new WiFiUDP();
+	udp_ = new WiFiUDP();
 
 	// Join multicast group for SSDP
-	/*if (udp_->beginMulticast(SSDP_MULTICAST_ADDR, SSDP_PORT)) {
+	if (udp_->beginMulticast(SSDP_MULTICAST_ADDR, SSDP_PORT)) {
 		INFO("SSDP multicast joined successfully");
 	} else {
 		WARN("Failed to join SSDP multicast group");
-	}*/
+	}
 }
 
 String HubWebServer::getSSDPDescription() {
@@ -95,15 +95,14 @@ String HubWebServer::getSSDPDescription() {
 }
 
 void HubWebServer::start() {
-	/*
-		announceMDNS();
-		announceSSDP();
+	announceMDNS();
+	announceSSDP();
 
-		server_->config.max_uri_handlers = 40;
-		server_->setPort(80);
-		server_->start();
+	server_->config.max_uri_handlers = 40;
+	server_->setPort(80);
+	server_->start();
 
-		server_->on("/", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
 		  INFO("webserver() - Rendering / page");
 
@@ -121,7 +120,7 @@ void HubWebServer::start() {
 		  response.write(index_html_gz, index_html_gz_len);
 		  return response.endSend(); });
 
-		server_->on("/index.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/index.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
 		  INFO("webserver() - Rendering /index.js resource");
 
@@ -139,7 +138,7 @@ void HubWebServer::start() {
 		  response.write(index_js_gz, index_js_gz_len);
 		  return response.endSend(); });
 
-		server_->on("/style.css", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/style.css", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
 		  INFO("webserver() - Rendering /style.css resource");
 
@@ -157,7 +156,7 @@ void HubWebServer::start() {
 		  response.write(style_css_gz, style_css_gz_len);
 		  return response.endSend(); });
 
-		server_->on("/stop", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/stop", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp) {
 
 			INFO("webserver() - /stop received");
 
@@ -177,7 +176,7 @@ void HubWebServer::start() {
 			response.print(strContent);
 			return response.endSend(); });
 
-		server_->on("/description.xml", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/description.xml", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 						INFO("webserver() - /description.xml received");
 
 						String data = this->getSSDPDescription();
@@ -191,8 +190,8 @@ void HubWebServer::start() {
 						response.print(data);
 						return response.endSend(); });
 
-		PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
-		projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
+	projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
 			INFO("webserver() - got data chunk with position %llu and length %u", position, length);
 
@@ -207,7 +206,7 @@ void HubWebServer::start() {
 
 			return ESP_OK; });
 
-		projectPutHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
+	projectPutHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
 			PsychicStreamResponse response(resp, "application/xml");
 
 			String uri = request->uri().substring(9);
@@ -222,9 +221,9 @@ void HubWebServer::start() {
 			response.setContentLength(0);
 
 			return response.send(); });
-		server_->on("/project/*", HTTP_PUT, projectPutHandler);
+	server_->on("/project/*", HTTP_PUT, projectPutHandler);
 
-		server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest *request, PsychicResponse *resp) {
 			INFO("webserver() - /project DELETE");
 
 			PsychicStreamResponse response(resp, "application/json");
@@ -247,8 +246,8 @@ void HubWebServer::start() {
 			response.print(strContent);
 			return response.endSend(); });
 
-		PsychicUploadHandler *projectSyntaxCheckHandler = new PsychicUploadHandler();
-		projectSyntaxCheckHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	PsychicUploadHandler *projectSyntaxCheckHandler = new PsychicUploadHandler();
+	projectSyntaxCheckHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
 			DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
@@ -277,7 +276,7 @@ void HubWebServer::start() {
 
 			return ESP_OK; });
 
-		projectSyntaxCheckHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
+	projectSyntaxCheckHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
 			INFO("webserver() - /syntaxcheck PUT received");
 
 			PsychicStreamResponse response(resp, "application/json");
@@ -311,10 +310,10 @@ void HubWebServer::start() {
 			response.beginSend();
 			response.print(strContent);
 			return response.endSend(); });
-		server_->on("/syntaxcheck", HTTP_PUT, projectSyntaxCheckHandler);
+	server_->on("/syntaxcheck", HTTP_PUT, projectSyntaxCheckHandler);
 
-		PsychicUploadHandler *executeHandler = new PsychicUploadHandler();
-		executeHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	PsychicUploadHandler *executeHandler = new PsychicUploadHandler();
+	executeHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
 
 			DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
@@ -343,7 +342,7 @@ void HubWebServer::start() {
 
 			return ESP_OK; });
 
-		executeHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
+	executeHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
 			INFO("webserver() - /execute PUT received");
 
 			PsychicStreamResponse response(resp, "application/json");
@@ -375,9 +374,9 @@ void HubWebServer::start() {
 			response.beginSend();
 			response.print(strContent);
 			return response.endSend(); });
-		server_->on("/execute", HTTP_PUT, executeHandler);
+	server_->on("/execute", HTTP_PUT, executeHandler);
 
-		server_->on("/projects", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/projects", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 
 			INFO("webserver() - /projects GET");
 
@@ -405,7 +404,7 @@ void HubWebServer::start() {
 			response.print(strContent);
 			return response.endSend(); });
 
-		server_->on("/autostart", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/autostart", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
 			INFO("webserver() - /autostart GET");
 
 			PsychicStreamResponse response(resp, "application/json");
@@ -431,7 +430,7 @@ void HubWebServer::start() {
 			response.print(strContent);
 			return response.endSend(); });
 
-		server_->on("/autostart", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp, JsonVariant &json) {
+	server_->on("/autostart", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp, JsonVariant &json) {
 
 			INFO("webserver() - /autostart PUT");
 
@@ -449,188 +448,188 @@ void HubWebServer::start() {
 			resp->addHeader("Cache-Control", "no-cache, must-revalidate");
 			return resp->send(); });
 
-		// General Event handlng
-		eventSource_.onOpen([](PsychicEventSourceClient *client) {
-			INFO("[eventsource] connection #%u connected from %s\n", client->socket(), client->remoteIP().toString().c_str());
-		});
-		eventSource_.onClose([](PsychicEventSourceClient *client) {
-			INFO("[eventsource] connection #%u closed\n", client->socket());
-		});
-		server_->on("/events", &eventSource_);
+	// General Event handlng
+	eventSource_.onOpen([](PsychicEventSourceClient *client) {
+		INFO("[eventsource] connection #%u connected from %s\n", client->socket(), client->remoteIP().toString().c_str());
+	});
+	eventSource_.onClose([](PsychicEventSourceClient *client) {
+		INFO("[eventsource] connection #%u closed\n", client->socket());
+	});
+	server_->on("/events", &eventSource_);
 
-		// Logging forwarder task
-		xTaskCreate(
-			logForwarderTask,
-			"LogForwarderTask",
-			4096,
-			(void *) this,
-			1,
-			&logforwarderTaskHandle_ // Store task handle for cancellation
-		);
+	// Logging forwarder task
+	xTaskCreate(
+		logForwarderTask,
+		"LogForwarderTask",
+		4096,
+		(void *) this,
+		1,
+		&logforwarderTaskHandle_ // Store task handle for cancellation
+	);
 
-		started_ = true;*/
-	}
+	started_ = true;
+}
 
-	void HubWebServer::publishLogMessages() {
-		String logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
-		while (logMessage.length() > 0) {
-			/*if (eventSource_.count() > 0) {
-				JsonDocument root;
-				root["message"] = logMessage;
+void HubWebServer::publishLogMessages() {
+	String logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
+	while (logMessage.length() > 0) {
+		if (eventSource_.count() > 0) {
+			JsonDocument root;
+			root["message"] = logMessage;
 
-				String strContent;
-				serializeJson(root, strContent);
+			String strContent;
+			serializeJson(root, strContent);
 
-				eventSource_.send(strContent.c_str(), "log", millis());
-			}*/
-
-			logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
-		}
-	}
-
-	void HubWebServer::publishCommands() {
-		String command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
-		while (command.length() > 0) {
-			/*if (eventSource_.count() > 0) {
-				eventSource_.send(command.c_str(), "command", millis());
-			}*/
-
-			command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
-		}
-	}
-
-	void HubWebServer::publishPortstatus() {
-		String command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
-		while (command.length() > 0) {
-			/*if (eventSource_.count() > 0) {
-				eventSource_.send(command.c_str(), "portstatus", millis());
-			}*/
-
-			command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
-		}
-	}
-
-	bool HubWebServer::isStarted() {
-		return started_;
-	}
-
-	void HubWebServer::ssdpNotify() {
-		DEBUG("Sent SSDP NOTIFY messages");
-
-		const IPAddress SSDP_MULTICAST_ADDR(239, 255, 255, 250);
-		const uint16_t SSDP_PORT = 1900;
-
-		// Send initial NOTIFY messages
-		char notify[1024];
-
-		String deviceUid = hub_->deviceUid();
-
-		// Send NOTIFY for different device types
-		String deviceTypes[] = {
-			"upnp:rootdevice",
-			"urn:schemas-upnp-org:device:Basic:1",
-			String("uuid:") + deviceUid.c_str()};
-
-		const char *SSDP_NOTIFY_TEMPLATE = "NOTIFY * HTTP/1.1\r\n"
-										   "HOST: 239.255.255.250:1900\r\n"
-										   "CACHE-CONTROL: max-age=1800\r\n"
-										   "LOCATION: http://%s:%d/description.xml\r\n"
-										   "SERVER: SSDPServer/1.0\r\n"
-										   "NT: %s\r\n"
-										   "USN: uuid:%s::%s\r\n"
-										   "NTS: ssdp:alive\r\n"
-										   "BOOTID.UPNP.ORG: 1\r\n"
-										   "CONFIGID.UPNP.ORG: 1\r\n"
-										   "\r\n";
-
-		/*for (int i = 0; i < 3; i++) {
-			sprintf(notify, SSDP_NOTIFY_TEMPLATE,
-				WiFi.localIP().toString().c_str(),
-				wsport_,
-				deviceTypes[i].c_str(),
-				deviceUid.c_str(),
-				deviceTypes[i].c_str());
-
-			udp_->beginPacket(SSDP_MULTICAST_ADDR, SSDP_PORT);
-			udp_->write((uint8_t *) notify, strlen(notify));
-			udp_->endPacket();
-		}*/
-	}
-
-	void HubWebServer::loop() {
-		long now = millis();
-		if (now - lastSSDPNotify_ > 5000) {
-			ssdpNotify();
-			lastSSDPNotify_ = now;
+			eventSource_.send(strContent.c_str(), "log", millis());
 		}
 
-		// SSDP
+		logMessage = loggingOutput_->waitForLogMessage(pdMS_TO_TICKS(5));
+	}
+}
 
-		// Incoming messages
-		/*int packetSize = udp_->parsePacket();
-		if (packetSize) {
-			char packetBuffer[512];
-			int len = udp_->read(packetBuffer, sizeof(packetBuffer) - 1);
-			if (len > 0) {
-				packetBuffer[len] = '\0';
+void HubWebServer::publishCommands() {
+	String command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	while (command.length() > 0) {
+		if (eventSource_.count() > 0) {
+			eventSource_.send(command.c_str(), "command", millis());
+		}
 
-				// Check if it's an M-SEARCH request
-				if (strstr(packetBuffer, "M-SEARCH") && strstr(packetBuffer, "ssdp:discover")) {
-					DEBUG("Received SSDP M-SEARCH request");
+		command = Commands::instance()->waitForCommand(pdMS_TO_TICKS(5));
+	}
+}
 
-					// Extract search target
-					char *stLine = strstr(packetBuffer, "ST:");
-					String searchTarget = "upnp:rootdevice"; // Default
+void HubWebServer::publishPortstatus() {
+	String command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+	while (command.length() > 0) {
+		if (eventSource_.count() > 0) {
+			eventSource_.send(command.c_str(), "portstatus", millis());
+		}
 
-					if (stLine) {
-						stLine += 3; // Skip "ST:"
-						while (*stLine == ' ') {
-							stLine++; // Skip spaces
-						}
-						char *end = strstr(stLine, "\r");
-						if (end) {
-							*end = '\0';
-							searchTarget = String(stLine);
-						}
+		command = Portstatus::instance()->waitForStatus(pdMS_TO_TICKS(5));
+	}
+}
+
+bool HubWebServer::isStarted() {
+	return started_;
+}
+
+void HubWebServer::ssdpNotify() {
+	DEBUG("Sent SSDP NOTIFY messages");
+
+	const IPAddress SSDP_MULTICAST_ADDR(239, 255, 255, 250);
+	const uint16_t SSDP_PORT = 1900;
+
+	// Send initial NOTIFY messages
+	char notify[1024];
+
+	String deviceUid = hub_->deviceUid();
+
+	// Send NOTIFY for different device types
+	String deviceTypes[] = {
+		"upnp:rootdevice",
+		"urn:schemas-upnp-org:device:Basic:1",
+		String("uuid:") + deviceUid.c_str()};
+
+	const char *SSDP_NOTIFY_TEMPLATE = "NOTIFY * HTTP/1.1\r\n"
+									   "HOST: 239.255.255.250:1900\r\n"
+									   "CACHE-CONTROL: max-age=1800\r\n"
+									   "LOCATION: http://%s:%d/description.xml\r\n"
+									   "SERVER: SSDPServer/1.0\r\n"
+									   "NT: %s\r\n"
+									   "USN: uuid:%s::%s\r\n"
+									   "NTS: ssdp:alive\r\n"
+									   "BOOTID.UPNP.ORG: 1\r\n"
+									   "CONFIGID.UPNP.ORG: 1\r\n"
+									   "\r\n";
+
+	for (int i = 0; i < 3; i++) {
+		sprintf(notify, SSDP_NOTIFY_TEMPLATE,
+			WiFi.localIP().toString().c_str(),
+			wsport_,
+			deviceTypes[i].c_str(),
+			deviceUid.c_str(),
+			deviceTypes[i].c_str());
+
+		udp_->beginPacket(SSDP_MULTICAST_ADDR, SSDP_PORT);
+		udp_->write((uint8_t *) notify, strlen(notify));
+		udp_->endPacket();
+	}
+}
+
+void HubWebServer::loop() {
+	long now = millis();
+	if (now - lastSSDPNotify_ > 5000) {
+		ssdpNotify();
+		lastSSDPNotify_ = now;
+	}
+
+	// SSDP
+
+	// Incoming messages
+	int packetSize = udp_->parsePacket();
+	if (packetSize) {
+		char packetBuffer[512];
+		int len = udp_->read(packetBuffer, sizeof(packetBuffer) - 1);
+		if (len > 0) {
+			packetBuffer[len] = '\0';
+
+			// Check if it's an M-SEARCH request
+			if (strstr(packetBuffer, "M-SEARCH") && strstr(packetBuffer, "ssdp:discover")) {
+				DEBUG("Received SSDP M-SEARCH request");
+
+				// Extract search target
+				char *stLine = strstr(packetBuffer, "ST:");
+				String searchTarget = "upnp:rootdevice"; // Default
+
+				if (stLine) {
+					stLine += 3; // Skip "ST:"
+					while (*stLine == ' ') {
+						stLine++; // Skip spaces
 					}
-
-					char response[1024];
-					char dateStr[64];
-
-					// Simple date string (could be improved with real time)
-					sprintf(dateStr, "Mon, 01 Jan 1970 00:00:00 GMT");
-
-					const char *SSDP_RESPONSE_TEMPLATE = "HTTP/1.1 200 OK\r\n"
-														 "CACHE-CONTROL: max-age=1800\r\n"
-														 "DATE: %s\r\n"
-														 "EXT:\r\n"
-														 "LOCATION: http://%s:%d/description.xml\r\n"
-														 "SERVER: SSDPServer/1.0\r\n"
-														 "ST: %s\r\n"
-														 "USN: uuid:%s::%s\r\n"
-														 "BOOTID.UPNP.ORG: 1\r\n"
-														 "CONFIGID.UPNP.ORG: 1\r\n"
-														 "\r\n";
-					String deviceUid = hub_->deviceUid();
-
-					sprintf(response, SSDP_RESPONSE_TEMPLATE,
-						dateStr,
-						WiFi.localIP().toString().c_str(),
-						wsport_,
-						searchTarget.c_str(),
-						deviceUid.c_str(),
-						searchTarget.c_str());
-
-					// Send unicast response to requester
-					udp_->beginPacket(udp_->remoteIP(), udp_->remotePort());
-					udp_->write((uint8_t *) response, strlen(response));
-					udp_->endPacket();
-
-					DEBUG("SSDP response sent");
+					char *end = strstr(stLine, "\r");
+					if (end) {
+						*end = '\0';
+						searchTarget = String(stLine);
+					}
 				}
+
+				char response[1024];
+				char dateStr[64];
+
+				// Simple date string (could be improved with real time)
+				sprintf(dateStr, "Mon, 01 Jan 1970 00:00:00 GMT");
+
+				const char *SSDP_RESPONSE_TEMPLATE = "HTTP/1.1 200 OK\r\n"
+													 "CACHE-CONTROL: max-age=1800\r\n"
+													 "DATE: %s\r\n"
+													 "EXT:\r\n"
+													 "LOCATION: http://%s:%d/description.xml\r\n"
+													 "SERVER: SSDPServer/1.0\r\n"
+													 "ST: %s\r\n"
+													 "USN: uuid:%s::%s\r\n"
+													 "BOOTID.UPNP.ORG: 1\r\n"
+													 "CONFIGID.UPNP.ORG: 1\r\n"
+													 "\r\n";
+				String deviceUid = hub_->deviceUid();
+
+				sprintf(response, SSDP_RESPONSE_TEMPLATE,
+					dateStr,
+					WiFi.localIP().toString().c_str(),
+					wsport_,
+					searchTarget.c_str(),
+					deviceUid.c_str(),
+					searchTarget.c_str());
+
+				// Send unicast response to requester
+				udp_->beginPacket(udp_->remoteIP(), udp_->remotePort());
+				udp_->write((uint8_t *) response, strlen(response));
+				udp_->endPacket();
+
+				DEBUG("SSDP response sent");
 			}
-		}*/
-		// Server runs async...	
+		}
+	}
+	// Server runs async...
 }
 
 String HubWebServer::urlDecode(const String &text) {

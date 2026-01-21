@@ -12,10 +12,13 @@ TaskHandle_t mainControlLoopTaskHandle = NULL;
 
 void main_control_loop_task(void *parameters) {
 	MainControlLoopTaskParams *params = (MainControlLoopTaskParams *) parameters;
+	Megahub *hub = getMegaHubRef(params->mainstate);
 
 	lua_State *threadState = params->threadstate;
 	INFO("Starting main control loop task");
 	while (true) {
+
+		unsigned long start = millis();
 
 		// Check for cancelation
 		uint32_t notificationValue = 0;
@@ -40,6 +43,9 @@ void main_control_loop_task(void *parameters) {
 
 			break;
 		}
+
+		long duration = start - millis();
+		hub->updateMainLoopStatistik(duration);
 
 		// Give the scheduler some time - this could also be done by including a wait() call into the Lua script....
 		vTaskDelay(pdMS_TO_TICKS(1));
@@ -98,7 +104,7 @@ int hub_init(lua_State *luaState) {
 }
 
 int hub_setmotorspeed(lua_State *luaState) {
-	// To be called function is argument index 1, so we push it onto the stack
+
 	int port = lua_tointeger(luaState, 1);
 	int speed = lua_tointeger(luaState, 2);
 

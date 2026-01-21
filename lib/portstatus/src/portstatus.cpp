@@ -2,14 +2,15 @@
 
 #include "logging.h"
 
-#define STATUS_MESSAGE_SIZE 1024
+#define STATUS_MESSAGE_SIZE 4096
 #define STATUS_QUEUE_LENGTH 2
 
 Portstatus::Portstatus() {
 	statusQueue_ = xQueueCreate(STATUS_QUEUE_LENGTH, STATUS_MESSAGE_SIZE);
 	if (!statusQueue_) {
 		ERROR("Failed to initialize queue!");
-		while(true);
+		while (true)
+			;
 	}
 }
 

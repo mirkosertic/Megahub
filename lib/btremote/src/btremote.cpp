@@ -221,7 +221,12 @@ struct IncomingRequest {
 
 // CRITICAL: Trivially copyable (no destructor) - FreeRTOS queues use memcpy() which bypasses
 // C++ copy/move semantics. Memory allocated in factory methods MUST be freed manually in
-// processMessageQueue() after processing.
+// processMessageQueue() after processing, OR if xQueueSend() fails!
+//
+// Memory Ownership Pattern:
+// 1. Factory method allocates with 'new' -> caller owns pointer
+// 2. If xQueueSend() succeeds -> queue owns pointer, will be freed in processMessageQueue()
+// 3. If xQueueSend() fails -> caller MUST delete to prevent leak
 struct MessageProcessorItem {
 	MessageProcessorItemType type;
 	void *dataPtr;
@@ -229,21 +234,21 @@ struct MessageProcessorItem {
 	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String &project, const String &filename) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::FILE_TRANSFER;
-		item.dataPtr = new PendingFileTransfer {messageId, project, filename};
+		item.dataPtr = new PendingFileTransfer {messageId, project, filename}; // Caller owns, must free on queue failure
 		return item;
 	}
 
 	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::INCOMING_REQUEST;
-		item.dataPtr = new IncomingRequest {protocolType, messageId, data};
+		item.dataPtr = new IncomingRequest {protocolType, messageId, data}; // Caller owns, must free on queue failure
 		return item;
 	}
 
 	static MessageProcessorItem createMTUNotification() {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::MTU_NOTIFICATION;
-		item.dataPtr = nullptr;
+		item.dataPtr = nullptr; // No allocation, no cleanup needed
 		return item;
 	}
 };
@@ -271,6 +276,7 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 	, readyForEvents_(false)
 	, mtu_(23)
 	, nextMessageId_(0)
+	, fragmentBuffersMutex_(nullptr)
 	, responseQueue_(nullptr)
 	, responseSenderTaskHandle_(nullptr)
 	, indicationConfirmSemaphore_(nullptr)
@@ -278,12 +284,12 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 	, lastDeviceListPublishTime_(0)
 	, discoveryInProgress_(false)
 	, pairingInProgress_(false)
-	, suppressBLERestart_(false)
 	, hidDevicesMutex_(nullptr)
 	, hidEventQueue_(nullptr)
 	, hidEventTaskHandle_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
-	responseQueue_ = xQueueCreate(5, sizeof(MessageProcessorItem));
+	responseQueue_ = xQueueCreate(10, sizeof(MessageProcessorItem));
+	fragmentBuffersMutex_ = xSemaphoreCreateMutex();
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
 	hidDevicesMutex_ = xSemaphoreCreateMutex();
@@ -506,10 +512,17 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	DEBUG("Fragment received: ProtocolType=%d, ID=%d, Num=%d, Flags=0x%02X",
 		(uint8_t) protocolType, messageId, fragmentNum, flags);
 
+	// CRITICAL: Lock fragmentBuffers_ for thread-safe access (GATTS callback vs loop task)
+	if (xSemaphoreTake(fragmentBuffersMutex_, portMAX_DELAY) != pdTRUE) {
+		ERROR("Failed to take fragmentBuffersMutex_");
+		return;
+	}
+
 	// Memory safety: Limit concurrent messages to prevent memory exhaustion
 	if (fragmentBuffers_.size() >= MAX_CONCURRENT_MESSAGES && fragmentBuffers_.find(messageId) == fragmentBuffers_.end()) {
 		WARN("Max concurrent messages reached (%d), rejecting message ID %d",
 			MAX_CONCURRENT_MESSAGES, messageId);
+		xSemaphoreGive(fragmentBuffersMutex_);
 		sendControlMessage(ControlMessageType::BUFFER_FULL, messageId);
 		return;
 	}
@@ -526,6 +539,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	if (millis() - buffer.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
 		WARN("Fragment timeout for message ID %d", messageId);
 		fragmentBuffers_.erase(messageId);
+		xSemaphoreGive(fragmentBuffersMutex_);
 		sendControlMessage(ControlMessageType::NACK, messageId);
 		return;
 	}
@@ -538,12 +552,25 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	if (buffer.data.size() + payloadSize > MAX_BUFFER_SIZE) {
 		WARN("Buffer overflow for message ID %d", messageId);
 		fragmentBuffers_.erase(messageId);
+		xSemaphoreGive(fragmentBuffersMutex_);
 		sendControlMessage(ControlMessageType::BUFFER_FULL, messageId);
 		return;
 	}
 
-	buffer.data.insert(buffer.data.end(), payload, payload + payloadSize);
-	buffer.receivedFragments++;
+	// CRITICAL: Catch memory allocation failures to prevent abort()
+	// std::vector::insert() can throw std::bad_alloc if heap is exhausted or fragmented
+	try {
+		buffer.data.insert(buffer.data.end(), payload, payload + payloadSize);
+		buffer.receivedFragments++;
+	} catch (const std::bad_alloc &e) {
+		ERROR("Out of memory inserting %d bytes into fragment buffer (message ID %d)", payloadSize, messageId);
+		ERROR("Heap free: %d bytes, largest block: %d bytes",
+			esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+		fragmentBuffers_.erase(messageId);
+		xSemaphoreGive(fragmentBuffersMutex_);
+		sendControlMessage(ControlMessageType::NACK, messageId);
+		return;
+	}
 
 	if (flags & FLAG_LAST_FRAGMENT) {
 		DEBUG("Complete message received: ID=%d, Size=%d",
@@ -551,18 +578,31 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 
 		// CRITICAL: Queue request for processing in separate task to prevent deadlock
 		// (callback must not block waiting for indication ACK)
-		MessageProcessorItem item = MessageProcessorItem::createRequest(protocolType, messageId, buffer.data);
+		// Also catch allocation failures when creating the request (copies buffer.data vector)
+		try {
+			MessageProcessorItem item = MessageProcessorItem::createRequest(protocolType, messageId, buffer.data);
 
-		if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
-			ERROR("Message processor queue full, dropping request");
+			if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+				ERROR("Message processor queue full, dropping request");
+				// CRITICAL: Free allocated memory on queue send failure to prevent memory leak
+				delete static_cast<IncomingRequest *>(item.dataPtr);
+				sendControlMessage(ControlMessageType::NACK, messageId);
+			} else {
+				DEBUG("Request queued for processing in background task");
+				sendControlMessage(ControlMessageType::ACK, messageId);
+			}
+		} catch (const std::bad_alloc &e) {
+			ERROR("Out of memory creating request for message ID %d (%d bytes)",
+				messageId, buffer.data.size());
+			ERROR("Heap free: %d bytes, largest block: %d bytes",
+				esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 			sendControlMessage(ControlMessageType::NACK, messageId);
-		} else {
-			DEBUG("Request queued for processing in background task");
-			sendControlMessage(ControlMessageType::ACK, messageId);
 		}
 
 		fragmentBuffers_.erase(messageId);
 	}
+
+	xSemaphoreGive(fragmentBuffersMutex_);
 }
 
 void BTRemote::processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data) {
@@ -595,7 +635,10 @@ void BTRemote::handleControlMessage(const uint8_t *data, size_t length) {
 			break;
 		case ControlMessageType::RESET:
 			INFO("Client requested reset");
-			fragmentBuffers_.clear();
+			if (xSemaphoreTake(fragmentBuffersMutex_, portMAX_DELAY) == pdTRUE) {
+				fragmentBuffers_.clear();
+				xSemaphoreGive(fragmentBuffersMutex_);
+			}
 			break;
 		default:
 			break;
@@ -784,14 +827,18 @@ void BTRemote::loop() {
 	uint32_t now = millis();
 
 	// Fragment timeout cleanup
-	for (auto it = fragmentBuffers_.begin(); it != fragmentBuffers_.end();) {
-		if (now - it->second.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
-			WARN("Timeout: Message ID %d removed", it->first);
-			sendControlMessage(ControlMessageType::NACK, it->first);
-			it = fragmentBuffers_.erase(it);
-		} else {
-			++it;
+	// CRITICAL: Lock fragmentBuffers_ for thread-safe access (loop task vs GATTS callback)
+	if (xSemaphoreTake(fragmentBuffersMutex_, portMAX_DELAY) == pdTRUE) {
+		for (auto it = fragmentBuffers_.begin(); it != fragmentBuffers_.end();) {
+			if (now - it->second.lastFragmentTime > FRAGMENT_TIMEOUT_MS) {
+				WARN("Timeout: Message ID %d removed", it->first);
+				sendControlMessage(ControlMessageType::NACK, it->first);
+				it = fragmentBuffers_.erase(it);
+			} else {
+				++it;
+			}
 		}
+		xSemaphoreGive(fragmentBuffersMutex_);
 	}
 }
 
@@ -906,6 +953,8 @@ bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestD
 	MessageProcessorItem item = MessageProcessorItem::createFileTransfer(messageId, project, filename);
 	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 		WARN("Message processor queue full, dropping file transfer request");
+		// CRITICAL: Free allocated memory on queue send failure to prevent memory leak
+		delete static_cast<PendingFileTransfer *>(item.dataPtr);
 		return false;
 	}
 
@@ -929,22 +978,22 @@ void BTRemote::processMessageQueue() {
 
 		} else if (item.type == MessageProcessorItemType::FILE_TRANSFER) {
 			PendingFileTransfer *transfer = static_cast<PendingFileTransfer *>(item.dataPtr);
-			INFO("Processing queued file transfer for %s of project %s",
+			DEBUG("Processing queued file transfer for %s of project %s",
 				transfer->filename.c_str(), transfer->project.c_str());
 
 			File projectFile = configuration_->getProjectFile(transfer->project, transfer->filename);
 			if (projectFile) {
 				size_t projectSize = projectFile.size();
-				INFO("Response has size %d", projectSize);
+				DEBUG("Response has size %d", projectSize);
 
 				sendLargeResponse(transfer->messageId, projectSize, [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer) {
-					INFO("Reading chunk with index %d from file", index);
+					DEBUG("Reading chunk with index %d from file", index);
 					char buffer[maxChunkSize];
 					size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
 					for (int i = 0; i < read; i++) {
 						dataContainer.push_back(buffer[i]);
 					}
-					INFO("Read %d bytes from file for chunk %d", read, index);
+					DEBUG("Read %d bytes from file for chunk %d", read, index);
 					return read;
 				});
 
@@ -957,13 +1006,13 @@ void BTRemote::processMessageQueue() {
 			delete transfer;
 
 		} else if (item.type == MessageProcessorItemType::MTU_NOTIFICATION) {
-			INFO("Processing MTU notification from task context");
+			DEBUG("Processing MTU notification from task context");
 			sendMTUNotification();
 		}
 	}
 
 	// Serialize all BLE communication through this task to prevent race conditions
-	if (deviceConnected_ && readyForEvents_ && !pairingInProgress_ && !suppressBLERestart_) {
+	if (deviceConnected_ && readyForEvents_ && !pairingInProgress_) {
 		publishLogMessages();
 		publishCommands();
 		publishPortstatus();
@@ -1210,6 +1259,19 @@ bool BTRemote::removePairing(const char *macAddress) {
 
 	INFO("Removing pairing for device: %s", macAddress);
 
+	// Disconnect HID device first if connected (virtual cable unplug)
+	// This ensures clean disconnect before removing pairing
+	INFO("Attempting virtual cable unplug for device: %s", macAddress);
+	esp_err_t hid_ret = esp_bt_hid_host_virtual_cable_unplug(address);
+	if (hid_ret != ESP_OK) {
+		WARN("Virtual cable unplug failed: %s (device may not be HID or already disconnected)", esp_err_to_name(hid_ret));
+	} else {
+		INFO("Virtual cable unplug initiated successfully");
+		// Give some time for the disconnect to complete
+		vTaskDelay(pdMS_TO_TICKS(500));
+	}
+
+	// Remove the bond device (pairing information)
 	esp_err_t ret = esp_bt_gap_remove_bond_device(address);
 	if (ret != ESP_OK) {
 		ERROR("Remove bond device failed: %s", esp_err_to_name(ret));
@@ -1240,16 +1302,8 @@ bool BTRemote::startPairing(const char *macAddress) {
 		xSemaphoreGive(discoveredDevicesMutex_);
 	}
 
-	// CRITICAL: Reduce BLE activity to allow Bluetooth Classic HID connection to succeed
-	// BLE and Classic share the same radio and compete for resources
-
-	// Step 1: Suppress BLE advertising auto-restart
-	suppressBLERestart_ = true;
 	stopDiscoveryInternal();
 
-	vTaskDelay(pdMS_TO_TICKS(500));
-
-	// Step 2: Stop advertising (prevents new connections)
 	INFO("Stopping BLE advertising to reduce interference with Classic BT connection...");
 	esp_err_t ret = esp_ble_gap_stop_advertising();
 	if (ret != ESP_OK) {
@@ -1258,25 +1312,7 @@ bool BTRemote::startPairing(const char *macAddress) {
 		INFO("BLE advertising stopped successfully");
 	}
 
-	// Step 3: Disconnect existing BLE client if connected
-	if (connState_.connected) {
-		INFO("Disconnecting active BLE client (conn_id=%d) to free radio for HID connection...",
-			connState_.conn_id);
-		ret = esp_ble_gatts_close(gatts_if_, connState_.conn_id);
-		if (ret != ESP_OK) {
-			WARN("Failed to close BLE connection: %s (continuing anyway)", esp_err_to_name(ret));
-		} else {
-			INFO("BLE client disconnected successfully");
-		}
-		// CRITICAL: Wait for ACL link to fully disconnect
-		// Status 9 (HCI_ERR_MAX_NUM_OF_CONNECTIONS) occurs if ACL not fully cleaned up
-		INFO("Waiting 2 seconds for BLE ACL link to fully disconnect...");
-		vTaskDelay(pdMS_TO_TICKS(2000));
-	} else {
-		INFO("No active BLE client to disconnect");
-		// Give BLE time to stop advertising and radio to stabilize
-		vTaskDelay(pdMS_TO_TICKS(500));
-	}
+	vTaskDelay(pdMS_TO_TICKS(500));
 
 	pairingInProgress_ = true;
 
@@ -1500,6 +1536,11 @@ void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
 void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 	std::string addrStr = bdAddrToString(param->auth_cmpl.bda);
 
+	// Enhanced debugging for authentication results
+	INFO("BT Authentication complete for device: %s, status: %d (%s)",
+		addrStr.c_str(), param->auth_cmpl.stat,
+		param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "SUCCESS" : "FAILED");
+
 	if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
 		INFO("BT Authentication successful for device: %s", addrStr.c_str());
 
@@ -1518,6 +1559,7 @@ void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 	} else {
 		ERROR("BT Authentication failed for device: %s, status: %d",
 			addrStr.c_str(), param->auth_cmpl.stat);
+		ERROR("Check if device is already paired or if there's a security mismatch");
 		pairingInProgress_ = false;
 		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
 	}
@@ -1593,6 +1635,59 @@ void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
 	}
 }
 
+void BTRemote::handleGapBTAclConnComplete(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->acl_conn_cmpl_stat.bda);
+
+	INFO("BT ACL connection complete: %s, status: %d, handle: 0x%04x",
+		addrStr.c_str(), param->acl_conn_cmpl_stat.stat, param->acl_conn_cmpl_stat.handle);
+
+	if (param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS) {
+		INFO("ACL connection established successfully for: %s", addrStr.c_str());
+	} else {
+		ERROR("ACL connection failed for device: %s, status: %d",
+			addrStr.c_str(), param->acl_conn_cmpl_stat.stat);
+	}
+}
+
+void BTRemote::handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t *param) {
+	std::string addrStr = bdAddrToString(param->acl_disconn_cmpl_stat.bda);
+
+	INFO("BT ACL disconnection complete: %s, reason: %d, handle: 0x%04x",
+		addrStr.c_str(), param->acl_disconn_cmpl_stat.reason, param->acl_disconn_cmpl_stat.handle);
+
+	// Log human-readable disconnect reason
+	const char *reason_str = "Unknown";
+	switch (param->acl_disconn_cmpl_stat.reason) {
+		case 0x05:
+			reason_str = "Authentication Failure";
+			break;
+		case 0x08:
+			reason_str = "Connection Timeout";
+			break;
+		case 0x13:
+			reason_str = "Remote User Terminated Connection";
+			break;
+		case 0x14:
+			reason_str = "Remote Device Terminated Connection (Low Resources)";
+			break;
+		case 0x15:
+			reason_str = "Remote Device Terminated Connection (Power Off)";
+			break;
+		case 0x16:
+			reason_str = "Connection Terminated By Local Host";
+			break;
+		case 0x22:
+			reason_str = "LMP Response Timeout";
+			break;
+		case 0x3B:
+			reason_str = "Unacceptable Connection Parameters";
+			break;
+		default:
+			break;
+	}
+	INFO("Disconnect reason: 0x%02X (%s)", param->acl_disconn_cmpl_stat.reason, reason_str);
+}
+
 // ============================================================================
 // HID Host Event Handlers
 // ============================================================================
@@ -1629,13 +1724,16 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		addrStr.c_str(), param->open.handle, param->open.status,
 		param->open.conn_status, conn_state_str, param->open.is_orig);
 
+	// Add debugging to identify who initiated the connection
+	if (param->open.is_orig == 0) {
+		INFO("This is an INCOMING connection (client reconnected to us)");
+	} else {
+		INFO("This is an OUTGOING connection (we initiated)");
+	}
+
 	// CRITICAL: Only process when device is FULLY CONNECTED, not just CONNECTING
 	// ESP_HIDH_OPEN_EVT can fire multiple times during connection process
 	if (param->open.status == ESP_HIDH_OK && param->open.conn_status == ESP_HIDH_CONN_STATE_CONNECTED) {
-
-		// Store device address for later protocol setup
-		esp_bd_addr_t device_addr;
-		memcpy(device_addr, param->open.bd_addr, sizeof(esp_bd_addr_t));
 
 		// Update device state
 		if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -1657,17 +1755,6 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 			xSemaphoreGive(hidDevicesMutex_);
 		}
 
-		// CRITICAL: Set protocol mode to REPORT_MODE for HID devices (especially gamepads)
-		// Most HID devices default to BOOT_MODE (simplified protocol for keyboards/mice).
-		// Gamepads require REPORT_MODE to access full HID descriptor with all inputs.
-		INFO("Setting protocol mode to REPORT_MODE for device: %s", addrStr.c_str());
-		esp_err_t ret = esp_bt_hid_host_set_protocol(device_addr, ESP_HIDH_REPORT_MODE);
-		if (ret != ESP_OK) {
-			ERROR("Failed to set protocol mode: %s", esp_err_to_name(ret));
-		} else {
-			INFO("Protocol mode set command sent successfully");
-		}
-
 		// Initialize gamepad state
 		GamepadState state;
 		memcpy(state.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
@@ -1681,10 +1768,16 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		state.rightStickY = 0;
 		inputDevices_->registerGamepadState(addrStr, state);
 
+		// CRITICAL: Do NOT set protocol mode here!
+		// During reconnection, the L2CAP security handshake may not be complete yet.
+		// The ESP32 needs remote device features cached before security can proceed.
+		// Protocol mode will be set after ESP_HIDH_GET_DSCP_EVT when SDP query completes.
+		INFO("Waiting for SDP query to complete before setting protocol mode...");
+
 		// NOTE: Do NOT resume BLE advertising here!
-		// At this point conn_status is still CONNECTING - the L2CAP and SDP handshake
-		// is not complete yet. If we resume BLE now, BLE traffic will starve the
-		// gamepad connection and prevent it from completing.
+		// At this point the L2CAP and SDP handshake is not complete yet.
+		// If we resume BLE now, BLE traffic will starve the gamepad connection
+		// and prevent it from completing.
 		// Instead, we'll resume BLE after protocol mode is set (ESP_HIDH_SET_PROTO_EVT)
 		// or if connection fails (ESP_HIDH_CLOSE_EVT).
 		INFO("BLE advertising remains paused to allow HID connection to complete...");
@@ -1695,7 +1788,6 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 
 		// Resume BLE advertising even if HID connection failed
 		INFO("Resuming BLE advertising after failed HID connection...");
-		suppressBLERestart_ = false; // Clear suppression flag
 		esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 		if (ret != ESP_OK) {
 			WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1726,7 +1818,6 @@ void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
 
 	// Resume BLE advertising after HID disconnection
 	INFO("HID device closed - resuming BLE advertising...");
-	suppressBLERestart_ = false; // Clear suppression flag
 	esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 	if (ret != ESP_OK) {
 		WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1809,11 +1900,45 @@ void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_
 	// Queue the event for processing in dedicated task
 	HIDEventItem item;
 	item.event = event;
-	item.param = *param; // Copy param data
+	item.param = *param; // Shallow copy param
+	item.data_copy = nullptr;
+	item.data_len = 0;
+
+	// CRITICAL: Deep-copy data for events with pointers
+	// Bluedroid will free the data after this callback returns
+	if (event == ESP_HIDH_DATA_IND_EVT && param->data_ind.len > 0 && param->data_ind.data != nullptr) {
+		// Deep copy HID input report data
+		item.data_len = param->data_ind.len;
+		item.data_copy = (uint8_t *) malloc(item.data_len);
+		if (item.data_copy != nullptr) {
+			memcpy(item.data_copy, param->data_ind.data, item.data_len);
+			// Update param to point to our copy
+			item.param.data_ind.data = item.data_copy;
+		} else {
+			ERROR("Failed to allocate %d bytes for HID data copy", item.data_len);
+			return; // Drop event if allocation fails
+		}
+	} else if (event == ESP_HIDH_GET_RPT_EVT && param->get_rpt.len > 0 && param->get_rpt.data != nullptr) {
+		// Deep copy HID get report response data
+		item.data_len = param->get_rpt.len;
+		item.data_copy = (uint8_t *) malloc(item.data_len);
+		if (item.data_copy != nullptr) {
+			memcpy(item.data_copy, param->get_rpt.data, item.data_len);
+			// Update param to point to our copy
+			item.param.get_rpt.data = item.data_copy;
+		} else {
+			ERROR("Failed to allocate %d bytes for GET_RPT data copy", item.data_len);
+			return; // Drop event if allocation fails
+		}
+	}
 
 	// Try to queue the event (don't block - drop if queue full)
 	if (xQueueSend(g_btremote_instance->hidEventQueue_, &item, 0) != pdTRUE) {
 		ERROR("HID event queue full - dropping event %d", event);
+		// Free allocated data if queue send failed
+		if (item.data_copy != nullptr) {
+			free(item.data_copy);
+		}
 	}
 }
 
@@ -1828,6 +1953,13 @@ void BTRemote::hidEventTask(void *pvParameters) {
 		// Wait for events from queue (blocks until event available)
 		if (xQueueReceive(instance->hidEventQueue_, &item, portMAX_DELAY) == pdTRUE) {
 			instance->processHIDEvent(item);
+
+			// CRITICAL: Free deep-copied data after processing
+			// This was allocated in hidHostEventHandler for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT
+			if (item.data_copy != nullptr) {
+				free(item.data_copy);
+				item.data_copy = nullptr;
+			}
 		}
 	}
 }
@@ -1863,7 +1995,6 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 				// established and ready. Resume BLE advertising now that the critical
 				// phase of the HID connection is complete.
 				INFO("HID connection complete - resuming BLE advertising...");
-				suppressBLERestart_ = true; // Clear suppression flag
 				esp_err_t ret = esp_ble_gap_start_advertising(&g_adv_params);
 				if (ret != ESP_OK) {
 					WARN("Failed to restart BLE advertising: %s", esp_err_to_name(ret));
@@ -1875,7 +2006,6 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 
 				// Resume BLE even on failure
 				INFO("Resuming BLE advertising after HID protocol setup failure...");
-				suppressBLERestart_ = true; // Clear suppression flag
 				esp_ble_gap_start_advertising(&g_adv_params);
 			}
 			break;
@@ -1926,21 +2056,27 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 				// parsing based on VID/PID instead.
 				INFO("Device VID=0x%04X PID=0x%04X - use device-specific report parsing",
 					param.dscp.vendor_id, param.dscp.product_id);
-				// SDP query complete! Now it's safe to set protocol mode
-				INFO("SDP query complete - setting protocol mode to REPORT_MODE");
+
+				// CRITICAL: SDP query complete! L2CAP security handshake is now done.
+				// Remote device features are cached, so it's safe to set protocol mode.
+				INFO("SDP query complete - L2CAP handshake successful, setting protocol mode to REPORT_MODE");
 
 				// Find the device by handle to get its address and store VID/PID
 				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 					for (auto &entry : hidDevices_) {
 						if (entry.second.handle == param.dscp.handle) {
+							INFO("Found device %s for handle %d", entry.first.c_str(), param.dscp.handle);
+
 							// Store VID/PID in gamepad state for device-specific parsing
 							inputDevices_->updateGamepad(entry.first, [param](std::string &macAddress, GamepadState &state) {
 								state.vendorId = param.dscp.vendor_id;
 								state.productId = param.dscp.product_id;
-								INFO("Stored VID/PID for gamepad %s", macAddress.c_str());
+								INFO("Stored VID/PID for gamepad %s: VID=0x%04X PID=0x%04X",
+									macAddress.c_str(), state.vendorId, state.productId);
 							});
 
-							// Set protocol mode
+							// Set protocol mode - this should succeed now that SDP is complete
+							INFO("Setting protocol mode to REPORT_MODE for %s", entry.first.c_str());
 							esp_err_t ret = esp_bt_hid_host_set_protocol(entry.second.address, ESP_HIDH_REPORT_MODE);
 							if (ret != ESP_OK) {
 								ERROR("Failed to set protocol mode: %s", esp_err_to_name(ret));
@@ -1951,6 +2087,8 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 						}
 					}
 					xSemaphoreGive(hidDevicesMutex_);
+				} else {
+					ERROR("Failed to acquire hidDevicesMutex in ESP_HIDH_GET_DSCP_EVT");
 				}
 			} else {
 				ERROR("Failed to retrieve HID descriptor, status: %d", param.dscp.status);
@@ -1992,8 +2130,16 @@ void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_para
 		case ESP_BT_GAP_READ_REMOTE_NAME_EVT:
 			g_btremote_instance->handleGapBTReadRemoteName(param);
 			break;
+		case ESP_BT_GAP_ACL_CONN_CMPL_STAT_EVT:
+			g_btremote_instance->handleGapBTAclConnComplete(param);
+			break;
+		case ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT:
+			g_btremote_instance->handleGapBTAclDisconnComplete(param);
+			break;
 		default:
-			INFO("Unhandled BT GAP event: %d", event);
+			// Event 21 and other unhandled events - log at debug level
+			// These are typically non-critical informational events
+			DEBUG("Unhandled BT GAP event: %d", event);
 			break;
 	}
 }
@@ -2290,16 +2436,16 @@ void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
 	readyForEvents_ = false;
 	deviceConnected_ = false;
 	connState_.connected = false;
-	fragmentBuffers_.clear();
+
+	// CRITICAL: Thread-safe clear of fragmentBuffers_
+	if (xSemaphoreTake(fragmentBuffersMutex_, portMAX_DELAY) == pdTRUE) {
+		fragmentBuffers_.clear();
+		xSemaphoreGive(fragmentBuffersMutex_);
+	}
 
 	INFO("Client disconnected, conn_id=%d", param->disconnect.conn_id);
 
-	// Only restart advertising if not suppressed (during HID pairing)
-	if (!suppressBLERestart_) {
-		esp_ble_gap_start_advertising(&g_adv_params);
-	} else {
-		INFO("BLE advertising restart suppressed (HID pairing in progress)");
-	}
+	esp_ble_gap_start_advertising(&g_adv_params);
 }
 
 void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {

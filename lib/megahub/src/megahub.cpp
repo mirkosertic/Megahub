@@ -253,6 +253,8 @@ void status_reporter_task(void *parameters) {
 		String strContent;
 		serializeJson(status, strContent);
 
+		DEBUG("Port state JSON has length %d and  is %s", strContent.length(), strContent.c_str());
+
 		Portstatus::instance()->queue(strContent);
 
 		vTaskDelay(pdMS_TO_TICKS(1000));
@@ -463,6 +465,8 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 	device4_->initialize();
 
 	currentprogramstate_ = nullptr;
+	averageMainControlLoopTime_ = 0;
+	averageMainControlLoopTimeMutex_ = xSemaphoreCreateMutex();
 
 	// Create the task
 	xTaskCreate(
@@ -472,6 +476,19 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 		(void *) this,
 		1,
 		&statusReporterTaskHandle);
+}
+
+void Megahub::updateMainLoopStatistik(long duration) {
+	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
+	averageMainControlLoopTime_ = (averageMainControlLoopTime_ + duration) / 2.0;
+	xSemaphoreGive(averageMainControlLoopTimeMutex_);
+}
+
+long Megahub::getAverageMainControlLoopTime() {
+	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
+	long value = averageMainControlLoopTime_;
+	xSemaphoreGive(averageMainControlLoopTimeMutex_);
+	return value;
 }
 
 Megahub::~Megahub() {

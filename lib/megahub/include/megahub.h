@@ -7,6 +7,8 @@
 #include "logging.h"
 #include "lua.hpp"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <memory>
 
 #define PORT1 1
@@ -77,6 +79,9 @@ public:
 	int digitalReadFrom(int pin);
 	void digitalWriteTo(int pin, int value);
 
+	void updateMainLoopStatistik(long duration);
+	long getAverageMainControlLoopTime();
+
 private:
 	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;
@@ -89,6 +94,9 @@ private:
 	lua_State *currentprogramstate_;
 
 	lua_State *newLuaState();
+
+	long averageMainControlLoopTime_;
+	SemaphoreHandle_t averageMainControlLoopTimeMutex_;
 };
 
 #endif // MEGAHUB_H

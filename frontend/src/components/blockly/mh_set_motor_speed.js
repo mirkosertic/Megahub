@@ -6,7 +6,7 @@ export const definition = {
 	colour : colorIO,
 	blockdefinition : {
 		"type" : "mh_set_motor_speed",
-		"message0" : "Set Motor %1 to %2",
+		"message0" : "Set Motor speed of %1 to %2",
 		"args0" : [
 			{
 				"type" : "field_dropdown",

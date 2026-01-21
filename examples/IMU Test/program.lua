@@ -1,0 +1,10 @@
+hub.init(function()
+  ui.showvalue("Status", FORMAT_SIMPLE, 'Initialized')
+end)
+
+hub.main_control_loop(function()
+  ui.showvalue("Roll", FORMAT_SIMPLE, imu.value(ROLL))
+  ui.showvalue("Pitch", FORMAT_SIMPLE, imu.value(PITCH))
+  ui.showvalue("Yaw", FORMAT_SIMPLE, imu.value(YAW))
+  wait(1000)
+end)
