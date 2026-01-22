@@ -432,7 +432,7 @@ void BTRemote::begin(const char *deviceName) {
 	INFO("Bluedroid BLE initialization started, waiting for registration...");
 
 	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t> &payload) {
-		INFO("Processing BT message with id %d and appRequestType %d", messageId, appRequestType);
+		INFO("Processing BT message with id %d and appRequestType %d, size of payload is %d", messageId, appRequestType, payload.size());
 
 		parseJsonFromVector(payload, [this, messageId, appRequestType](const JsonDocument &requestDoc) {
 			std::vector<uint8_t> response;

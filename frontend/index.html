@@ -9,6 +9,25 @@
 </head>
 
 <body>
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- Confirmation Dialog -->
+    <div id="confirmDialog" class="confirm-dialog-overlay" aria-hidden="true">
+        <div class="confirm-dialog">
+            <div class="confirm-dialog-header">
+                <h3 id="confirmDialogTitle">Confirm Action</h3>
+            </div>
+            <div class="confirm-dialog-body">
+                <p id="confirmDialogMessage">Are you sure you want to proceed?</p>
+            </div>
+            <div class="confirm-dialog-footer">
+                <button id="confirmDialogCancel" class="confirm-dialog-btn cancel">Cancel</button>
+                <button id="confirmDialogConfirm" class="confirm-dialog-btn confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <div class="global-layout-sidebar">
         <header id="header" class="layout-header">Megahub IDE<custom-sidebar-toggle
                 class="dynamicvisibility visible-editor visible-management"></custom-sidebar-toggle></header>

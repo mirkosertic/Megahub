@@ -466,6 +466,8 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 
 	currentprogramstate_ = nullptr;
 	averageMainControlLoopTime_ = 0;
+	minMainControlLoopTime_ = LONG_MAX;
+	maxMainControlLoopTime_ = 0;
 	averageMainControlLoopTimeMutex_ = xSemaphoreCreateMutex();
 
 	// Create the task
@@ -480,13 +482,41 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 
 void Megahub::updateMainLoopStatistik(long duration) {
 	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
-	averageMainControlLoopTime_ = (averageMainControlLoopTime_ + duration) / 2.0;
+
+	// Use exponential moving average: if average is 0, use first measurement as starting point
+	if (averageMainControlLoopTime_ == 0) {
+		averageMainControlLoopTime_ = duration;
+	} else {
+		// Weighted average: 90% old value, 10% new value
+		averageMainControlLoopTime_ = (averageMainControlLoopTime_ * 9 + duration) / 10;
+	}
+
+	if (duration < minMainControlLoopTime_) {
+		minMainControlLoopTime_ = duration;
+	}
+	if (duration > maxMainControlLoopTime_) {
+		maxMainControlLoopTime_ = duration;
+	}
 	xSemaphoreGive(averageMainControlLoopTimeMutex_);
 }
 
 long Megahub::getAverageMainControlLoopTime() {
 	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
 	long value = averageMainControlLoopTime_;
+	xSemaphoreGive(averageMainControlLoopTimeMutex_);
+	return value;
+}
+
+long Megahub::getMinMainControlLoopTime() {
+	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
+	long value = minMainControlLoopTime_;
+	xSemaphoreGive(averageMainControlLoopTimeMutex_);
+	return value;
+}
+
+long Megahub::getMaxMainControlLoopTime() {
+	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
+	long value = maxMainControlLoopTime_;
 	xSemaphoreGive(averageMainControlLoopTimeMutex_);
 	return value;
 }

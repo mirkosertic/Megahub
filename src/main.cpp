@@ -167,7 +167,11 @@ void loop() {
 
 	// Log free heap memory every 10 seconds
 	if (currentMillis - lastHeapLog >= 10000) {
-		INFO("Free HEAP: %d bytes, average cycle time for Lua main control loop is %dms", ESP.getFreeHeap(), megahub->getAverageMainControlLoopTime());
+		INFO("Free HEAP: %d bytes, Lua main control loop time - avg: %dus, min: %dus, max: %dus",
+			ESP.getFreeHeap(),
+			megahub->getAverageMainControlLoopTime(),
+			megahub->getMinMainControlLoopTime(),
+			megahub->getMaxMainControlLoopTime());
 
 		char task_list_buffer[1024];
 		vTaskList(task_list_buffer);

@@ -18,7 +18,7 @@ void main_control_loop_task(void *parameters) {
 	INFO("Starting main control loop task");
 	while (true) {
 
-		unsigned long start = millis();
+		unsigned long start = micros();
 
 		// Check for cancelation
 		uint32_t notificationValue = 0;
@@ -44,7 +44,7 @@ void main_control_loop_task(void *parameters) {
 			break;
 		}
 
-		long duration = start - millis();
+		long duration = micros() - start;
 		hub->updateMainLoopStatistik(duration);
 
 		// Give the scheduler some time - this could also be done by including a wait() call into the Lua script....

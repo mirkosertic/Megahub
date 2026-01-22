@@ -189,34 +189,23 @@ void LegoDevice::switchToDataMode() {
 	inDataMode_ = true;
 }
 
-void LegoDevice::setM1(bool status) {
-	i2c_lock();
-	serialIO_->setM1(status);
-	i2c_unlock();
-}
-
-void LegoDevice::setM2(bool status) {
-	i2c_lock();
-	serialIO_->setM2(status);
-	i2c_unlock();
-}
-
 void LegoDevice::setMotorSpeed(int speed) {
+	i2c_lock();
 	if (speed == 0) {
-		setM1(false);
-		setM2(false);
+		serialIO_->setM1(false);
+		serialIO_->setM2(false);
 	} else if (speed > 0) {
-		setM1(true);
-		setM2(false);
+		serialIO_->setM1(true);
+		serialIO_->setM2(false);
 	} else if (speed < 0) {
-		setM1(false);
-		setM2(true);
+		serialIO_->setM1(false);
+		serialIO_->setM2(true);
 	}
+	i2c_unlock();
 }
 
 void LegoDevice::initialize() {
-	setM1(false);
-	setM2(false);
+	setMotorSpeed(0);
 }
 
 void LegoDevice::loop() {

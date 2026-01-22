@@ -81,6 +81,8 @@ public:
 
 	void updateMainLoopStatistik(long duration);
 	long getAverageMainControlLoopTime();
+	long getMinMainControlLoopTime();
+	long getMaxMainControlLoopTime();
 
 private:
 	std::unique_ptr<InputDevices> inputdevices_;
@@ -96,6 +98,8 @@ private:
 	lua_State *newLuaState();
 
 	long averageMainControlLoopTime_;
+	long minMainControlLoopTime_;
+	long maxMainControlLoopTime_;
 	SemaphoreHandle_t averageMainControlLoopTimeMutex_;
 };
 

@@ -40,6 +40,190 @@ var btdevicelist = null
 var autoSaveEnabled = false;
 var autoSaveIntervalId = null;
 
+// ===== Notification System =====
+
+const NotificationIcons = {
+	success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+	error: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+	warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+	info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+};
+
+/**
+ * Show a notification toast
+ * @param {string} type - 'success' | 'error' | 'warning' | 'info'
+ * @param {string} title - Notification title
+ * @param {string} message - Notification message (optional)
+ * @param {number} duration - Auto-dismiss duration in ms (0 = no auto-dismiss)
+ */
+function showNotification(type, title, message = '', duration = 4000) {
+	const container = document.getElementById('notificationContainer');
+	if (!container) return;
+
+	const notification = document.createElement('div');
+	notification.className = `notification ${type}`;
+	notification.innerHTML = `
+		<div class="notification-icon">${NotificationIcons[type] || NotificationIcons.info}</div>
+		<div class="notification-content">
+			<div class="notification-title">${title}</div>
+			${message ? `<div class="notification-message">${message}</div>` : ''}
+		</div>
+		<button class="notification-close" aria-label="Dismiss">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+		</button>
+	`;
+
+	const closeBtn = notification.querySelector('.notification-close');
+	const dismiss = () => {
+		notification.classList.add('hiding');
+		setTimeout(() => notification.remove(), 200);
+	};
+
+	closeBtn.addEventListener('click', dismiss);
+
+	container.appendChild(notification);
+
+	if (duration > 0) {
+		setTimeout(dismiss, duration);
+	}
+
+	return notification;
+}
+
+// ===== Confirmation Dialog =====
+
+let confirmDialogResolve = null;
+
+/**
+ * Show a confirmation dialog
+ * @param {string} title - Dialog title
+ * @param {string} message - Dialog message
+ * @param {Object} options - Optional settings
+ * @param {string} options.confirmText - Confirm button text (default: 'Confirm')
+ * @param {string} options.cancelText - Cancel button text (default: 'Cancel')
+ * @param {boolean} options.destructive - If true, confirm button is red (default: true)
+ * @returns {Promise<boolean>} - Resolves to true if confirmed, false if cancelled
+ */
+function showConfirmDialog(title, message, options = {}) {
+	const {
+		confirmText = 'Confirm',
+		cancelText = 'Cancel',
+		destructive = true
+	} = options;
+
+	return new Promise((resolve) => {
+		const overlay = document.getElementById('confirmDialog');
+		const titleEl = document.getElementById('confirmDialogTitle');
+		const messageEl = document.getElementById('confirmDialogMessage');
+		const confirmBtn = document.getElementById('confirmDialogConfirm');
+		const cancelBtn = document.getElementById('confirmDialogCancel');
+
+		if (!overlay) {
+			resolve(false);
+			return;
+		}
+
+		titleEl.textContent = title;
+		messageEl.textContent = message;
+		confirmBtn.textContent = confirmText;
+		cancelBtn.textContent = cancelText;
+
+		// Set button style based on destructive flag
+		confirmBtn.classList.toggle('primary', !destructive);
+
+		confirmDialogResolve = resolve;
+		overlay.setAttribute('aria-hidden', 'false');
+
+		// Focus the cancel button for safety
+		setTimeout(() => cancelBtn.focus(), 100);
+	});
+}
+
+function closeConfirmDialog(result) {
+	const overlay = document.getElementById('confirmDialog');
+	if (overlay) {
+		overlay.setAttribute('aria-hidden', 'true');
+	}
+	if (confirmDialogResolve) {
+		confirmDialogResolve(result);
+		confirmDialogResolve = null;
+	}
+}
+
+// Set up dialog event listeners once DOM is ready
+function initConfirmDialog() {
+	const overlay = document.getElementById('confirmDialog');
+	const confirmBtn = document.getElementById('confirmDialogConfirm');
+	const cancelBtn = document.getElementById('confirmDialogCancel');
+
+	if (!overlay || !confirmBtn || !cancelBtn) return;
+
+	confirmBtn.addEventListener('click', () => closeConfirmDialog(true));
+	cancelBtn.addEventListener('click', () => closeConfirmDialog(false));
+
+	// Close on backdrop click
+	overlay.addEventListener('click', (e) => {
+		if (e.target === overlay) {
+			closeConfirmDialog(false);
+		}
+	});
+
+	// Close on Escape key
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
+			closeConfirmDialog(false);
+		}
+	});
+}
+
+// Make notification function globally available
+window.showNotification = showNotification;
+window.showConfirmDialog = showConfirmDialog;
+
+// ===== Bluetooth Compatibility Check =====
+
+/**
+ * Show a message when Web Bluetooth API is not supported
+ */
+function showBluetoothUnsupportedMessage() {
+	const welcomeDiv = document.querySelector('.layout-content.welcome');
+	if (!welcomeDiv) return;
+
+	welcomeDiv.innerHTML = `
+		<div class="bt-unsupported">
+			<div class="bt-unsupported-icon">
+				<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/>
+					<line x1="2" y1="2" x2="22" y2="22" stroke-width="2"/>
+				</svg>
+			</div>
+			<h2 class="bt-unsupported-title">Bluetooth Not Supported</h2>
+			<p class="bt-unsupported-message">
+				Your browser does not support the Web Bluetooth API, which is required to connect to Megahub devices.
+			</p>
+			<div class="bt-unsupported-browsers">
+				<h3>Supported Browsers</h3>
+				<ul>
+					<li><span class="browser-supported">Chrome</span> (Desktop & Android)</li>
+					<li><span class="browser-supported">Edge</span> (Desktop)</li>
+					<li><span class="browser-supported">Opera</span> (Desktop)</li>
+					<li><span class="browser-supported">Samsung Internet</span> (Android)</li>
+					<li><span class="browser-unsupported">Firefox</span> - Not supported</li>
+					<li><span class="browser-unsupported">Safari</span> - Not supported</li>
+				</ul>
+			</div>
+			<a href="https://caniuse.com/web-bluetooth" target="_blank" rel="noopener noreferrer" class="bt-unsupported-link">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"/>
+					<line x1="12" y1="16" x2="12" y2="12"/>
+					<line x1="12" y1="8" x2="12.01" y2="8"/>
+				</svg>
+				View browser compatibility details on caniuse.com
+			</a>
+		</div>
+	`;
+}
+
 // Functions
 
 function generateCode() {
@@ -231,12 +415,16 @@ window.Application = {
 	syntaxCheck : async function(luaCode) {
 		// clang-format off
 		if (mode === 'dev') {
-			// Dev-specific logic
+			showNotification('info', 'Syntax Check', 'Running in dev mode - no backend available');
 		} else if (mode === 'bt') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_SYNTAX_CHECK, JSON.stringify({ "luaScript": luaCode }));
 			const contentResponse = new TextDecoder().decode(response);
 			const responsejson = JSON.parse(contentResponse);
-			alert("Syntax Check Result:\nSuccess: " + responsejson.result + "\nParse Time: " + responsejson.parseTime + "ms\nError Message: " + responsejson.errorMessage);
+			if (responsejson.result) {
+				showNotification('success', 'Syntax Check Passed', `Parse time: ${responsejson.parseTime}ms`);
+			} else {
+				showNotification('error', 'Syntax Check Failed', responsejson.errorMessage || 'Unknown error');
+			}
 		} else if (mode === 'web') {
 			fetch("/syntaxcheck", {
 				method : "PUT",
@@ -247,7 +435,11 @@ window.Application = {
 			})
 			.then((response) => response.json())
 			.then((response) => {
-				alert("Syntax Check Result:\nSuccess: " + response.success + "\nParse Time: " + response.parseTime + "ms\nError Message: " + response.errorMessage);
+				if (response.success) {
+					showNotification('success', 'Syntax Check Passed', `Parse time: ${response.parseTime}ms`);
+				} else {
+					showNotification('error', 'Syntax Check Failed', response.errorMessage || 'Unknown error');
+				}
 			});
 		}
 		// clang-format on
@@ -256,13 +448,17 @@ window.Application = {
 	executeCode : async function(luaCode) {
 		// clang-format off
 		if (mode === 'dev') {
-			// Dev-specific logic
+			showNotification('info', 'Execute', 'Running in dev mode - no backend available');
 		} else if (mode === 'bt') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_RUN_PROGRAM, JSON.stringify({ "luaScript": luaCode }));
 			const contentResponse = new TextDecoder().decode(response);
 			const responsejson = JSON.parse(contentResponse);
 			uiComponents.clear();
-			alert("Syntax Check Result:\nSuccess: " + responsejson.result);
+			if (responsejson.result) {
+				showNotification('success', 'Program Started', 'Code is now running on the device');
+			} else {
+				showNotification('error', 'Execution Failed', 'Could not start program');
+			}
 		} else if (mode === 'web') {
 			fetch("/execute", {
 				method : "PUT",
@@ -274,6 +470,7 @@ window.Application = {
 			.then((response) => response.json())
 			.then((response) => {
 				uiComponents.clear();
+				showNotification('success', 'Program Started', 'Code is now running on the device');
 			});
 		}
 		// clang-format on
@@ -282,9 +479,10 @@ window.Application = {
 	stop : async function() {
 		// clang-format off
 		if (mode === 'dev') {
-			// Nothing special
+			showNotification('info', 'Stop', 'Running in dev mode - no backend available');
 		} else if (mode === 'bt') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_STOP_PROGRAM, JSON.stringify({}));
+			showNotification('success', 'Program Stopped', 'Execution has been halted');
 		} else if (mode === 'web') {
 			fetch("/stop", {
 				method : "PUT",
@@ -296,6 +494,7 @@ window.Application = {
 			.then((response) => response.json())
 			.then((response) => {
 				console.log("Stop command sent, response: " + JSON.stringify(response));
+				showNotification('success', 'Program Stopped', 'Execution has been halted');
 			});
 		}
 		// clang-format on
@@ -304,9 +503,11 @@ window.Application = {
 	requestPairing : async function(mac) {
 		// clang-format off
 		if (mode === 'dev') {
-			// Nothing special
+			showNotification('info', 'Pairing', `Dev mode - simulating pairing with ${mac}`);
 		} else if (mode === 'bt') {
+			showNotification('info', 'Pairing', `Initiating pairing with ${mac}...`);
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REQUEST_PAIRING, JSON.stringify({"mac" : mac}));
+			showNotification('success', 'Pairing Initiated', 'Check your device for pairing confirmation');
 		} else if (mode === 'web') {
 			// TODO
 		}
@@ -316,9 +517,10 @@ window.Application = {
 	requestRemovePairing : async function(mac) {
 		// clang-format off
 		if (mode === 'dev') {
-			// Nothing special
+			showNotification('info', 'Remove Pairing', `Dev mode - simulating unpairing ${mac}`);
 		} else if (mode === 'bt') {
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REMOVE_PAIRING, JSON.stringify({"mac" : mac}));
+			showNotification('success', 'Pairing Removed', `Device ${mac} has been unpaired`);
 		} else if (mode === 'web') {
 			// TODO
 		}
@@ -328,8 +530,9 @@ window.Application = {
 	startBluetoothDiscovery : async function() {
 		// clang-format off
 		if (mode === 'dev') {
-			// Nothing special
+			showNotification('info', 'Bluetooth Scan', 'Dev mode - no actual scan');
 		} else if (mode === 'bt') {
+			showNotification('info', 'Scanning', 'Searching for Bluetooth devices...');
 			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_START_DISCOVERY, JSON.stringify({}));
 		} else if (mode === 'web') {
 			// TODO
@@ -475,9 +678,19 @@ document.addEventListener('DOMContentLoaded', () => {
 	if (mode === 'bt') {
 		window.Application.setInitState();
 
-		document.getElementById("btconnect").addEventListener("click", (ev) => {
-			initBLEConnection();
-		});
+		// Check for Web Bluetooth API support
+		if (!navigator.bluetooth) {
+			// Hide the connect button and show unsupported message
+			const btconnectBtn = document.getElementById("btconnect");
+			btconnectBtn.style.display = 'none';
+
+			// Show the Bluetooth unsupported view
+			showBluetoothUnsupportedMessage();
+		} else {
+			document.getElementById("btconnect").addEventListener("click", (ev) => {
+				initBLEConnection();
+			});
+		}
 
 	} else {
 		window.Application.jumpToFilesView();
@@ -581,8 +794,19 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
-	document.getElementById("reset").addEventListener("click", () => {
-		blocklyEditor.clearWorkspace();
+	// Initialize confirmation dialog
+	initConfirmDialog();
+
+	document.getElementById("reset").addEventListener("click", async () => {
+		const confirmed = await showConfirmDialog(
+			'Reset Workspace',
+			'Are you sure you want to reset the workspace? All unsaved changes to your Blockly program will be lost.',
+			{ confirmText: 'Reset', cancelText: 'Cancel', destructive: true }
+		);
+		if (confirmed) {
+			blocklyEditor.clearWorkspace();
+			showNotification('success', 'Workspace Reset', 'All blocks have been cleared');
+		}
 	});
 
 	document.getElementById("syntaxcheck").addEventListener("click", () => {
@@ -598,9 +822,16 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 
 	// Manual save button
-	document.getElementById("save").addEventListener("click", () => {
+	document.getElementById("save").addEventListener("click", async () => {
 		if (window.Application.activeProject) {
-			saveWorkspace();
+			const success = await saveWorkspace();
+			if (success) {
+				showNotification('success', 'Saved', 'Workspace saved successfully');
+			} else {
+				showNotification('error', 'Save Failed', 'Could not save workspace');
+			}
+		} else {
+			showNotification('warning', 'No Project', 'Open or create a project first');
 		}
 	});
 
@@ -618,14 +849,14 @@ document.addEventListener('DOMContentLoaded', () => {
 					saveWorkspace();
 				}
 			}, 10000);
-			console.log("Auto-save enabled");
+			showNotification('success', 'Auto-save Enabled', 'Workspace will be saved every 10 seconds');
 		} else {
 			// Stop auto-save interval
 			if (autoSaveIntervalId) {
 				clearInterval(autoSaveIntervalId);
 				autoSaveIntervalId = null;
 			}
-			console.log("Auto-save disabled");
+			showNotification('info', 'Auto-save Disabled', 'Automatic saving has been turned off');
 		}
 	});
 });

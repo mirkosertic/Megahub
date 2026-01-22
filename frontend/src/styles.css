@@ -637,3 +637,439 @@ custom-blockly {
     padding: var(--spacing-sm) var(--spacing-lg);
   }
 }
+
+
+/* ===== Notification System ===== */
+
+.notification-container {
+  position: fixed;
+  top: calc(var(--header-height) + 12px);
+  right: 12px;
+  z-index: var(--z-tooltip);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+}
+
+/* Mobile: Center notifications */
+@media (max-width: 767px) {
+  .notification-container {
+    right: 50%;
+    transform: translateX(50%);
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Tablet and up: Position in top-right */
+@media (min-width: 768px) {
+  .notification-container {
+    max-width: 400px;
+  }
+}
+
+.notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--vscode-bg-elevated);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  color: var(--vscode-text-primary);
+  font-size: var(--font-sm);
+  line-height: var(--line-height-base);
+  pointer-events: auto;
+  animation: notificationSlideIn 0.3s ease-out;
+  max-width: 100%;
+}
+
+.notification.hiding {
+  animation: notificationSlideOut 0.2s ease-in forwards;
+}
+
+@keyframes notificationSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes notificationSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Mobile: Slide from top */
+@media (max-width: 767px) {
+  @keyframes notificationSlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(50%) translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(50%) translateY(0);
+    }
+  }
+
+  @keyframes notificationSlideOut {
+    from {
+      opacity: 1;
+      transform: translateX(50%) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(50%) translateY(-20px);
+    }
+  }
+}
+
+.notification-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--vscode-text-bright);
+  margin-bottom: 2px;
+}
+
+.notification-message {
+  color: var(--vscode-text-primary);
+  word-wrap: break-word;
+}
+
+.notification-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  margin: -4px -4px -4px 0;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+  min-height: auto;
+}
+
+.notification-close:hover {
+  background: var(--vscode-bg-input);
+  color: var(--vscode-text-bright);
+}
+
+.notification-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Notification variants */
+.notification.success {
+  border-left: 3px solid var(--color-success);
+}
+
+.notification.success .notification-icon {
+  color: var(--color-success);
+}
+
+.notification.error {
+  border-left: 3px solid var(--color-error);
+}
+
+.notification.error .notification-icon {
+  color: var(--color-error);
+}
+
+.notification.warning {
+  border-left: 3px solid var(--color-warning);
+}
+
+.notification.warning .notification-icon {
+  color: var(--color-warning);
+}
+
+.notification.info {
+  border-left: 3px solid var(--vscode-accent-blue);
+}
+
+.notification.info .notification-icon {
+  color: var(--vscode-accent-blue);
+}
+
+
+/* ===== Confirmation Dialog ===== */
+
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.confirm-dialog-overlay[aria-hidden="false"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.confirm-dialog {
+  background: var(--vscode-bg-secondary);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 400px;
+  width: 100%;
+  transform: scale(0.95);
+  transition: transform var(--transition-fast);
+}
+
+.confirm-dialog-overlay[aria-hidden="false"] .confirm-dialog {
+  transform: scale(1);
+}
+
+.confirm-dialog-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--vscode-border-light);
+}
+
+.confirm-dialog-header h3 {
+  margin: 0;
+  font-size: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--vscode-text-bright);
+}
+
+.confirm-dialog-body {
+  padding: 16px 20px;
+}
+
+.confirm-dialog-body p {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--vscode-text-primary);
+  line-height: var(--line-height-relaxed);
+}
+
+.confirm-dialog-footer {
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px 16px;
+  justify-content: flex-end;
+}
+
+.confirm-dialog-btn {
+  padding: 8px 16px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: auto;
+}
+
+.confirm-dialog-btn.cancel {
+  background: var(--vscode-bg-elevated);
+  color: var(--vscode-text-primary);
+  border: 1px solid var(--vscode-border-light);
+}
+
+.confirm-dialog-btn.cancel:hover {
+  background: var(--vscode-bg-input);
+  border-color: var(--vscode-border-medium);
+}
+
+.confirm-dialog-btn.confirm {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-bg);
+}
+
+.confirm-dialog-btn.confirm:hover {
+  background: var(--color-error-bg-hover);
+  border-color: var(--color-error);
+}
+
+/* Primary confirm variant (non-destructive) */
+.confirm-dialog-btn.confirm.primary {
+  background: var(--vscode-accent-blue-dark);
+  color: var(--vscode-text-bright);
+  border-color: var(--vscode-accent-blue-dark);
+}
+
+.confirm-dialog-btn.confirm.primary:hover {
+  background: var(--vscode-accent-blue-hover);
+  border-color: var(--vscode-accent-blue);
+}
+
+/* Mobile: Full-width buttons */
+@media (max-width: 480px) {
+  .confirm-dialog-footer {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-dialog-btn {
+    width: 100%;
+    min-height: var(--button-height-mobile);
+  }
+}
+
+
+/* ===== Bluetooth Unsupported Message ===== */
+
+.bt-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 480px;
+  padding: var(--spacing-xl);
+}
+
+.bt-unsupported-icon {
+  color: var(--color-warning);
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.9;
+}
+
+.bt-unsupported-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--vscode-text-bright);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.bt-unsupported-message {
+  font-size: var(--font-sm);
+  color: var(--vscode-text-primary);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--spacing-xl) 0;
+}
+
+.bt-unsupported-browsers {
+  background: var(--vscode-bg-secondary);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  width: 100%;
+  margin-bottom: var(--spacing-xl);
+}
+
+.bt-unsupported-browsers h3 {
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--vscode-text-bright);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.bt-unsupported-browsers ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.bt-unsupported-browsers li {
+  font-size: var(--font-sm);
+  color: var(--vscode-text-primary);
+  padding: var(--spacing-xs) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.bt-unsupported-browsers li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vscode-text-tertiary);
+  flex-shrink: 0;
+}
+
+.browser-supported {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.browser-unsupported {
+  color: var(--vscode-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.bt-unsupported-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--vscode-text-link);
+  text-decoration: none;
+  font-size: var(--font-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.bt-unsupported-link:hover {
+  background: var(--vscode-bg-elevated);
+  color: var(--vscode-accent-blue);
+}
+
+.bt-unsupported-link svg {
+  flex-shrink: 0;
+}
+
+/* Tablet and up: Larger icon */
+@media (min-width: 768px) {
+  .bt-unsupported-icon svg {
+    width: 80px;
+    height: 80px;
+  }
+
+  .bt-unsupported-title {
+    font-size: var(--font-xl);
+  }
+
+  .bt-unsupported-message {
+    font-size: var(--font-base);
+  }
+}

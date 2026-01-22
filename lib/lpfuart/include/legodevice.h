@@ -35,8 +35,6 @@ public:
 	bool isInDataMode();
 	void switchToDataMode();
 
-	void setM1(bool status);
-	void setM2(bool status);
 	void setMotorSpeed(int speed);
 
 	void setPinMode(int pin, int mode);
