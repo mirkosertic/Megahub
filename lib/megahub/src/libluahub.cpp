@@ -1,10 +1,15 @@
 #include "megahub.h"
 
+#include "commands.h"
+#include <ArduinoJson.h>
+
 struct HubThreadParams {
 	lua_State *mainstate;
 	lua_State *threadstate;
 	int function_ref_index;
 	Megahub *hub;
+	String blockId;
+	bool profiling;
 };
 
 extern Megahub *getMegaHubRef(lua_State *L);
@@ -15,6 +20,18 @@ void hub_thread_task(void *parameters) {
 
 	lua_State *threadState = params->threadstate;
 	INFO("Starting thread task");
+
+	// Statistics variables (in microseconds)
+	unsigned long minDuration = ULONG_MAX;
+	unsigned long maxDuration = 0;
+	double avgDuration = 0.0;
+	const double alpha = 0.01;  // Smoothing factor for exponential moving average
+	bool firstIteration = true;
+
+	// Timer for periodic operations (every 10 seconds)
+	unsigned long lastPeriodicOp = millis();
+	const unsigned long periodicInterval = 10000;  // 10 seconds in milliseconds
+
 	while (true) {
 
 		unsigned long start = micros();
@@ -43,12 +60,50 @@ void hub_thread_task(void *parameters) {
 			break;
 		}
 
-		// TODO: Implement better statistics here		
-		long duration = micros() - start;
+		// Compute iteration duration and update statistics
+		unsigned long duration = micros() - start;
+
+		if (duration < minDuration) {
+			minDuration = duration;
+		}
+		if (duration > maxDuration) {
+			maxDuration = duration;
+		}
+
+		// Exponential moving average (no counter needed, avoids overflow)
+		if (firstIteration) {
+			avgDuration = (double) duration;
+			firstIteration = false;
+		} else {
+			avgDuration = alpha * (double) duration + (1.0 - alpha) * avgDuration;
+		}
+
+		if (params->profiling) {
+			// Periodic operation every 10 seconds in case of profiling is enabled
+			unsigned long now = millis();
+			if (now - lastPeriodicOp >= periodicInterval) {
+				lastPeriodicOp = now;
+
+				JsonDocument doc;
+				doc["type"] = "thread_statistics";
+				doc["blockid"] = params->blockId;
+				doc["min"] = minDuration;
+				doc["max"] = maxDuration;
+				doc["avg"] = avgDuration;
+
+				String strCommand;
+				serializeJson(doc, strCommand);
+
+				// Enqueue command
+				Commands::instance()->queue(strCommand);
+			}
+		}
 
 		// Give the scheduler some time - this could also be done by including a wait() call into the Lua script....
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
+
+	INFO("Thread stats - min: %lu µs, max: %lu µs, avg: %.2f µs", minDuration, maxDuration, avgDuration);
 
 	lua_closethread(threadState, params->mainstate);
 	delete params;
@@ -59,8 +114,11 @@ void hub_thread_task(void *parameters) {
 int hub_startthread(lua_State *luaState) {
 
 	String threadName = lua_tostring(luaState, 1);
-	int stackSize = lua_tointeger(luaState, 2);
-	luaL_checktype(luaState, 3, LUA_TFUNCTION);
+	String blockId = lua_tostring(luaState, 2);
+	int stackSize = lua_tointeger(luaState, 3);	
+	bool profiling = lua_toboolean(luaState, 4);
+
+	luaL_checktype(luaState, 5, LUA_TFUNCTION);
 
 	Megahub *hub = getMegaHubRef(luaState);
 
@@ -70,6 +128,8 @@ int hub_startthread(lua_State *luaState) {
 	params->function_ref_index = luaL_ref(luaState, LUA_REGISTRYINDEX);
 	params->threadstate = lua_newthread(luaState);
 	params->hub = hub;
+	params->blockId = blockId;
+	params->profiling = profiling;
 
 	INFO("Starting thread %s with stack size %d", threadName.c_str(), stackSize);
 

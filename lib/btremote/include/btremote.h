@@ -21,7 +21,10 @@ enum class ProtocolMessageType : uint8_t {
 	REQUEST = 0x01,
 	RESPONSE = 0x02,
 	EVENT = 0x03,
-	CONTROL = 0x04
+	CONTROL = 0x04,
+	STREAM_DATA = 0x05,
+	STREAM_START = 0x06,
+	STREAM_END = 0x07
 };
 
 enum class ControlMessageType : uint8_t {
@@ -30,13 +33,39 @@ enum class ControlMessageType : uint8_t {
 	RETRY = 0x03,
 	BUFFER_FULL = 0x04,
 	RESET = 0x05,
-	MTU_INFO = 0x06
+	MTU_INFO = 0x06,
+	STREAM_ACK = 0x07,
+	STREAM_ERROR = 0x09
 };
 
 const size_t FRAGMENT_HEADER_SIZE = 5;
 const size_t MAX_BUFFER_SIZE = 65536;
 const uint32_t FRAGMENT_TIMEOUT_MS = 50000;
 const size_t MAX_CONCURRENT_MESSAGES = 3;
+
+// Streaming file transfer constants
+const size_t MAX_CONCURRENT_STREAMS = 2;
+const uint32_t STREAM_TIMEOUT_MS = 60000;
+
+// Stream state machine for file transfers
+enum class StreamState : uint8_t {
+	IDLE = 0,
+	RECEIVING = 1,
+	ERROR = 2
+};
+
+// Active stream tracking for streaming file uploads
+struct ActiveStreamTransfer {
+	uint8_t streamId;
+	StreamState state;
+	String projectId;
+	String filename;
+	uint32_t totalSize;
+	uint32_t bytesReceived;
+	uint16_t expectedChunks;
+	uint16_t receivedChunks;
+	uint32_t lastActivityTime;
+};
 
 struct FragmentBuffer {
 	std::vector<uint8_t> data;
@@ -169,6 +198,10 @@ private:
 	QueueHandle_t hidEventQueue_;
 	TaskHandle_t hidEventTaskHandle_;
 
+	// Streaming file transfer state
+	std::map<uint8_t, ActiveStreamTransfer> activeStreams_;
+	SemaphoreHandle_t streamsMutex_;
+
 	void handleFragment(const uint8_t *data, size_t length);
 	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data);
 	void handleControlMessage(const uint8_t *data, size_t length);
@@ -206,6 +239,14 @@ private:
 	void handleGattsAddChar(esp_ble_gatts_cb_param_t *param);
 	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param);
 	void handleGattsConfirm(esp_ble_gatts_cb_param_t *param);
+
+	// Streaming file transfer handlers
+	void handleStreamStart(const uint8_t *data, size_t length);
+	void handleStreamData(const uint8_t *data, size_t length);
+	void handleStreamEnd(const uint8_t *data, size_t length);
+	void sendStreamAck(uint8_t streamId, uint16_t chunkIndex);
+	void sendStreamError(uint8_t streamId, uint8_t errorCode);
+	void cleanupTimedOutStreams();
 
 	// Bluetooth Classic GAP Event Handlers
 	void handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param);

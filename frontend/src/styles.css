@@ -1073,3 +1073,13 @@ custom-blockly {
     font-size: var(--font-base);
   }
 }
+
+/* Blockly profiling */
+.profile-overlay {
+  pointer-events: none;  /* Don't interfere with block interaction */
+  z-index: 1000 !important;
+}
+
+.profile-overlay text {
+  user-select: none;
+}

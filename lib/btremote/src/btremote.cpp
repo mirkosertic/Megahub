@@ -204,7 +204,10 @@ inline bool parseJsonFromVector(const std::vector<uint8_t> &buffer, Func fn) {
 enum class MessageProcessorItemType : uint8_t {
 	INCOMING_REQUEST,
 	FILE_TRANSFER,
-	MTU_NOTIFICATION
+	MTU_NOTIFICATION,
+	STREAM_START,
+	STREAM_DATA,
+	STREAM_END
 };
 
 struct PendingFileTransfer {
@@ -217,6 +220,28 @@ struct IncomingRequest {
 	ProtocolMessageType protocolType;
 	uint8_t messageId;
 	std::vector<uint8_t> data;
+};
+
+// Stream operation data structures (queued for task processing to avoid blocking BLE callback)
+struct StreamStartData {
+	uint8_t streamId;
+	uint32_t totalSize;
+	uint16_t chunkCount;
+	uint8_t flags;
+	String projectId;
+	String filename;
+};
+
+struct StreamChunkData {
+	uint8_t streamId;
+	uint16_t chunkIndex;
+	uint8_t flags;
+	std::vector<uint8_t> payload;
+};
+
+struct StreamEndData {
+	uint8_t streamId;
+	uint32_t reportedBytes;
 };
 
 // CRITICAL: Trivially copyable (no destructor) - FreeRTOS queues use memcpy() which bypasses
@@ -249,6 +274,30 @@ struct MessageProcessorItem {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::MTU_NOTIFICATION;
 		item.dataPtr = nullptr; // No allocation, no cleanup needed
+		return item;
+	}
+
+	static MessageProcessorItem createStreamStart(uint8_t streamId, uint32_t totalSize, uint16_t chunkCount,
+		uint8_t flags, const String &projectId, const String &filename) {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::STREAM_START;
+		item.dataPtr = new StreamStartData {streamId, totalSize, chunkCount, flags, projectId, filename};
+		return item;
+	}
+
+	static MessageProcessorItem createStreamData(uint8_t streamId, uint16_t chunkIndex, uint8_t flags,
+		const uint8_t *payload, size_t payloadLen) {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::STREAM_DATA;
+		item.dataPtr = new StreamChunkData {streamId, chunkIndex, flags,
+			std::vector<uint8_t>(payload, payload + payloadLen)};
+		return item;
+	}
+
+	static MessageProcessorItem createStreamEnd(uint8_t streamId, uint32_t reportedBytes) {
+		MessageProcessorItem item;
+		item.type = MessageProcessorItemType::STREAM_END;
+		item.dataPtr = new StreamEndData {streamId, reportedBytes};
 		return item;
 	}
 };
@@ -286,13 +335,15 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 	, pairingInProgress_(false)
 	, hidDevicesMutex_(nullptr)
 	, hidEventQueue_(nullptr)
-	, hidEventTaskHandle_(nullptr) {
+	, hidEventTaskHandle_(nullptr)
+	, streamsMutex_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
 	responseQueue_ = xQueueCreate(10, sizeof(MessageProcessorItem));
 	fragmentBuffersMutex_ = xSemaphoreCreateMutex();
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
 	hidDevicesMutex_ = xSemaphoreCreateMutex();
+	streamsMutex_ = xSemaphoreCreateMutex();
 
 	// Create HID event queue (10 items max)
 	hidEventQueue_ = xQueueCreate(10, sizeof(HIDEventItem));
@@ -505,6 +556,19 @@ void BTRemote::begin(const char *deviceName) {
 
 void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	ProtocolMessageType protocolType = (ProtocolMessageType) data[0];
+
+	// Route streaming protocol messages to dedicated handlers (bypass fragment reassembly)
+	if (protocolType == ProtocolMessageType::STREAM_START) {
+		handleStreamStart(data, length);
+		return;
+	} else if (protocolType == ProtocolMessageType::STREAM_DATA) {
+		handleStreamData(data, length);
+		return;
+	} else if (protocolType == ProtocolMessageType::STREAM_END) {
+		handleStreamEnd(data, length);
+		return;
+	}
+
 	uint8_t messageId = data[1];
 	uint16_t fragmentNum = (data[2] << 8) | data[3];
 	uint8_t flags = data[4];
@@ -644,6 +708,160 @@ void BTRemote::handleControlMessage(const uint8_t *data, size_t length) {
 			break;
 	}
 }
+
+// ============================================================================
+// Streaming File Transfer Handlers
+// ============================================================================
+
+void BTRemote::handleStreamStart(const uint8_t *data, size_t length) {
+	// Minimum header: ProtocolType(1) + StreamId(1) + TotalSize(4) + ChunkCount(2) + Flags(1) = 9 bytes
+	if (length < 9) {
+		WARN("STREAM_START too short: %d bytes", length);
+		sendStreamError(0, 0x01);
+		return;
+	}
+
+	uint8_t streamId = data[1];
+	uint32_t totalSize = data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24);
+	uint16_t chunkCount = data[6] | (data[7] << 8);
+	uint8_t flags = data[8];
+
+	// Parse metadata JSON (starts at byte 9) - fast operation, OK in callback
+	const char *metadataJson = (const char *) &data[9];
+	size_t metadataLen = length - 9;
+
+	JsonDocument metaDoc;
+	DeserializationError err = deserializeJson(metaDoc, metadataJson, metadataLen);
+	if (err) {
+		WARN("STREAM_START invalid metadata JSON: %s", err.c_str());
+		sendStreamError(streamId, 0x02);
+		return;
+	}
+
+	String projectId = metaDoc["project"].as<String>();
+	String filename = metaDoc["filename"].as<String>();
+
+	if (projectId.isEmpty() || filename.isEmpty()) {
+		WARN("STREAM_START missing project or filename");
+		sendStreamError(streamId, 0x02);
+		return;
+	}
+
+	DEBUG("STREAM_START received: id=%d, project=%s, file=%s, size=%d, chunks=%d - queueing for processing",
+		streamId, projectId.c_str(), filename.c_str(), totalSize, chunkCount);
+
+	// Queue for task processing to avoid blocking BLE callback
+	MessageProcessorItem item = MessageProcessorItem::createStreamStart(
+		streamId, totalSize, chunkCount, flags, projectId, filename);
+
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("STREAM_START queue full, dropping");
+		delete static_cast<StreamStartData *>(item.dataPtr);
+		sendStreamError(streamId, 0x04);
+	}
+}
+
+void BTRemote::handleStreamData(const uint8_t *data, size_t length) {
+	// Header: ProtocolType(1) + StreamId(1) + ChunkIndex(2) + Flags(1) = 5 bytes
+	if (length < 5) {
+		return;
+	}
+
+	uint8_t streamId = data[1];
+	uint16_t chunkIndex = data[2] | (data[3] << 8);
+	uint8_t flags = data[4];
+
+	const uint8_t *payload = data + 5;
+	size_t payloadLen = length - 5;
+
+	// Queue for task processing - SD card I/O must NOT block BLE callback
+	MessageProcessorItem item = MessageProcessorItem::createStreamData(
+		streamId, chunkIndex, flags, payload, payloadLen);
+
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("STREAM_DATA queue full, dropping chunk %d for stream %d", chunkIndex, streamId);
+		delete static_cast<StreamChunkData *>(item.dataPtr);
+		// Don't send error here - client will timeout and retry
+	}
+}
+
+void BTRemote::handleStreamEnd(const uint8_t *data, size_t length) {
+	// Header: ProtocolType(1) + StreamId(1) + BytesWritten(4) = 6 bytes
+	if (length < 6) {
+		return;
+	}
+
+	uint8_t streamId = data[1];
+	uint32_t reportedBytes = data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24);
+
+	// Queue for task processing for consistency with other stream operations
+	MessageProcessorItem item = MessageProcessorItem::createStreamEnd(streamId, reportedBytes);
+
+	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
+		WARN("STREAM_END queue full for stream %d", streamId);
+		delete static_cast<StreamEndData *>(item.dataPtr);
+	}
+}
+
+void BTRemote::sendStreamAck(uint8_t streamId, uint16_t chunkIndex) {
+	if (!deviceConnected_) {
+		return;
+	}
+
+	// STREAM_ACK format: ControlType(1) + StreamId(1) + ChunkIndex(2) = 4 bytes
+	uint8_t ackData[4];
+	ackData[0] = (uint8_t) ControlMessageType::STREAM_ACK;
+	ackData[1] = streamId;
+	ackData[2] = chunkIndex & 0xFF;
+	ackData[3] = (chunkIndex >> 8) & 0xFF;
+
+	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+		handles_.control_char_value_handle, sizeof(ackData), ackData, false);
+}
+
+void BTRemote::sendStreamError(uint8_t streamId, uint8_t errorCode) {
+	if (!deviceConnected_) {
+		return;
+	}
+
+	// STREAM_ERROR format: ControlType(1) + StreamId(1) + ErrorCode(1) = 3 bytes
+	uint8_t errData[3];
+	errData[0] = (uint8_t) ControlMessageType::STREAM_ERROR;
+	errData[1] = streamId;
+	errData[2] = errorCode;
+
+	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
+		handles_.control_char_value_handle, sizeof(errData), errData, false);
+
+	WARN("Stream %d error sent: code=0x%02X", streamId, errorCode);
+}
+
+void BTRemote::cleanupTimedOutStreams() {
+	if (xSemaphoreTake(streamsMutex_, pdMS_TO_TICKS(50)) != pdTRUE) {
+		return;
+	}
+
+	uint32_t now = millis();
+	std::vector<uint8_t> toRemove;
+
+	for (auto &pair : activeStreams_) {
+		if (now - pair.second.lastActivityTime > STREAM_TIMEOUT_MS) {
+			// Note: Incomplete file remains on SD card but will be overwritten on next upload
+			// (writeFileChunkToProject with position=0 truncates existing file)
+			WARN("Stream %d timed out (%s/%s), cleaning up",
+				pair.first, pair.second.projectId.c_str(), pair.second.filename.c_str());
+			toRemove.push_back(pair.first);
+		}
+	}
+
+	for (uint8_t id : toRemove) {
+		activeStreams_.erase(id);
+	}
+
+	xSemaphoreGive(streamsMutex_);
+}
+
+// ============================================================================
 
 bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider) {
 	if (!deviceConnected_) {
@@ -840,6 +1058,13 @@ void BTRemote::loop() {
 		}
 		xSemaphoreGive(fragmentBuffersMutex_);
 	}
+
+	// Streaming file transfer timeout cleanup (every 10 seconds)
+	static uint32_t lastStreamCleanup = 0;
+	if (now - lastStreamCleanup > 10000) {
+		cleanupTimedOutStreams();
+		lastStreamCleanup = now;
+	}
 }
 
 bool BTRemote::isConnected() const {
@@ -1008,6 +1233,124 @@ void BTRemote::processMessageQueue() {
 		} else if (item.type == MessageProcessorItemType::MTU_NOTIFICATION) {
 			DEBUG("Processing MTU notification from task context");
 			sendMTUNotification();
+
+		} else if (item.type == MessageProcessorItemType::STREAM_START) {
+			StreamStartData *startData = static_cast<StreamStartData *>(item.dataPtr);
+			DEBUG("Processing STREAM_START: id=%d, project=%s, file=%s",
+				startData->streamId, startData->projectId.c_str(), startData->filename.c_str());
+
+			if (xSemaphoreTake(streamsMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+				// Check concurrent stream limit
+				if (activeStreams_.size() >= MAX_CONCURRENT_STREAMS) {
+					xSemaphoreGive(streamsMutex_);
+					WARN("STREAM_START max concurrent streams reached");
+					sendStreamError(startData->streamId, 0x04);
+				} else {
+					// Initialize stream state
+					ActiveStreamTransfer stream;
+					stream.streamId = startData->streamId;
+					stream.state = StreamState::RECEIVING;
+					stream.projectId = startData->projectId;
+					stream.filename = startData->filename;
+					stream.totalSize = startData->totalSize;
+					stream.bytesReceived = 0;
+					stream.expectedChunks = startData->chunkCount;
+					stream.receivedChunks = 0;
+					stream.lastActivityTime = millis();
+
+					activeStreams_[startData->streamId] = std::move(stream);
+					xSemaphoreGive(streamsMutex_);
+
+					// Send ACK for stream start (0xFFFF indicates start ACK)
+					sendStreamAck(startData->streamId, 0xFFFF);
+					INFO("Stream %d started: %s/%s (%d bytes expected)",
+						startData->streamId, startData->projectId.c_str(),
+						startData->filename.c_str(), startData->totalSize);
+				}
+			} else {
+				WARN("STREAM_START failed to take streamsMutex_");
+				sendStreamError(startData->streamId, 0x03);
+			}
+
+			delete startData;
+
+		} else if (item.type == MessageProcessorItemType::STREAM_DATA) {
+			StreamChunkData *chunkData = static_cast<StreamChunkData *>(item.dataPtr);
+
+			if (xSemaphoreTake(streamsMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+				auto it = activeStreams_.find(chunkData->streamId);
+				if (it == activeStreams_.end()) {
+					xSemaphoreGive(streamsMutex_);
+					WARN("STREAM_DATA unknown stream ID: %d", chunkData->streamId);
+					sendStreamError(chunkData->streamId, 0x06);
+				} else {
+					ActiveStreamTransfer &stream = it->second;
+					stream.lastActivityTime = millis();
+
+					// SD card I/O - safe in task context
+					bool success = configuration_->writeFileChunkToProject(
+						stream.projectId,
+						stream.filename,
+						stream.bytesReceived,
+						(uint8_t *) chunkData->payload.data(),
+						chunkData->payload.size()
+					);
+
+					if (!success) {
+						stream.state = StreamState::ERROR;
+						xSemaphoreGive(streamsMutex_);
+						WARN("STREAM_DATA writeFileChunkToProject failed for stream %d", chunkData->streamId);
+						sendStreamError(chunkData->streamId, 0x07);
+					} else {
+						stream.bytesReceived += chunkData->payload.size();
+						stream.receivedChunks++;
+						xSemaphoreGive(streamsMutex_);
+
+						// Send ACK for this chunk
+						sendStreamAck(chunkData->streamId, chunkData->chunkIndex);
+
+						if (chunkData->flags & 0x01) {
+							DEBUG("Stream %d: last chunk received, waiting for STREAM_END", chunkData->streamId);
+						}
+					}
+				}
+			} else {
+				WARN("STREAM_DATA failed to take streamsMutex_");
+			}
+
+			delete chunkData;
+
+		} else if (item.type == MessageProcessorItemType::STREAM_END) {
+			StreamEndData *endData = static_cast<StreamEndData *>(item.dataPtr);
+
+			if (xSemaphoreTake(streamsMutex_, portMAX_DELAY) == pdTRUE) {
+				auto it = activeStreams_.find(endData->streamId);
+				if (it == activeStreams_.end()) {
+					xSemaphoreGive(streamsMutex_);
+					WARN("STREAM_END unknown stream ID: %d", endData->streamId);
+				} else {
+					ActiveStreamTransfer &stream = it->second;
+
+					// Verify bytes received match
+					if (stream.bytesReceived != endData->reportedBytes) {
+						WARN("Stream %d: byte mismatch! Expected %d, received %d",
+							endData->streamId, endData->reportedBytes, stream.bytesReceived);
+					}
+
+					INFO("Stream %d complete: %s/%s (%d bytes written)",
+						endData->streamId, stream.projectId.c_str(),
+						stream.filename.c_str(), stream.bytesReceived);
+
+					// Clean up
+					activeStreams_.erase(it);
+					xSemaphoreGive(streamsMutex_);
+
+					// Send completion ACK (0xFFFE indicates completion)
+					sendStreamAck(endData->streamId, 0xFFFE);
+				}
+			}
+
+			delete endData;
 		}
 	}
 

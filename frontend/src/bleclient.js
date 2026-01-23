@@ -15,7 +15,10 @@ const ProtocolMessageType = {
 	REQUEST : 0x01,
 	RESPONSE : 0x02,
 	EVENT : 0x03,
-	CONTROL : 0x04
+	CONTROL : 0x04,
+	STREAM_DATA : 0x05,
+	STREAM_START : 0x06,
+	STREAM_END : 0x07
 };
 
 // Control Message Types (INTERNAL - for control channel)
@@ -26,7 +29,9 @@ const ControlMessageType = {
 	BUFFER_FULL : 0x04,
 	RESET : 0x05,
 	MTU_INFO : 0x06,
-	REQUEST_MTU_INFO : 0x07
+	REQUEST_MTU_INFO : 0x07,
+	STREAM_ACK : 0x07,
+	STREAM_ERROR : 0x09
 };
 
 // Fragment Flags (INTERNAL)
@@ -69,6 +74,9 @@ export class BLEClient {
 
 		// Disconnect listener
 		this.onDisconnectCallback = null;
+
+		// Streaming file transfer state
+		this.activeStreams = new Map();
 	}
 
 	// Logging helpers
@@ -458,8 +466,90 @@ export class BLEClient {
 				this.fragmentBuffers.clear();
 				break;
 
+			case ControlMessageType.STREAM_ACK:
+				if (dataView.byteLength >= 4) {
+					const streamId = dataView.getUint8(1);
+					const chunkIndex = dataView.getUint16(2, true); // little-endian
+					this.handleStreamAck(streamId, chunkIndex);
+				}
+				break;
+
+			case ControlMessageType.STREAM_ERROR:
+				if (dataView.byteLength >= 3) {
+					const streamId = dataView.getUint8(1);
+					const errorCode = dataView.getUint8(2);
+					this.handleStreamError(streamId, errorCode);
+				}
+				break;
+
 			default:
 				this.logWarn(`Unknown control message type: ${ctrlType}`);
+		}
+	}
+
+	/**
+	 * Handle stream ACK (INTERNAL)
+	 * @param {number} streamId
+	 * @param {number} chunkIndex - 0xFFFF = start ACK, 0xFFFE = completion ACK
+	 */
+	handleStreamAck(streamId, chunkIndex) {
+		const stream = this.activeStreams.get(streamId);
+		if (!stream) {
+			this.logWarn(`STREAM_ACK for unknown stream ${streamId}`);
+			return;
+		}
+
+		if (chunkIndex === 0xFFFF) {
+			this.logVerbose(`Stream ${streamId} start acknowledged`);
+			stream.startAcked = true;
+			if (stream.startResolve) {
+				stream.startResolve();
+			}
+		} else if (chunkIndex === 0xFFFE) {
+			this.logInfo(`Stream ${streamId} complete`);
+			stream.complete = true;
+			if (stream.completeResolve) {
+				stream.completeResolve();
+			}
+		} else {
+			stream.ackedChunks.add(chunkIndex);
+			stream.lastAckedChunk = chunkIndex;
+			if (stream.onProgress) {
+				const bytesAcked = Math.min((chunkIndex + 1) * stream.chunkPayloadSize, stream.totalSize);
+				stream.onProgress(bytesAcked, stream.totalSize);
+			}
+		}
+	}
+
+	/**
+	 * Handle stream error (INTERNAL)
+	 * @param {number} streamId
+	 * @param {number} errorCode
+	 */
+	handleStreamError(streamId, errorCode) {
+		const stream = this.activeStreams.get(streamId);
+		if (!stream) {
+			this.logWarn(`STREAM_ERROR for unknown stream ${streamId}`);
+			return;
+		}
+
+		const errorMessages = {
+			0x01: 'Invalid header',
+			0x02: 'Invalid metadata',
+			0x03: 'Mutex error',
+			0x04: 'Too many concurrent streams',
+			0x05: 'Cannot create file',
+			0x06: 'Unknown stream',
+			0x07: 'SD write failed',
+			0x08: 'Timeout'
+		};
+
+		const message = errorMessages[errorCode] || `Unknown error (0x${errorCode.toString(16)})`;
+		this.logError(`Stream ${streamId} error: ${message}`);
+
+		stream.error = new Error(`Stream error: ${message}`);
+		if (stream.errorReject) {
+			stream.errorReject(stream.error);
 		}
 	}
 
@@ -630,6 +720,193 @@ export class BLEClient {
 	async sendControlMessage(ctrlType, messageId) {
 		const data = new Uint8Array([ ctrlType, messageId ]);
 		await this.controlChar.writeValue(data);
+	}
+
+	/**
+	 * Upload file using streaming binary protocol (memory-efficient)
+	 * @param {string} projectId - Project identifier
+	 * @param {string} filename - Target filename
+	 * @param {ArrayBuffer|Uint8Array|string} content - File content
+	 * @param {function} onProgress - Progress callback (bytesUploaded, totalBytes)
+	 * @returns {Promise<boolean>} - Success status
+	 */
+	async uploadFileStreaming(projectId, filename, content, onProgress = null) {
+		if (!this.connected) {
+			throw new Error('Not connected');
+		}
+
+		// Convert content to Uint8Array
+		let data;
+		if (typeof content === 'string') {
+			data = new TextEncoder().encode(content);
+		} else if (content instanceof ArrayBuffer) {
+			data = new Uint8Array(content);
+		} else {
+			data = content;
+		}
+
+		const streamId = this.currentMessageId++ & 0xFF;
+		const totalSize = data.length;
+		const chunkPayloadSize = this.mtu - 5; // 5-byte header for STREAM_DATA
+		const chunkCount = Math.ceil(totalSize / chunkPayloadSize) || 1;
+
+		this.logInfo(`Starting streaming upload: stream=${streamId}, file=${filename}, size=${totalSize}, chunks=${chunkCount}`);
+
+		// Initialize stream state
+		const streamState = {
+			streamId: streamId,
+			totalSize: totalSize,
+			chunkPayloadSize: chunkPayloadSize,
+			ackedChunks: new Set(),
+			lastAckedChunk: -1,
+			startAcked: false,
+			complete: false,
+			error: null,
+			onProgress: onProgress,
+			startResolve: null,
+			completeResolve: null,
+			errorReject: null
+		};
+		this.activeStreams.set(streamId, streamState);
+
+		try {
+			// 1. Send STREAM_START
+			const metadata = JSON.stringify({ project: projectId, filename: filename });
+			const metadataBytes = new TextEncoder().encode(metadata);
+			const startPacket = new Uint8Array(9 + metadataBytes.length);
+			startPacket[0] = ProtocolMessageType.STREAM_START;
+			startPacket[1] = streamId;
+			// Total size (little-endian uint32)
+			startPacket[2] = totalSize & 0xFF;
+			startPacket[3] = (totalSize >> 8) & 0xFF;
+			startPacket[4] = (totalSize >> 16) & 0xFF;
+			startPacket[5] = (totalSize >> 24) & 0xFF;
+			// Chunk count (little-endian uint16)
+			startPacket[6] = chunkCount & 0xFF;
+			startPacket[7] = (chunkCount >> 8) & 0xFF;
+			startPacket[8] = 0x01; // Flags: overwrite
+			startPacket.set(metadataBytes, 9);
+
+			await this.requestChar.writeValueWithResponse(startPacket);
+			this.logVerbose(`Stream ${streamId}: STREAM_START sent`);
+
+			// Wait for start ACK
+			await this.waitForStreamEvent(streamState, 'start', 5000);
+			this.logVerbose(`Stream ${streamId}: Start acknowledged`);
+
+			// 2. Send STREAM_DATA chunks
+			for (let i = 0; i < chunkCount; i++) {
+				if (streamState.error) {
+					throw streamState.error;
+				}
+
+				const start = i * chunkPayloadSize;
+				const end = Math.min(start + chunkPayloadSize, totalSize);
+				const chunkData = data.slice(start, end);
+				const isLast = (i === chunkCount - 1);
+
+				const dataPacket = new Uint8Array(5 + chunkData.length);
+				dataPacket[0] = ProtocolMessageType.STREAM_DATA;
+				dataPacket[1] = streamId;
+				dataPacket[2] = i & 0xFF;
+				dataPacket[3] = (i >> 8) & 0xFF;
+				dataPacket[4] = isLast ? 0x01 : 0x00;
+				dataPacket.set(chunkData, 5);
+
+				await this.requestChar.writeValueWithResponse(dataPacket);
+
+				// Flow control: wait every 10 chunks if we're getting too far ahead
+				if (i % 10 === 9 && i < chunkCount - 1) {
+					const targetAck = Math.max(0, i - 5);
+					try {
+						await this.waitForCondition(
+							() => streamState.lastAckedChunk >= targetAck || streamState.error,
+							2000
+						);
+					} catch (e) {
+						// Timeout on flow control is a warning, not an error
+						this.logWarn(`Stream ${streamId}: Flow control timeout, continuing...`);
+					}
+				}
+
+				if (streamState.error) {
+					throw streamState.error;
+				}
+			}
+
+			this.logVerbose(`Stream ${streamId}: All chunks sent`);
+
+			// 3. Send STREAM_END
+			const endPacket = new Uint8Array(6);
+			endPacket[0] = ProtocolMessageType.STREAM_END;
+			endPacket[1] = streamId;
+			endPacket[2] = totalSize & 0xFF;
+			endPacket[3] = (totalSize >> 8) & 0xFF;
+			endPacket[4] = (totalSize >> 16) & 0xFF;
+			endPacket[5] = (totalSize >> 24) & 0xFF;
+
+			await this.requestChar.writeValueWithResponse(endPacket);
+			this.logVerbose(`Stream ${streamId}: STREAM_END sent`);
+
+			// Wait for completion ACK
+			await this.waitForStreamEvent(streamState, 'complete', 5000);
+
+			this.logInfo(`Stream ${streamId} completed successfully`);
+			return true;
+
+		} catch (error) {
+			this.logError(`Stream ${streamId} failed:`, error);
+			throw error;
+		} finally {
+			this.activeStreams.delete(streamId);
+		}
+	}
+
+	/**
+	 * Wait for a stream event (start ACK, completion, or error)
+	 * @param {object} streamState
+	 * @param {string} eventType - 'start' or 'complete'
+	 * @param {number} timeoutMs
+	 */
+	async waitForStreamEvent(streamState, eventType, timeoutMs) {
+		return new Promise((resolve, reject) => {
+			// Set up error rejection
+			streamState.errorReject = reject;
+
+			if (eventType === 'start') {
+				if (streamState.startAcked) {
+					resolve();
+					return;
+				}
+				streamState.startResolve = resolve;
+			} else if (eventType === 'complete') {
+				if (streamState.complete) {
+					resolve();
+					return;
+				}
+				streamState.completeResolve = resolve;
+			}
+
+			// Timeout
+			setTimeout(() => {
+				reject(new Error(`Stream ${eventType} timeout (${timeoutMs}ms)`));
+			}, timeoutMs);
+		});
+	}
+
+	/**
+	 * Wait for a condition to become true
+	 * @param {function} condition - Function that returns boolean
+	 * @param {number} timeoutMs
+	 */
+	async waitForCondition(condition, timeoutMs) {
+		const startTime = Date.now();
+		while (!condition()) {
+			if (Date.now() - startTime > timeoutMs) {
+				throw new Error('Condition timeout');
+			}
+			await this.sleep(50);
+		}
 	}
 
 	/**

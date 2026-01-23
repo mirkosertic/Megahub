@@ -16,7 +16,7 @@ export const definition = {
 	},
 	blockdefinition : {
         "type" : "mh_startthread",
-        "message0" : "Start thread %1 with stacksize %2 and do %3",
+        "message0" : "Start thread %1 with stacksize %2 and profiling %3 and do %4",
         "args0" : [
 			{
 				"type" : "field_input",
@@ -27,6 +27,11 @@ export const definition = {
 				"type": "input_value",
 				"name": "STACKSIZE",
 				"check": "Number",
+			},
+			{
+				"type": "field_checkbox",
+				"name": "PROFILING",
+				"checked": true
 			},
 			{
 				"type" : "input_statement",
@@ -43,13 +48,14 @@ export const definition = {
 	generator : (block, generator) => {
 		const name = block.getFieldValue('NAME');
 		const stackSize = generator.valueToCode(block, 'STACKSIZE', 0);
+		const profiling = block.getFieldValue('PROFILING') === "TRUE" ? true : false;
 
 		const doCode = generator.statementToCode(block, 'DO');
 		
 		const outputConnection = block.outputConnection;
 		const isUsedAsExpression = outputConnection && outputConnection.targetConnection;
   
-		var code = "hub.startthread('" + name +"', " + stackSize + ", function()\n" + doCode + "end)";
+		var code = "hub.startthread('" + name +"', '" + block.id + "', " + stackSize + ", " + profiling + ", function()\n" + doCode + "end)";
 		if (isUsedAsExpression) {
   			return [code, 0];
   		}

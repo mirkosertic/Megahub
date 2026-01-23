@@ -421,6 +421,220 @@ class BlocklyHTMLElement extends HTMLElement {
 	clearWorkspace() {
 		this.workspace.clear();
 	};
+
+	getPerformanceColor(ratio) {
+		// ratio: 0 = fast (green), 1 = slow (red)
+		if (ratio < 0.3) {
+			return '#4ec9b0'; // VSCode teal (fast)
+		} else if (ratio < 0.6) {
+			return '#dcdcaa'; // VSCode yellow (moderate)
+		} else if (ratio < 0.8) {
+			return '#ce9178'; // VSCode orange (slow)
+		} else {
+			return '#f48771'; // VSCode red (very slow)
+		}
+	};
+
+	addProfilingOverlay(blockId, minDuration, avgDuration, maxDuration) {
+		const workspace = Blockly.getMainWorkspace();
+		const block = workspace.getBlockById(blockId);
+
+		if (!block)
+			return;
+
+		const blockSvg = block.getSvgRoot();
+
+		// IMPORTANT: Remove old overlay BEFORE getting bbox
+		let overlay = blockSvg.querySelector('.profile-overlay');
+		if (overlay) {
+			overlay.remove();
+		}
+
+		// Now get bbox without the overlay affecting it
+		const bbox = blockSvg.getBBox();
+
+		// Create new overlay group
+		overlay = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+		overlay.classList.add('profile-overlay');
+
+		// Calculate performance color based on average duration
+		const maxDurationThreshold = 50000; // 50ms in microseconds
+		const perfRatio = Math.min(avgDuration / maxDurationThreshold, 1);
+		const perfColor = this.getPerformanceColor(perfRatio);
+
+		// Outer glow/border for the entire block
+		const glowRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		glowRect.setAttribute('x', -2);
+		glowRect.setAttribute('y', -2);
+		glowRect.setAttribute('width', bbox.width + 4);
+		glowRect.setAttribute('height', bbox.height + 4);
+		glowRect.setAttribute('rx', 4);
+		glowRect.setAttribute('fill', 'none');
+		glowRect.setAttribute('stroke', perfColor);
+		glowRect.setAttribute('stroke-width', '1.5');
+		glowRect.setAttribute('opacity', '0.4');
+		glowRect.style.filter = 'drop-shadow(0 0 3px ' + perfColor + ')';
+
+		// Badge container - wider for 7-digit numbers
+		const badgeWidth = 200;
+		const badgeHeight = 30;
+		const badgeX = bbox.width - badgeWidth - 5;
+		const badgeY = -badgeHeight - 5;
+
+		// Badge background with subtle gradient
+		const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+		const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+		gradient.setAttribute('id', `profile-grad-${blockId}`);
+		gradient.setAttribute('x1', '0%');
+		gradient.setAttribute('y1', '0%');
+		gradient.setAttribute('x2', '0%');
+		gradient.setAttribute('y2', '100%');
+
+		const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		stop1.setAttribute('offset', '0%');
+		stop1.setAttribute('stop-color', '#2d2d30'); // VSCode dark bg
+		stop1.setAttribute('stop-opacity', '0.95');
+
+		const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		stop2.setAttribute('offset', '100%');
+		stop2.setAttribute('stop-color', '#1e1e1e'); // VSCode darker
+		stop2.setAttribute('stop-opacity', '0.95');
+
+		gradient.appendChild(stop1);
+		gradient.appendChild(stop2);
+		defs.appendChild(gradient);
+		overlay.appendChild(defs);
+
+		// Badge background rectangle
+		const badge = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		badge.setAttribute('x', badgeX);
+		badge.setAttribute('y', badgeY);
+		badge.setAttribute('width', badgeWidth);
+		badge.setAttribute('height', badgeHeight);
+		badge.setAttribute('rx', 3);
+		badge.setAttribute('fill', `url(#profile-grad-${blockId})`);
+		badge.setAttribute('stroke', perfColor);
+		badge.setAttribute('stroke-width', '1');
+		badge.setAttribute('opacity', '0.95');
+
+		// Helper function to format microseconds
+		function formatMicros(micros) {
+			// Always show in microseconds with comma separators for readability
+			return Math.round(micros).toLocaleString() + 'µs';
+		}
+
+		// Column positions with more space between them
+		const col1X = badgeX + 8;
+		const col2X = badgeX + 72;
+		const col3X = badgeX + 136;
+
+		// First row: Min / Avg / Max labels
+		const labelY = badgeY + 11;
+		const labelSize = '8';
+		const labelColor = '#858585'; // VSCode dim text
+
+		const minLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		minLabel.setAttribute('x', col1X);
+		minLabel.setAttribute('y', labelY);
+		minLabel.setAttribute('fill', labelColor);
+		minLabel.setAttribute('font-size', labelSize);
+		minLabel.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		minLabel.textContent = 'min';
+
+		const avgLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		avgLabel.setAttribute('x', col2X);
+		avgLabel.setAttribute('y', labelY);
+		avgLabel.setAttribute('fill', labelColor);
+		avgLabel.setAttribute('font-size', labelSize);
+		avgLabel.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		avgLabel.textContent = 'avg';
+
+		const maxLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		maxLabel.setAttribute('x', col3X);
+		maxLabel.setAttribute('y', labelY);
+		maxLabel.setAttribute('fill', labelColor);
+		maxLabel.setAttribute('font-size', labelSize);
+		maxLabel.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		maxLabel.textContent = 'max';
+
+		// Second row: Min / Avg / Max values
+		const valueY = badgeY + 23;
+		const valueSize = '9';
+
+		const minValue = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		minValue.setAttribute('x', col1X);
+		minValue.setAttribute('y', valueY);
+		minValue.setAttribute('fill', '#4ec9b0'); // VSCode teal for min (good)
+		minValue.setAttribute('font-size', valueSize);
+		minValue.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		minValue.setAttribute('font-weight', 'bold');
+		minValue.textContent = formatMicros(minDuration);
+
+		const avgValue = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		avgValue.setAttribute('x', col2X);
+		avgValue.setAttribute('y', valueY);
+		avgValue.setAttribute('fill', perfColor); // Color-coded based on performance
+		avgValue.setAttribute('font-size', valueSize);
+		avgValue.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		avgValue.setAttribute('font-weight', 'bold');
+		avgValue.textContent = formatMicros(avgDuration);
+
+		const maxValue = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+		maxValue.setAttribute('x', col3X);
+		maxValue.setAttribute('y', valueY);
+		maxValue.setAttribute('fill', '#f48771'); // VSCode red for max (worst case)
+		maxValue.setAttribute('font-size', valueSize);
+		maxValue.setAttribute('font-family', "'Consolas', 'Monaco', 'Courier New', monospace");
+		maxValue.setAttribute('font-weight', 'bold');
+		maxValue.textContent = formatMicros(maxDuration);
+
+		// Add connecting line from badge to block
+		const connector = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		connector.setAttribute('x1', badgeX + badgeWidth / 2);
+		connector.setAttribute('y1', badgeY + badgeHeight);
+		connector.setAttribute('x2', badgeX + badgeWidth / 2);
+		connector.setAttribute('y2', badgeY + badgeHeight + 5);
+		connector.setAttribute('stroke', perfColor);
+		connector.setAttribute('stroke-width', '1');
+		connector.setAttribute('opacity', '0.3');
+		connector.setAttribute('stroke-dasharray', '2,2');
+
+		// Assemble overlay
+		overlay.appendChild(glowRect);
+		overlay.appendChild(connector);
+		overlay.appendChild(badge);
+		overlay.appendChild(minLabel);
+		overlay.appendChild(avgLabel);
+		overlay.appendChild(maxLabel);
+		overlay.appendChild(minValue);
+		overlay.appendChild(avgValue);
+		overlay.appendChild(maxValue);
+
+		// Blockly blocks have this structure: path elements first, then other decorations
+		// We insert the overlay after all existing children
+		const lastChild = blockSvg.lastChild;
+		if (lastChild && lastChild.classList && lastChild.classList.contains('blocklyEditableText')) {
+			// If last child is editable text, insert after it
+			blockSvg.appendChild(overlay);
+		} else {
+			// Otherwise just append
+			blockSvg.appendChild(overlay);
+		}
+	};
+
+	removeAllProfilingOverlays() {
+		const allBlocks = this.workspace.getAllBlocks(false);
+		
+		allBlocks.forEach(block => {
+			const blockSvg = block.getSvgRoot();
+			if (blockSvg) {
+				const overlay = blockSvg.querySelector('.profile-overlay');
+				if (overlay) {
+					overlay.remove();
+				}
+			}
+		});
+	};
 };
 
 customElements.define('custom-blockly', BlocklyHTMLElement);

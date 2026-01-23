@@ -395,8 +395,22 @@ window.Application = {
 				localStorage.setItem(STRORAGE_KEY, content);
 			}
 		} else if (mode === 'bt') {
-			console.log("Saving file " + filename + " to project " + projectId);
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename, "content": content}));
+			console.log("Saving file " + filename + " to project " + projectId + " (streaming)");
+			try {
+				// Use streaming protocol for memory-efficient uploads
+				await bleClient.uploadFileStreaming(projectId, filename, content,
+					(uploaded, total) => {
+						const percent = Math.round((uploaded / total) * 100);
+						console.log(`Upload progress: ${percent}% (${uploaded}/${total} bytes)`);
+					}
+				);
+				console.log("File saved successfully via streaming protocol");
+			} catch (error) {
+				console.warn("Streaming upload failed, falling back to legacy JSON:", error.message);
+				// Fallback to legacy JSON method for compatibility
+				const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename, "content": content}));
+				console.log("File saved via legacy JSON method");
+			}
 		} else if (mode === 'web') {
 			fetch("/project/" + encodeURIComponent(projectId) + "/" + filename, {
 				method : "PUT",
@@ -497,6 +511,7 @@ window.Application = {
 				showNotification('success', 'Program Stopped', 'Execution has been halted');
 			});
 		}
+		blocklyEditor.removeAllProfilingOverlays();		
 		// clang-format on
 	},
 
@@ -598,7 +613,11 @@ async function initBLEConnection() {
 
 		bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
 			const command = JSON.parse(new TextDecoder().decode(data));
-			uicomponents.processUIEvent(command);
+			if (command.type === "thread_statistics") {
+				blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
+			} else {
+				uicomponents.processUIEvent(command);
+			}
 		});
 
 		bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
