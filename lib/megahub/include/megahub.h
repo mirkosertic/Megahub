@@ -79,11 +79,10 @@ public:
 	int digitalReadFrom(int pin);
 	void digitalWriteTo(int pin, int value);
 
-	void updateMainLoopStatistik(long duration);
-	long getAverageMainControlLoopTime();
-	long getMinMainControlLoopTime();
-	long getMaxMainControlLoopTime();
-
+	void registerThread(TaskHandle_t handle);
+	void stopRunningThreads();
+	void stopThread(TaskHandle_t handle);
+	
 private:
 	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;
@@ -97,10 +96,7 @@ private:
 
 	lua_State *newLuaState();
 
-	long averageMainControlLoopTime_;
-	long minMainControlLoopTime_;
-	long maxMainControlLoopTime_;
-	SemaphoreHandle_t averageMainControlLoopTimeMutex_;
+	std::vector<TaskHandle_t> runningThreads_;
 };
 
 #endif // MEGAHUB_H

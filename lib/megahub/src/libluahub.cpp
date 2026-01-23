@@ -1,21 +1,20 @@
 #include "megahub.h"
 
-struct MainControlLoopTaskParams {
+struct HubThreadParams {
 	lua_State *mainstate;
 	lua_State *threadstate;
 	int function_ref_index;
+	Megahub *hub;
 };
 
 extern Megahub *getMegaHubRef(lua_State *L);
 
-TaskHandle_t mainControlLoopTaskHandle = NULL;
-
-void main_control_loop_task(void *parameters) {
-	MainControlLoopTaskParams *params = (MainControlLoopTaskParams *) parameters;
-	Megahub *hub = getMegaHubRef(params->mainstate);
+void hub_thread_task(void *parameters) {
+	HubThreadParams *params = (HubThreadParams *) parameters;
+	Megahub *hub = params->hub;
 
 	lua_State *threadState = params->threadstate;
-	INFO("Starting main control loop task");
+	INFO("Starting thread task");
 	while (true) {
 
 		unsigned long start = micros();
@@ -24,7 +23,7 @@ void main_control_loop_task(void *parameters) {
 		uint32_t notificationValue = 0;
 		if (xTaskNotifyWait(0, 0, &notificationValue, 0) == pdTRUE) {
 			if (notificationValue == 1) {
-				INFO("Main control loop will be canceled");
+				INFO("Thread task will be canceled");
 				break;
 			}
 		}
@@ -44,8 +43,8 @@ void main_control_loop_task(void *parameters) {
 			break;
 		}
 
+		// TODO: Implement better statistics here		
 		long duration = micros() - start;
-		hub->updateMainLoopStatistik(duration);
 
 		// Give the scheduler some time - this could also be done by including a wait() call into the Lua script....
 		vTaskDelay(pdMS_TO_TICKS(1));
@@ -53,31 +52,59 @@ void main_control_loop_task(void *parameters) {
 
 	lua_closethread(threadState, params->mainstate);
 	delete params;
-	INFO("Done with main control loop");
+	INFO("Done with thread");
 	vTaskDelete(NULL);
 }
 
-int hub_register_main_control_loop(lua_State *luaState) {
+int hub_startthread(lua_State *luaState) {
 
-	luaL_checktype(luaState, 1, LUA_TFUNCTION);
+	String threadName = lua_tostring(luaState, 1);
+	int stackSize = lua_tointeger(luaState, 2);
+	luaL_checktype(luaState, 3, LUA_TFUNCTION);
+
+	Megahub *hub = getMegaHubRef(luaState);
 
 	// Create new thread environment
-	MainControlLoopTaskParams *params = new MainControlLoopTaskParams();
+	HubThreadParams *params = new HubThreadParams();
 	params->mainstate = luaState;
 	params->function_ref_index = luaL_ref(luaState, LUA_REGISTRYINDEX);
 	params->threadstate = lua_newthread(luaState);
+	params->hub = hub;
+
+	INFO("Starting thread %s with stack size %d", threadName.c_str(), stackSize);
+
+	TaskHandle_t taskHandle = NULL;
 
 	// Create the task
 	xTaskCreate(
-		main_control_loop_task,
-		"MainControlLoop",
-		4096,
+		hub_thread_task,
+		threadName.c_str(),
+		stackSize,
 		(void *) params,
 		1,
-		&mainControlLoopTaskHandle // Store task handle for cancellation
+		&taskHandle // Store task handle for cancellation
 	);
 
-	return 0;
+	hub->registerThread(taskHandle);
+
+	TaskHandle_t* udata = (TaskHandle_t*)lua_newuserdata(luaState, sizeof(TaskHandle_t*));
+	*udata = taskHandle;
+	return 1;
+}
+
+int hub_stopthread(lua_State *luaState) {
+
+	INFO("Stopping thread");
+
+ 	TaskHandle_t* task_handle = (TaskHandle_t*) lua_touserdata(luaState, 1);
+    
+    if (*task_handle != NULL) {
+		Megahub *hub = getMegaHubRef(luaState);
+		hub->stopThread(*task_handle);
+        *task_handle = NULL;
+    }
+    
+    return 0;
 }
 
 int hub_init(lua_State *luaState) {
@@ -162,13 +189,14 @@ int hub_set_pin_mode(lua_State *luaState) {
 
 int hub_library(lua_State *luaState) {
 	const luaL_Reg hubfunctions[] = {
-		{"main_control_loop", hub_register_main_control_loop},
-		{			 "init",					   hub_init},
-		{	 "setmotorspeed",			  hub_setmotorspeed},
-		{		  "pinMode",				hub_set_pin_mode},
-		{		 "digitalRead",				hub_digitalread},
-		{	 "digitalWrite",				 hub_digitalwrite},
-		{			   NULL,						   NULL}
+		{	 "startthread",	hub_startthread},
+		{	 "stopthread",	hub_stopthread},
+		{		 "init",			 hub_init},
+		{"setmotorspeed", hub_setmotorspeed},
+		{		 "pinMode",	hub_set_pin_mode},
+		{	 "digitalRead",	hub_digitalread},
+		{ "digitalWrite",	 hub_digitalwrite},
+		{		   NULL,			   NULL}
 	};
 	luaL_newlib(luaState, hubfunctions);
 	return 1;

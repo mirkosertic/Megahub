@@ -18,8 +18,6 @@
 
 SemaphoreHandle_t lua_global_mutex = xSemaphoreCreateMutex();
 
-extern TaskHandle_t mainControlLoopTaskHandle;
-
 TaskHandle_t statusReporterTaskHandle = NULL;
 
 Megahub *getMegaHubRef(lua_State *L) {
@@ -337,7 +335,7 @@ lua_State *Megahub::newLuaState() {
 	lua_register(ls, "millis", global_millis);
 
 	// The self reference
-	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *));
+	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *)); 
 	*userdata = this;
 	lua_setfield(ls, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
 
@@ -465,10 +463,6 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 	device4_->initialize();
 
 	currentprogramstate_ = nullptr;
-	averageMainControlLoopTime_ = 0;
-	minMainControlLoopTime_ = LONG_MAX;
-	maxMainControlLoopTime_ = 0;
-	averageMainControlLoopTimeMutex_ = xSemaphoreCreateMutex();
 
 	// Create the task
 	xTaskCreate(
@@ -478,47 +472,6 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 		(void *) this,
 		1,
 		&statusReporterTaskHandle);
-}
-
-void Megahub::updateMainLoopStatistik(long duration) {
-	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
-
-	// Use exponential moving average: if average is 0, use first measurement as starting point
-	if (averageMainControlLoopTime_ == 0) {
-		averageMainControlLoopTime_ = duration;
-	} else {
-		// Weighted average: 90% old value, 10% new value
-		averageMainControlLoopTime_ = (averageMainControlLoopTime_ * 9 + duration) / 10;
-	}
-
-	if (duration < minMainControlLoopTime_) {
-		minMainControlLoopTime_ = duration;
-	}
-	if (duration > maxMainControlLoopTime_) {
-		maxMainControlLoopTime_ = duration;
-	}
-	xSemaphoreGive(averageMainControlLoopTimeMutex_);
-}
-
-long Megahub::getAverageMainControlLoopTime() {
-	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
-	long value = averageMainControlLoopTime_;
-	xSemaphoreGive(averageMainControlLoopTimeMutex_);
-	return value;
-}
-
-long Megahub::getMinMainControlLoopTime() {
-	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
-	long value = minMainControlLoopTime_;
-	xSemaphoreGive(averageMainControlLoopTimeMutex_);
-	return value;
-}
-
-long Megahub::getMaxMainControlLoopTime() {
-	xSemaphoreTake(averageMainControlLoopTimeMutex_, portMAX_DELAY);
-	long value = maxMainControlLoopTime_;
-	xSemaphoreGive(averageMainControlLoopTimeMutex_);
-	return value;
 }
 
 Megahub::~Megahub() {
@@ -628,11 +581,7 @@ LuaCheckResult Megahub::checkLUACode(String luaCode) {
 void Megahub::executeLUACode(String luaCode) {
 	INFO("Executing Lua code of size %d", luaCode.length());
 
-	if (mainControlLoopTaskHandle != NULL) {
-		INFO("Canceling existing main control loop task");
-		xTaskNotify(mainControlLoopTaskHandle, 1, eSetValueWithOverwrite);
-		vTaskDelay(pdMS_TO_TICKS(100)); // Give some time to finish
-	}
+	stopRunningThreads();
 
 	if (currentprogramstate_ != nullptr) {
 		INFO("Closing existing Lua program state");
@@ -661,17 +610,9 @@ void Megahub::executeLUACode(String luaCode) {
 bool Megahub::stopLUACode() {
 	INFO("Stopping Lua code execution");
 
-	if (mainControlLoopTaskHandle != NULL) {
-		INFO("Canceling existing main control loop task");
-		xTaskNotify(mainControlLoopTaskHandle, 1, eSetValueWithOverwrite);
-		vTaskDelay(pdMS_TO_TICKS(100)); // Give some time to finish
-		mainControlLoopTaskHandle = NULL;
+	stopRunningThreads();
 
-		return true;
-	}
-
-	INFO("No Lua code execution to stop");
-	return false;
+	return true;
 }
 
 int Megahub::digitalReadFrom(int pin) {
@@ -789,4 +730,26 @@ void Megahub::setPinMode(int pin, int mode) {
 			}
 			break;
 	}
+}
+
+void Megahub::registerThread(TaskHandle_t handle) {
+	runningThreads_.push_back(handle);
+}
+
+void Megahub::stopRunningThreads() {
+	for (int i = 0; i < runningThreads_.size(); i++) {
+		TaskHandle_t handle = runningThreads_[i];
+
+		INFO("Stopping thread #%d", i);
+		xTaskNotify(handle, 1, eSetValueWithOverwrite);
+		vTaskDelay(pdMS_TO_TICKS(100));
+	}
+
+	runningThreads_.clear();
+}
+
+void Megahub::stopThread(TaskHandle_t handle) {
+	xTaskNotify(handle, 1, eSetValueWithOverwrite);
+	vTaskDelay(pdMS_TO_TICKS(100));
+	runningThreads_.erase(std::remove(runningThreads_.begin(), runningThreads_.end(), handle), runningThreads_.end());
 }

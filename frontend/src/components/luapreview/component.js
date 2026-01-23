@@ -164,6 +164,74 @@ class LuaPreviewHTMLElement extends HTMLElement {
 				this.toggleCollapse();
 			});
 		}
+
+		// Set up copy button
+		this.setupCopyButton();
+	}
+
+	/**
+	 * Set up copy code button
+	 */
+	setupCopyButton() {
+		const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
+		if (copyBtn) {
+			copyBtn.addEventListener('click', async (e) => {
+				e.stopPropagation();
+				await this.copyCodeToClipboard();
+			});
+		}
+	}
+
+	/**
+	 * Copy the current Lua code to clipboard
+	 */
+	async copyCodeToClipboard() {
+		const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
+		const codePreview = this.shadowRoot.getElementById('codePreview');
+
+		if (!codePreview) return;
+
+		// Get the code text content
+		const codeElement = codePreview.querySelector('code');
+		if (!codeElement) {
+			// No code to copy
+			if (window.showNotification) {
+				window.showNotification('warning', 'No Code', 'No Lua code to copy');
+			}
+			return;
+		}
+
+		const codeText = codeElement.textContent;
+
+		try {
+			await navigator.clipboard.writeText(codeText);
+
+			// Show copied feedback
+			if (copyBtn) {
+				copyBtn.classList.add('copied');
+				const textSpan = copyBtn.querySelector('.copy-btn-text');
+				if (textSpan) {
+					textSpan.textContent = 'Copied!';
+				}
+
+				// Reset after 2 seconds
+				setTimeout(() => {
+					copyBtn.classList.remove('copied');
+					if (textSpan) {
+						textSpan.textContent = 'Copy';
+					}
+				}, 2000);
+			}
+
+			if (window.showNotification) {
+				window.showNotification('success', 'Copied', 'Lua code copied to clipboard');
+			}
+		} catch (error) {
+			console.error('Failed to copy code:', error);
+			if (window.showNotification) {
+				window.showNotification('error', 'Copy Failed', 'Could not copy code to clipboard');
+			}
+		}
 	}
 
 	/**

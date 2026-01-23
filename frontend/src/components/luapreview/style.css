@@ -47,26 +47,72 @@
   flex: 1;
   min-height: 0;
   max-height: none;
-  overflow-y: scroll;
+  overflow-y: auto;
+  overflow-x: auto;
 }
 
-/* Scrollbar styling for Shadow DOM */
-.collapsible-content::-webkit-scrollbar {
+/* Scrollbar styling for Shadow DOM - WebKit browsers (Chrome, Safari, Edge) */
+.collapsible-content::-webkit-scrollbar,
+.lua-code-preview::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.collapsible-content::-webkit-scrollbar-track {
+.collapsible-content::-webkit-scrollbar-track,
+.lua-code-preview::-webkit-scrollbar-track {
   background: #1e1e1e;
 }
 
-.collapsible-content::-webkit-scrollbar-thumb {
+.collapsible-content::-webkit-scrollbar-thumb,
+.lua-code-preview::-webkit-scrollbar-thumb {
   background: #424242;
   border-radius: 4px;
 }
 
-.collapsible-content::-webkit-scrollbar-thumb:hover {
+.collapsible-content::-webkit-scrollbar-thumb:hover,
+.lua-code-preview::-webkit-scrollbar-thumb:hover {
   background: #4e4e4e;
+}
+
+/* Scrollbar corner styling (where horizontal and vertical scrollbars meet) */
+.collapsible-content::-webkit-scrollbar-corner,
+.lua-code-preview::-webkit-scrollbar-corner {
+  background: #1e1e1e;
+}
+
+/* Firefox scrollbar styling */
+.collapsible-content,
+.lua-code-preview {
+  scrollbar-width: thin;
+  scrollbar-color: #424242 #1e1e1e;
+}
+
+/* Pre element inside code preview also needs scrollbar styling */
+.lua-code-preview pre::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.lua-code-preview pre::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.lua-code-preview pre::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+.lua-code-preview pre::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}
+
+.lua-code-preview pre::-webkit-scrollbar-corner {
+  background: #1e1e1e;
+}
+
+.lua-code-preview pre {
+  scrollbar-width: thin;
+  scrollbar-color: #424242 #1e1e1e;
 }
 
 /* Container */
@@ -137,8 +183,8 @@
 
 /* Collapsible Content */
 .collapsible-content {
-  overflow-y: scroll;
-  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-x: auto;
   transition: max-height var(--transition-medium), opacity var(--transition-medium);
   max-height: 300px;
   opacity: 1;
@@ -194,4 +240,69 @@
   font-style: italic;
   text-align: center;
   font-size: var(--font-fixed-11);
+}
+
+/* Code preview wrapper with copy button */
+.lua-code-preview-wrapper {
+  position: relative;
+}
+
+/* Copy code button */
+.copy-code-btn {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--vscode-bg-elevated);
+  color: var(--vscode-text-secondary);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-fixed-11);
+  font-family: inherit;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+  z-index: 10;
+  min-width: auto;
+  min-height: auto;
+}
+
+.copy-code-btn svg {
+  flex-shrink: 0;
+}
+
+.copy-code-btn:hover {
+  background: var(--vscode-bg-input);
+  color: var(--vscode-text-bright);
+  border-color: #007acc;
+}
+
+.copy-code-btn:active {
+  transform: scale(0.95);
+}
+
+.copy-code-btn.copied {
+  background: #27ae60;
+  border-color: #27ae60;
+  color: #ffffff;
+}
+
+/* Show copy button on hover over the wrapper */
+.lua-code-preview-wrapper:hover .copy-code-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Also show when content is focused */
+.lua-code-preview-wrapper:focus-within .copy-code-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+.copy-btn-text {
+  font-weight: 500;
 }

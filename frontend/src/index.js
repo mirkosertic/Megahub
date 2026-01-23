@@ -835,6 +835,49 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	// Copy project to clipboard button
+	document.getElementById("copyProject").addEventListener("click", async () => {
+		try {
+			const xmlText = blocklyEditor.generateXML();
+			await navigator.clipboard.writeText(xmlText);
+			showNotification('success', 'Copied to Clipboard', 'Blockly project has been copied to clipboard');
+		} catch (error) {
+			console.error('Failed to copy to clipboard:', error);
+			showNotification('error', 'Copy Failed', 'Could not copy project to clipboard');
+		}
+	});
+
+	// Paste project from clipboard button
+	document.getElementById("pasteProject").addEventListener("click", async () => {
+		try {
+			const clipboardText = await navigator.clipboard.readText();
+
+			// Check if it looks like valid Blockly XML
+			if (!clipboardText.trim().startsWith('<xml') && !clipboardText.trim().startsWith('<?xml')) {
+				showNotification('error', 'Invalid Data', 'Clipboard does not contain valid Blockly XML');
+				return;
+			}
+
+			const confirmed = await showConfirmDialog(
+				'Paste Project',
+				'This will replace your current workspace with the project from clipboard. Continue?',
+				{ confirmText: 'Paste', cancelText: 'Cancel', destructive: true }
+			);
+
+			if (confirmed) {
+				const success = blocklyEditor.loadXML(clipboardText);
+				if (success) {
+					showNotification('success', 'Project Loaded', 'Workspace has been loaded from clipboard');
+				} else {
+					showNotification('error', 'Load Failed', 'Could not parse the Blockly XML from clipboard');
+				}
+			}
+		} catch (error) {
+			console.error('Failed to read from clipboard:', error);
+			showNotification('error', 'Paste Failed', 'Could not read from clipboard. Make sure you have granted clipboard permissions.');
+		}
+	});
+
 	// Auto-save toggle button
 	const autosaveBtn = document.getElementById("autosave");
 	autosaveBtn.addEventListener("click", () => {

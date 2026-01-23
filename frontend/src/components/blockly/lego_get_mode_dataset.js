@@ -4,19 +4,23 @@ import {colorLego} from './colors.js'
 export const definition = {
 	category : 'LEGO©',
 	colour : colorLego,
+	inputsForToolbox: {
+		"PORT": {
+          "shadow": {
+            "type": "mh_port",
+            "fields": {
+              "PORT": "PORT1"
+            }
+          }
+		}
+	},	
 	blockdefinition : {
 		"type" : "lego_get_mode_dataset",
 		"message0" : "Get dataset %2 from selected mode of %1",
 		"args0" : [
 			{
-				"type" : "field_dropdown",
+				"type" : "input_value",
 				"name" : "PORT",
-				"options" : [
-					[ "PORT1", "PORT1" ],
-					[ "PORT2", "PORT2" ],
-					[ "PORT3", "PORT3" ],
-					[ "PORT4", "PORT4" ]
-				]
 			},
 			{
 				"type" : "input_value",
@@ -29,7 +33,7 @@ export const definition = {
 		"helpUrl" : ""
 	},
 	generator : (block, generator) => {
-		const port = block.getFieldValue('PORT');
+		const port = generator.valueToCode(block, 'PORT', 0);
 
 		const datasetCode = generator.valueToCode(block, 'DATASET', 0);
 

@@ -10,7 +10,8 @@ import {registerFieldColour} from '@blockly/field-colour';
 // Import a message file.
 import * as En from 'blockly/msg/en';
 
-import {definition as mh_main_control_loop} from './mh_main_control_loop.js'
+import {definition as mh_startthread} from './mh_startthread.js'
+import {definition as mh_stopthread} from './mh_stopthread.js'
 import {definition as mh_init} from './mh_init.js'
 import {definition as mh_wait} from './mh_wait.js'
 import {definition as mh_digitalwrite} from './mh_digitalwrite.js'
@@ -24,13 +25,14 @@ import {definition as mh_fastled_set} from './mh_fastled_set.js'
 import {definition as mh_imu_value} from './mh_imu_value.js'
 import {definition as ui_show_value} from './ui_show_value.js'
 import {definition as mh_debug_free_heap} from './mh_debug_free_heap.js'
+import {definition as mh_port} from './mh_port.js'
 import {definition as lego_get_mode_dataset} from './lego_get_mode_dataset.js'
 import {definition as lego_select_mode} from './lego_select_mode.js'
+import {definition as gamepad_gamepad} from './mh_gamepad_gamepad.js'
 import {definition as gamepad_buttonpressed} from './mh_gamepad_buttonpressed.js'
 import {definition as gamepad_value} from './mh_gamepad_value.js'
 import {definition as gamepad_connected} from './mh_gamepad_connected.js'
 import {definition as mh_debug_millis} from './mh_debug_millis.js'
-import {definition as mh_debug_cycletime} from './mh_debug_cycletime.js'
 
 import {colorLogic,
 	colorMath,
@@ -39,12 +41,8 @@ import {colorLogic,
 
 // clang-format off
 const customBlocks = {
-	"mh_main_control_loop" : mh_main_control_loop,
-
 	"mh_init": mh_init,
 		
-	"mh_wait" : mh_wait,
-
 	"controls_if" : {
 		category : 'Logic',
 		colour : colorLogic,
@@ -250,8 +248,12 @@ const customBlocks = {
 	"mh_pinmode": mh_pinmode,
 	
 	"mh_digitalread": mh_digitalread,
+
+	"mh_port": mh_port,	
 	
 	"mh_set_motor_speed": mh_set_motor_speed,
+
+	"mh_gamepad_gamepad": gamepad_gamepad,	
 	
 	"mh_gamepad_buttonpressed": gamepad_buttonpressed,
 
@@ -279,7 +281,11 @@ const customBlocks = {
 
 	"mh_debug_millis": mh_debug_millis,
 	
-	"mh_debug_loop_cycletime": mh_debug_cycletime,
+	"mh_startthread" : mh_startthread,
+
+	"mh_wait" : mh_wait,
+
+	"mh_stopthread": mh_stopthread
 };
 
 function generateToolbox(definitions) {
@@ -296,10 +302,18 @@ function generateToolbox(definitions) {
 			};
 		}
 
-		categories[categoryName].blocks.push({
-			kind : 'block',
-			type : type
-		});
+		if (def.inputsForToolbox) {
+			categories[categoryName].blocks.push({
+				kind : 'block',
+				type : type,
+				inputs: def.inputsForToolbox
+			});
+		} else {
+			categories[categoryName].blocks.push({
+				kind : 'block',
+				type : type
+			});
+		}
 	});
 
 	var box = {
@@ -405,9 +419,7 @@ class BlocklyHTMLElement extends HTMLElement {
 	};
 
 	clearWorkspace() {
-		if (confirm('Workspace wirklich zurücksetzen?')) {
-			this.workspace.clear();
-		}
+		this.workspace.clear();
 	};
 };
 

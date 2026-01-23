@@ -4,16 +4,23 @@ import {colorGamepad} from './colors.js'
 export const definition = {
 	category : 'Gamepad',
 	colour : colorGamepad,
+	inputsForToolbox: {
+		"GAMEPAD": {
+          "shadow": {
+            "type": "mh_gamepad_gamepad",
+            "fields": {
+              "GAMEPAD": "GAMEPAD1"
+            }
+          }
+		}
+	},
 	blockdefinition : {
 		"type" : "mh_gamepad_value",
 		"message0" : "Get %2 from %1",
 		"args0" : [
 			{
-				"type" : "field_dropdown",
+				"type" : "input_value",
 				"name" : "GAMEPAD",
-				"options" : [
-					[ "GAMEPAD1", "GAMEPAD1" ],
-				]
 			},
 			{
 				"type" : "field_dropdown",
@@ -32,7 +39,7 @@ export const definition = {
 		"helpUrl" : ""
 	},
 	generator : (block, generator) => {
-		const gamepad = block.getFieldValue('GAMEPAD');
+		const gamepad = generator.valueToCode(block, 'GAMEPAD', 0);
 		const value = block.getFieldValue('VALUE');
 
 		const command = "gamepad.value(" + gamepad + "," + value + ")";

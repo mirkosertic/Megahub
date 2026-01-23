@@ -4,16 +4,23 @@ import {colorGamepad} from './colors.js'
 export const definition = {
 	category : 'Gamepad',
 	colour : colorGamepad,
+	inputsForToolbox: {
+		"GAMEPAD": {
+          "shadow": {
+            "type": "mh_gamepad_gamepad",
+            "fields": {
+              "GAMEPAD": "GAMEPAD1"
+            }
+          }
+		}
+	},
 	blockdefinition : {
 		"type" : "mh_gamepad_connected",
 		"message0" : "Test if %1 is connected",
 		"args0" : [
 			{
-				"type" : "field_dropdown",
+				"type" : "input_value",
 				"name" : "GAMEPAD",
-				"options" : [
-					[ "GAMEPAD1", "GAMEPAD1" ],
-				]
 			},
 		],
 		"output": null,
@@ -22,7 +29,7 @@ export const definition = {
 		"helpUrl" : ""
 	},
 	generator : (block, generator) => {
-		const gamepad = block.getFieldValue('GAMEPAD');
+		const gamepad = generator.valueToCode(block, 'GAMEPAD', 0);
 
 		const command = "gamepad.connected(" + gamepad + ")";
 

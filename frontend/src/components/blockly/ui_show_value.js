@@ -4,6 +4,16 @@ import {colorUI} from './colors.js'
 export const definition = {
 	category : 'UI',
 	colour : colorUI,
+	inputsForToolbox: {
+		"VALUE": {
+          "shadow": {
+            "type": "text",
+            "fields": {
+              "TEXT": "Replace me"
+            }
+          }
+		}
+	},	
 	blockdefinition : {
 		"type" : "ui_show_value",
 		"message0" : "Show value %1: %2 with style %3",
