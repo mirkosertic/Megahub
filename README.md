@@ -53,9 +53,14 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ## WebUI Screenshots
 
+** Project management **
 ![Project Management](docs/screenshot_ide.png)
 
-![Example Project](docs/screenshot_project.png)
+** IMU interaction **
+![IMU Interaction](docs/screenshot_imu.png)
+
+** Lego / Gamepad interaction **
+![IMU Interaction](docs/screenshot_lego_gameoad.png)
 
 ## Hardware Photos
 
@@ -63,4 +68,55 @@ It comes with the hardware schematics, production files and the Megahub firmware
 
 ## Getting Started
 
-Documentation coming soon...
+### Prerequisites
+
+- [PlatformIO](https://platformio.org/) installed (either as a CLI tool or as a VSCode extension)
+- An ESP32 development board
+- USB cable for flashing
+
+### Building the Firmware
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/mirkosertic/Megahub.git
+   cd Megahub
+   ```
+
+2. Build the project using PlatformIO:
+   ```bash
+   pio run
+   ```
+
+   Or if using VSCode with the PlatformIO extension, click the **Build** button in the bottom toolbar.
+
+### Flashing the Board
+
+1. Connect your ESP32 board via USB.
+
+2. Flash the firmware:
+   ```bash
+   pio run --target upload
+   ```
+
+   Or use the **Upload** button in the PlatformIO toolbar in VSCode.
+
+### First Boot and Configuration
+
+By default, the Megahub firmware runs in **Bluetooth mode**. To configure your board and start programming:
+
+1. Open the [Megahub IDE](https://mirkosertic.github.io/Megahub/) in your web browser.
+
+2. The web-based IDE uses the Web Bluetooth API to connect to your Megahub device. Make sure you are using a compatible browser (Chrome, Edge, or Opera on desktop).
+
+3. Click **Connect** in the IDE and select your Megahub device from the Bluetooth pairing dialog.
+
+4. Once connected, you can configure WiFi settings, upload projects, and program your device using either Lua scripting or Blockly visual programming.
+
+### Serial Monitor
+
+To view debug output from the board:
+```bash
+pio device monitor
+```
+
+The default baud rate is 115200.
