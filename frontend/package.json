@@ -9,9 +9,7 @@
     "build:web": "vite build --mode web",
     "build:all": "npm run build:bt && npm run build:web",
     "build:renderer": "vite build --config scripts/vite.config.js",
-    "generate-docs": "node scripts/generate-block-docs-simple.js",
-    "prebuild:bt": "npm run generate-docs",
-    "prebuild:web": "npm run generate-docs"
+    "generate-docs": "node scripts/generate-block-docs-simple.js"
   },
   "devDependencies": {
     "browserlist": "^1.0.2",

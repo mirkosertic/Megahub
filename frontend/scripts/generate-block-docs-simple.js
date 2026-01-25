@@ -475,9 +475,6 @@ async function generateMarkdown(blocks) {
         markdown += `![${type}](${imagePath})\n\n`;
       }
 
-      // Color badge
-      markdown += `**Color:** ![#${metadata.colour.toString(16).padStart(6, '0')}](https://via.placeholder.com/15/${metadata.colour.toString(16).padStart(6, '0')}/000000?text=+) HSV ${metadata.colour}\n\n`;
-
       // Description
       if (metadata.tooltip) {
         markdown += `**Description:** ${metadata.tooltip}\n\n`;

@@ -59,7 +59,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 **IMU interaction**
 ![IMU Interaction](docs/screenshot_imu.png)
 
-**Lego / Gamepad interaction**
+**LEGO / Gamepad interaction**
 ![Lego / Gamepad interaction](docs/screenshot_lego_gamepad.png)
 
 ## Hardware Photos
