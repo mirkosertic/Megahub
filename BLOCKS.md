@@ -602,7 +602,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Type:** Custom Statement Block
 
-**Message:** `Digital write %1 to %2`
+**Message:** `Digital write %2 to %1`
 
 **Inputs:**
 

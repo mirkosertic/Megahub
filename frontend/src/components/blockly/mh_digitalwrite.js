@@ -6,7 +6,7 @@ export const definition = {
 	colour : colorIO,
 	blockdefinition : {
 		"type" : "mh_digitalwrite",
-		"message0" : "Digital write %1 to %2",
+		"message0" : "Digital write %2 to %1",
 		"args0" : [
 			{
 				"type" : "field_dropdown",
