@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blockly Block Renderer (Vite-based)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: white;
+    }
+    #blocklyDiv {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 800px;
+      background-color: white;
+    }
+    /* Hide Blockly workspace chrome for clean screenshots */
+    .blocklyScrollbarVertical,
+    .blocklyScrollbarHorizontal,
+    .blocklyScrollbarBackground,
+    .blocklyZoom,
+    .blocklyTrash,
+    .blocklyFlyout,
+    .blocklyToolboxDiv,
+    .blocklyMainBackground {
+      display: none !important;
+    }
+    /* Ensure workspace SVG has no border */
+    .blocklySvg {
+      border: none !important;
+      background: white !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="blocklyDiv"></div>
+
+  <!-- Load the bundled block renderer -->
+  <script src="./dist/block-renderer.js"></script>
+</body>
+</html>

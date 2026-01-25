@@ -7,11 +7,17 @@
     "dev:bt": "vite --mode bt",
     "build:bt": "vite build --mode bt --base=/Megahub/",
     "build:web": "vite build --mode web",
-    "build:all": "npm run build:bt && npm run build:web"    
+    "build:all": "npm run build:bt && npm run build:web",
+    "build:renderer": "vite build --config scripts/vite.config.js",
+    "generate-docs": "node scripts/generate-block-docs-simple.js",
+    "prebuild:bt": "npm run generate-docs",
+    "prebuild:web": "npm run generate-docs"
   },
   "devDependencies": {
     "browserlist": "^1.0.2",
+    "jsdom": "^24.1.3",
     "lightningcss": "^1.30.2",
+    "puppeteer": "^24.15.0",
     "vite": "^5.0.0",
     "vite-plugin-compression": "^0.5.1"
   },

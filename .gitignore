@@ -14,7 +14,10 @@ Wconfig/secrets.txt
 frontend/node_modules
 data
 managed_components
-.claude
+# Claude Code - ignore local files, keep agents and settings
+.claude/*
+!.claude/agents/
+!.claude/settings.json
 compile_commands.json
 .sync-exclude.lst
 .venv

@@ -120,3 +120,9 @@ pio device monitor
 ```
 
 The default baud rate is 115200.
+
+## Documentation
+
+### Blockly Blocks Reference
+
+For a complete reference of all available Blockly blocks including visual examples, see the [Blockly Blocks Documentation](BLOCKS.md).
