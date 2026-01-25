@@ -15,35 +15,23 @@ export const definition = {
 		}
 	},
 	blockdefinition : {
-		"type" : "mh_gamepad_value",
-		"message0" : "Get %2 from %1",
+		"type" : "mh_gamepad_buttonsraw",
+		"message0" : "Gets the raw button values of %1",
 		"args0" : [
 			{
 				"type" : "input_value",
 				"name" : "GAMEPAD",
 			},
-			{
-				"type" : "field_dropdown",
-				"name" : "VALUE",
-				"options" : [
-					["GAMEPAD_LEFT_X", "GAMEPAD_LEFT_X"],
-					["GAMEPAD_LEFT_Y", "GAMEPAD_LEFT_Y"],
-					["GAMEPAD_RIGHT_X", "GAMEPAD_RIGHT_X"],
-					["GAMEPAD_RIGHT_Y", "GAMEPAD_RIGHT_Y"],
-					["GAMEPAD_DPAD", "GAMEPAD_DPAD"],
-				]
-			}
 		],
 		"output": null,
 		"colour" : colorGamepad,
-		"tooltip" : "Gets a value from a connected Gamepad",
+		"tooltip" : "Gets the raw button values of a Gamepad in as a 32bit integer",
 		"helpUrl" : ""
 	},
 	generator : (block, generator) => {
 		const gamepad = generator.valueToCode(block, 'GAMEPAD', 0);
-		const value = block.getFieldValue('VALUE');
 
-		const command = "gamepad.value(" + gamepad + "," + value + ")";
+		const command = "gamepad.buttonsraw(" + gamepad + ")";
 
 		return [ command, 0 ];
 	}

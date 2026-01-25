@@ -1079,11 +1079,7 @@ void BTRemote::publishLogMessages() {
 	String logMessage = loggingOutput_->waitForLogMessage(0);
 	while (logMessage.length() > 0) {
 		if (deviceConnected_ && readyForEvents_) {
-			std::vector<uint8_t> response;
-			createJsonResponse(response, [logMessage](JsonDocument &responseDoc) {
-				responseDoc["message"] = logMessage;
-			});
-
+			std::vector<uint8_t> response(logMessage.begin(), logMessage.end());
 			sendEvent(APP_EVENT_TYPE_LOG, response);
 		}
 

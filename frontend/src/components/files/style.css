@@ -177,6 +177,29 @@ input[type="text"]:focus {
   border-color: var(--vscode-accent-blue);
 }
 
+input[type="text"].invalid {
+  border-color: var(--color-error);
+}
+
+input[type="text"].invalid:focus {
+  border-color: var(--color-error);
+}
+
+/* Validation Hint */
+.validation-hint {
+  font-size: var(--font-fixed-11);
+  color: var(--color-error);
+  min-height: 1.2em;
+  margin-top: calc(-1 * var(--spacing-sm));
+  padding-left: var(--spacing-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.validation-hint.visible {
+  opacity: 1;
+}
+
 input[type="text"]::placeholder {
   color: var(--vscode-text-tertiary);
 }

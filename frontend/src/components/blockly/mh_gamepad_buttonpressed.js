@@ -27,6 +27,21 @@ export const definition = {
 				"name" : "BUTTON",
 				"options" : [
 					[ "GAMEPAD_BUTTON_1", "GAMEPAD_BUTTON_1" ],
+					[ "GAMEPAD_BUTTON_1", "GAMEPAD_BUTTON_2" ],
+					[ "GAMEPAD_BUTTON_2", "GAMEPAD_BUTTON_3" ],
+					[ "GAMEPAD_BUTTON_4", "GAMEPAD_BUTTON_4" ],
+					[ "GAMEPAD_BUTTON_5", "GAMEPAD_BUTTON_5" ],
+					[ "GAMEPAD_BUTTON_6", "GAMEPAD_BUTTON_6" ],
+					[ "GAMEPAD_BUTTON_7", "GAMEPAD_BUTTON_7" ],
+					[ "GAMEPAD_BUTTON_8", "GAMEPAD_BUTTON_8" ],
+					[ "GAMEPAD_BUTTON_9", "GAMEPAD_BUTTON_9" ],
+					[ "GAMEPAD_BUTTON_10", "GAMEPAD_BUTTON_10" ],
+					[ "GAMEPAD_BUTTON_11", "GAMEPAD_BUTTON_11" ],
+					[ "GAMEPAD_BUTTON_12", "GAMEPAD_BUTTON_12" ],
+					[ "GAMEPAD_BUTTON_13", "GAMEPAD_BUTTON_13" ],
+					[ "GAMEPAD_BUTTON_14", "GAMEPAD_BUTTON_14" ],
+					[ "GAMEPAD_BUTTON_15", "GAMEPAD_BUTTON_15" ],
+					[ "GAMEPAD_BUTTON_16", "GAMEPAD_BUTTON_16" ],																																																																											
 				]
 			}
 		],

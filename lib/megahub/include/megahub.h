@@ -34,12 +34,28 @@
 #define PINMODE_INPUT_PULLDOWN 3002
 #define PINMODE_OUTPUT		   3003
 
-#define GAMEPAD1		 4000
-#define GAMEPAD_BUTTON_1 5000
-#define GAMEPAD_LEFT_X	 6000
-#define GAMEPAD_LEFT_Y	 6001
-#define GAMEPAD_RIGHT_X	 6002
-#define GAMEPAD_RIGHT_Y	 6003
+#define GAMEPAD1		  4000
+#define GAMEPAD_BUTTON_1  5000
+#define GAMEPAD_BUTTON_2  5001
+#define GAMEPAD_BUTTON_3  5002
+#define GAMEPAD_BUTTON_4  5003
+#define GAMEPAD_BUTTON_5  5004
+#define GAMEPAD_BUTTON_6  5005
+#define GAMEPAD_BUTTON_7  5006
+#define GAMEPAD_BUTTON_8  5007
+#define GAMEPAD_BUTTON_9  5008
+#define GAMEPAD_BUTTON_10 5009
+#define GAMEPAD_BUTTON_11 5010
+#define GAMEPAD_BUTTON_12 5011
+#define GAMEPAD_BUTTON_13 5012
+#define GAMEPAD_BUTTON_14 5013
+#define GAMEPAD_BUTTON_15 5014
+#define GAMEPAD_BUTTON_16 5015
+#define GAMEPAD_LEFT_X	  6000
+#define GAMEPAD_LEFT_Y	  6001
+#define GAMEPAD_RIGHT_X	  6002
+#define GAMEPAD_RIGHT_Y	  6003
+#define GAMEPAD_DPAD	  6004
 
 #define YAW			   7000
 #define PITCH		   7001
@@ -82,7 +98,7 @@ public:
 	void registerThread(TaskHandle_t handle);
 	void stopRunningThreads();
 	void stopThread(TaskHandle_t handle);
-	
+
 private:
 	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;

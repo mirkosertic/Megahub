@@ -602,8 +602,8 @@ async function initBLEConnection() {
 		btdevicelist.initialize();
 
 		bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
-			const logEvent = JSON.parse(new TextDecoder().decode(data));
-			logger.addToLog(logEvent.message);
+			const message = new TextDecoder().decode(data);
+			logger.addToLog(message);
 		});
 
 		bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {

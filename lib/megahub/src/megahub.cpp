@@ -20,6 +20,123 @@ SemaphoreHandle_t lua_global_mutex = xSemaphoreCreateMutex();
 
 TaskHandle_t statusReporterTaskHandle = NULL;
 
+// Snapshot structures for status reporting - uses fixed-size arrays to avoid heap allocations
+// during lock-held section for minimal i2c lock time
+#define SNAPSHOT_MAX_MODES		 16
+#define SNAPSHOT_NAME_MAX_LEN	 32
+#define SNAPSHOT_UNITS_MAX_LEN	 16
+
+struct ModeSnapshot {
+	int id;
+	char name[SNAPSHOT_NAME_MAX_LEN];
+	char units[SNAPSHOT_UNITS_MAX_LEN];
+	bool hasFormat;
+	int datasets;
+	int figures;
+	int decimals;
+	Format::FormatType formatType;
+};
+
+struct DeviceSnapshot {
+	bool connected;
+	char name[SNAPSHOT_NAME_MAX_LEN];
+	int deviceId;
+	int numModes;
+	ModeSnapshot modes[SNAPSHOT_MAX_MODES];
+};
+
+struct HubSnapshot {
+	DeviceSnapshot ports[4];
+};
+
+// Capture device state into snapshot (call with i2c lock held)
+// Uses only stack operations - no heap allocations for minimal lock time
+static void captureDeviceSnapshot(LegoDevice *device, DeviceSnapshot &snap) {
+	snap.connected = device->fullyInitialized();
+	if (!snap.connected) {
+		snap.numModes = 0;
+		return;
+	}
+
+	strncpy(snap.name, device->name().c_str(), SNAPSHOT_NAME_MAX_LEN - 1);
+	snap.name[SNAPSHOT_NAME_MAX_LEN - 1] = '\0';
+	snap.deviceId = device->getDeviceId();
+
+	int numModes = device->numModes();
+	snap.numModes = (numModes > SNAPSHOT_MAX_MODES) ? SNAPSHOT_MAX_MODES : numModes;
+
+	for (int i = 0; i < snap.numModes; i++) {
+		Mode *mode = device->getMode(i);
+		ModeSnapshot &m = snap.modes[i];
+		m.id = i;
+		strncpy(m.name, mode->getName().c_str(), SNAPSHOT_NAME_MAX_LEN - 1);
+		m.name[SNAPSHOT_NAME_MAX_LEN - 1] = '\0';
+		strncpy(m.units, mode->getUnits().c_str(), SNAPSHOT_UNITS_MAX_LEN - 1);
+		m.units[SNAPSHOT_UNITS_MAX_LEN - 1] = '\0';
+
+		Format *format = mode->getFormat();
+		m.hasFormat = (format != nullptr);
+		if (m.hasFormat) {
+			m.datasets = format->getDatasets();
+			m.figures = format->getFigures();
+			m.decimals = format->getDecimals();
+			m.formatType = format->getFormatType();
+		}
+	}
+}
+
+// Convert format type enum to string
+static const char *formatTypeToString(Format::FormatType type) {
+	switch (type) {
+		case Format::FormatType::DATA8:
+			return "DATA8";
+		case Format::FormatType::DATA16:
+			return "DATA16";
+		case Format::FormatType::DATA32:
+			return "DATA32";
+		case Format::FormatType::DATAFLOAT:
+			return "DATAFLOAT";
+		default:
+			return nullptr;
+	}
+}
+
+// Convert device snapshot to JSON (call without i2c lock)
+static void deviceSnapshotToJson(const DeviceSnapshot &snap, int portId, JsonArray &ports) {
+	JsonObject port = ports.add<JsonObject>();
+	port["id"] = portId;
+
+	if (!snap.connected) {
+		port["connected"] = false;
+		return;
+	}
+
+	port["connected"] = true;
+	JsonObject device = port["device"].to<JsonObject>();
+	device["type"] = snap.name;
+	device["deviceId"] = snap.deviceId;
+	device["icon"] = "⚙️";
+
+	JsonArray modes = device["modes"].to<JsonArray>();
+	for (int i = 0; i < snap.numModes; i++) {
+		const ModeSnapshot &m = snap.modes[i];
+		JsonObject singleMode = modes.add<JsonObject>();
+		singleMode["id"] = m.id;
+		singleMode["name"] = m.name;
+		singleMode["units"] = m.units;
+
+		if (m.hasFormat) {
+			singleMode["datasets"] = m.datasets;
+			singleMode["figures"] = m.figures;
+			singleMode["decimals"] = m.decimals;
+			const char *typeStr = formatTypeToString(m.formatType);
+			if (typeStr) {
+				singleMode["type"] = typeStr;
+			}
+		}
+	}
+}
+
 Megahub *getMegaHubRef(lua_State *L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
 	void **userdata = (void **) lua_touserdata(L, -1);
@@ -37,221 +154,34 @@ InputDevices *getInputDevicesRef(lua_State *L) {
 void status_reporter_task(void *parameters) {
 	Megahub *hub = (Megahub *) parameters;
 	INFO("Starting task reporter task");
+
+	// Static to avoid stack overflow - HubSnapshot is ~4.5KB with fixed arrays
+	// Safe because there's only one status_reporter_task instance
+	static HubSnapshot snapshot;
+
 	while (true) {
 		DEBUG("Sending Portstatus");
 
+		// Phase 1: Fast snapshot capture under i2c lock
 		i2c_lock();
-		JsonDocument status;
+		captureDeviceSnapshot(hub->port(PORT1), snapshot.ports[0]);
+		captureDeviceSnapshot(hub->port(PORT2), snapshot.ports[1]);
+		captureDeviceSnapshot(hub->port(PORT3), snapshot.ports[2]);
+		captureDeviceSnapshot(hub->port(PORT4), snapshot.ports[3]);
+		i2c_unlock();
 
-		// TODO: Update icons and other stuff here
+		// Phase 2: JSON construction without lock
+		JsonDocument status;
 		JsonArray ports = status["ports"].to<JsonArray>();
 
-		LegoDevice *device1 = hub->port(PORT1);
-		JsonObject port1 = ports.add<JsonObject>();
-		port1["id"] = 1;
-		if (device1->fullyInitialized()) {
-			port1["connected"] = true;
-			JsonObject device = port1["device"].to<JsonObject>();
-			device["type"] = device1->name();
-			device["deviceId"] = device1->getDeviceId();
-			device["icon"] = "⚙️";
-			JsonArray modes = device["modes"].to<JsonArray>();
-			for (int i = 0; i < device1->numModes(); i++) {
-				Mode *mode = device1->getMode(i);
-
-				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;
-				singleMode["name"] = String(mode->getName().c_str());
-				singleMode["units"] = String(mode->getUnits().c_str());
-				Format *format = mode->getFormat();
-				if (format != nullptr) {
-					singleMode["datasets"] = format->getDatasets();
-					singleMode["figures"] = format->getFigures();
-					singleMode["decimals"] = format->getDecimals();
-
-					switch (format->getFormatType()) {
-						case Format::FormatType::DATA8: {
-							singleMode["type"] = "DATA8";
-							break;
-						}
-						case Format::FormatType::DATA16: {
-							singleMode["type"] = "DATA16";
-							break;
-						}
-						case Format::FormatType::DATA32: {
-							singleMode["type"] = "DATA32";
-							break;
-						}
-						case Format::FormatType::DATAFLOAT: {
-							singleMode["type"] = "DATAFLOAT";
-							break;
-						}
-						default: {
-							// Do nothing
-						}
-					}
-				}
-			}
-		} else {
-			port1["connected"] = false;
+		for (int i = 0; i < 4; i++) {
+			deviceSnapshotToJson(snapshot.ports[i], i + 1, ports);
 		}
-
-		LegoDevice *device2 = hub->port(PORT2);
-		JsonObject port2 = ports.add<JsonObject>();
-		port2["id"] = 2;
-		if (device2->fullyInitialized()) {
-			port2["connected"] = true;
-			JsonObject device = port2["device"].to<JsonObject>();
-			device["type"] = device2->name();
-			device["deviceId"] = device2->getDeviceId();
-			device["icon"] = "⚙️";
-			JsonArray modes = device["modes"].to<JsonArray>();
-			for (int i = 0; i < device2->numModes(); i++) {
-				Mode *mode = device2->getMode(i);
-
-				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;
-				singleMode["name"] = String(mode->getName().c_str());
-				singleMode["units"] = String(mode->getUnits().c_str());
-				Format *format = mode->getFormat();
-				if (format != nullptr) {
-					singleMode["datasets"] = format->getDatasets();
-					singleMode["figures"] = format->getFigures();
-					singleMode["decimals"] = format->getDecimals();
-
-					switch (format->getFormatType()) {
-						case Format::FormatType::DATA8: {
-							singleMode["type"] = "DATA8";
-							break;
-						}
-						case Format::FormatType::DATA16: {
-							singleMode["type"] = "DATA16";
-							break;
-						}
-						case Format::FormatType::DATA32: {
-							singleMode["type"] = "DATA32";
-							break;
-						}
-						case Format::FormatType::DATAFLOAT: {
-							singleMode["type"] = "DATAFLOAT";
-							break;
-						}
-						default: {
-							// Do nothing
-						}
-					}
-				}
-			}
-		} else {
-			port2["connected"] = false;
-		}
-
-		LegoDevice *device3 = hub->port(PORT3);
-		JsonObject port3 = ports.add<JsonObject>();
-		port3["id"] = 3;
-		if (device3->fullyInitialized()) {
-			port3["connected"] = true;
-			JsonObject device = port3["device"].to<JsonObject>();
-			device["type"] = device3->name();
-			device["deviceId"] = device3->getDeviceId();
-			device["icon"] = "⚙️";
-			JsonArray modes = device["modes"].to<JsonArray>();
-			for (int i = 0; i < device3->numModes(); i++) {
-				Mode *mode = device3->getMode(i);
-
-				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;
-				singleMode["name"] = String(mode->getName().c_str());
-				singleMode["units"] = String(mode->getUnits().c_str());
-				Format *format = mode->getFormat();
-				if (format != nullptr) {
-					singleMode["datasets"] = format->getDatasets();
-					singleMode["figures"] = format->getFigures();
-					singleMode["decimals"] = format->getDecimals();
-
-					switch (format->getFormatType()) {
-						case Format::FormatType::DATA8: {
-							singleMode["type"] = "DATA8";
-							break;
-						}
-						case Format::FormatType::DATA16: {
-							singleMode["type"] = "DATA16";
-							break;
-						}
-						case Format::FormatType::DATA32: {
-							singleMode["type"] = "DATA32";
-							break;
-						}
-						case Format::FormatType::DATAFLOAT: {
-							singleMode["type"] = "DATAFLOAT";
-							break;
-						}
-						default: {
-							// Do nothing
-						}
-					}
-				}
-			}
-		} else {
-			port3["connected"] = false;
-		}
-
-		LegoDevice *device4 = hub->port(PORT4);
-		JsonObject port4 = ports.add<JsonObject>();
-		port4["id"] = 4;
-		if (device4->fullyInitialized()) {
-			port4["connected"] = true;
-			JsonObject device = port4["device"].to<JsonObject>();
-			device["type"] = device4->name();
-			device["deviceId"] = device4->getDeviceId();
-			device["icon"] = "⚙️";
-			JsonArray modes = device["modes"].to<JsonArray>();
-			for (int i = 0; i < device4->numModes(); i++) {
-				Mode *mode = device4->getMode(i);
-
-				JsonObject singleMode = modes.add<JsonObject>();
-				singleMode["id"] = i;
-				singleMode["name"] = String(mode->getName().c_str());
-				singleMode["units"] = String(mode->getUnits().c_str());
-				Format *format = mode->getFormat();
-				if (format != nullptr) {
-					singleMode["datasets"] = format->getDatasets();
-					singleMode["figures"] = format->getFigures();
-					singleMode["decimals"] = format->getDecimals();
-
-					switch (format->getFormatType()) {
-						case Format::FormatType::DATA8: {
-							singleMode["type"] = "DATA8";
-							break;
-						}
-						case Format::FormatType::DATA16: {
-							singleMode["type"] = "DATA16";
-							break;
-						}
-						case Format::FormatType::DATA32: {
-							singleMode["type"] = "DATA32";
-							break;
-						}
-						case Format::FormatType::DATAFLOAT: {
-							singleMode["type"] = "DATAFLOAT";
-							break;
-						}
-						default: {
-							// Do nothing
-						}
-					}
-				}
-			}
-		} else {
-			port4["connected"] = false;
-		}
-
-		i2c_unlock();
 
 		String strContent;
 		serializeJson(status, strContent);
 
-		DEBUG("Port state JSON has length %d and  is %s", strContent.length(), strContent.c_str());
+		DEBUG("Port state JSON has length %d and is %s", strContent.length(), strContent.c_str());
 
 		Portstatus::instance()->queue(strContent);
 
@@ -433,6 +363,37 @@ lua_State *Megahub::newLuaState() {
 	lua_setglobal(ls, "GAMEPAD1");
 	lua_pushinteger(ls, GAMEPAD_BUTTON_1);
 	lua_setglobal(ls, "GAMEPAD_BUTTON_1");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_2);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_2");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_3);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_3");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_4);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_4");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_5);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_5");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_6);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_6");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_7);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_7");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_8);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_8");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_9);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_9");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_10);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_10");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_11);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_11");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_12);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_12");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_13);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_13");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_14);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_14");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_15);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_15");
+	lua_pushinteger(ls, GAMEPAD_BUTTON_16);
+	lua_setglobal(ls, "GAMEPAD_BUTTON_16");
+
 	lua_pushinteger(ls, GAMEPAD_LEFT_X);
 	lua_setglobal(ls, "GAMEPAD_LEFT_X");
 	lua_pushinteger(ls, GAMEPAD_LEFT_Y);
@@ -441,6 +402,8 @@ lua_State *Megahub::newLuaState() {
 	lua_setglobal(ls, "GAMEPAD_RIGHT_X");
 	lua_pushinteger(ls, GAMEPAD_RIGHT_Y);
 	lua_setglobal(ls, "GAMEPAD_RIGHT_Y");
+	lua_pushinteger(ls, GAMEPAD_DPAD);
+	lua_setglobal(ls, "GAMEPAD_DPAD");
 
 	INFO("Finished creating new Lua state");
 

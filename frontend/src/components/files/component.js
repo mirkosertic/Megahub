@@ -7,6 +7,50 @@ class FilesHTMLElement extends HTMLElement {
 	selectedProject = undefined;
 	autostartProject = undefined;
 
+	/**
+	 * Validates project name and returns error message or empty string if valid.
+	 * Rules: not empty, no leading/trailing spaces, only alphanumeric and spaces allowed.
+	 */
+	validateProjectName(name) {
+		if (!name || name.length === 0) {
+			return 'Project name cannot be empty';
+		}
+		if (name.startsWith(' ')) {
+			return 'Project name cannot start with a space';
+		}
+		if (name.endsWith(' ')) {
+			return 'Project name cannot end with a space';
+		}
+		if (!/^[a-zA-Z0-9 ]+$/.test(name)) {
+			return 'Only letters, numbers, and spaces are allowed';
+		}
+		return '';
+	}
+
+	/**
+	 * Updates the validation UI based on input value.
+	 */
+	updateValidationUI() {
+		const input = this.shadowRoot.getElementById('newProjectName');
+		const hint = this.shadowRoot.getElementById('validationHint');
+		const createBtn = this.shadowRoot.getElementById('createbutton');
+		const value = input.value;
+
+		const error = this.validateProjectName(value);
+
+		if (error) {
+			input.classList.add('invalid');
+			hint.textContent = error;
+			hint.classList.add('visible');
+			createBtn.setAttribute('disabled', '');
+		} else {
+			input.classList.remove('invalid');
+			hint.textContent = '';
+			hint.classList.remove('visible');
+			createBtn.removeAttribute('disabled');
+		}
+	}
+
 	connectedCallback() {
 		const shadow = this.attachShadow({mode : 'open'})
 
@@ -77,9 +121,16 @@ class FilesHTMLElement extends HTMLElement {
 			this.openProject(this.selectedProject.name);
 		});
 
+		const newProjectInput = this.shadowRoot.getElementById("newProjectName");
+		newProjectInput.addEventListener("input", () => {
+			this.updateValidationUI();
+		});
+
 		this.shadowRoot.getElementById("createbutton").addEventListener("click", (event) => {
-			var project = this.shadowRoot.getElementById("newProjectName").value;
-			this.createProject(project);
+			var project = newProjectInput.value;
+			if (!this.validateProjectName(project)) {
+				this.createProject(project);
+			}
 		});
 
 		this.setAutoStartProject(this.autostartProject);

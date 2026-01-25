@@ -195,13 +195,13 @@ int hub_setmotorspeed(lua_State *luaState) {
 	int port = lua_tointeger(luaState, 1);
 	int speed = lua_tointeger(luaState, 2);
 
-	DEBUG("Setting motor speed of port %d to %d", port, speed);
+	INFO("Setting motor speed of port %d to %d", port, speed);
 
 	Megahub *megahub = getMegaHubRef(luaState);
 	LegoDevice *device = megahub->port(port);
 	device->setMotorSpeed(speed);
 
-	DEBUG("Finished with setting motor speed");
+	INFO("Finished with setting motor speed");
 
 	return 0;
 }

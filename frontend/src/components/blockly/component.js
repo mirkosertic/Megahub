@@ -30,6 +30,7 @@ import {definition as lego_get_mode_dataset} from './lego_get_mode_dataset.js'
 import {definition as lego_select_mode} from './lego_select_mode.js'
 import {definition as gamepad_gamepad} from './mh_gamepad_gamepad.js'
 import {definition as gamepad_buttonpressed} from './mh_gamepad_buttonpressed.js'
+import {definition as gamepad_buttonsraw} from './mh_gamepad_buttonsraw.js'
 import {definition as gamepad_value} from './mh_gamepad_value.js'
 import {definition as gamepad_connected} from './mh_gamepad_connected.js'
 import {definition as mh_debug_millis} from './mh_debug_millis.js'
@@ -256,6 +257,8 @@ const customBlocks = {
 	"mh_gamepad_gamepad": gamepad_gamepad,	
 	
 	"mh_gamepad_buttonpressed": gamepad_buttonpressed,
+
+	"mh_gamepad_buttonsraw": gamepad_buttonsraw,
 
 	"mh_gamepad_value": gamepad_value,
 
