@@ -34,6 +34,7 @@ import {definition as gamepad_buttonsraw} from './mh_gamepad_buttonsraw.js'
 import {definition as gamepad_value} from './mh_gamepad_value.js'
 import {definition as gamepad_connected} from './mh_gamepad_connected.js'
 import {definition as mh_debug_millis} from './mh_debug_millis.js'
+import {definition as mh_alg_pid} from './mh_alg_pid.js'
 
 import {colorLogic,
 	colorMath,
@@ -288,7 +289,9 @@ const customBlocks = {
 
 	"mh_wait" : mh_wait,
 
-	"mh_stopthread": mh_stopthread
+	"mh_stopthread": mh_stopthread,
+
+	"mh_alg_pid": mh_alg_pid
 };
 
 function generateToolbox(definitions) {

@@ -4,9 +4,9 @@
 
 ## Introduction
 
-Megahub is an ESP32-based alternative hub designed for LEGO© enthusiasts and robotics builders. It combines the flexibility of the ESP32 platform with native support for LEGO© WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
+Megahub is an ESP32-based experimentation platform designed for robotics enthusiasts and tinkerers. It brings together the versatility of the entire ESP32 ecosystem with convenient support for LEGO© WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
 
-This project provides a powerful, open-source alternative to proprietary solutions, giving makers complete control over their robotic creations while maintaining compatibility with popular LEGO© sensors and motors.
+This open-source project empowers makers to explore and build robotic creations using the full capabilities of the ESP32 platform – from WiFi and Bluetooth connectivity to a vast array of sensors and actuators – while seamlessly integrating popular LEGO© components alongside standard electronics.
 It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
 
 **Build and use it at your own Risk!!**
@@ -19,7 +19,7 @@ It comes with the hardware schematics, production files and the Megahub firmware
 - **IDE**: Configure and program Megahub through the intuitive [Megahub IDE](https://mirkosertic.github.io/Megahub/)
 - **Visual Programming Interface**: Blockly visual programming for beginners
 - **SD-Card**: Built-in SD-card reader to store multiple projects (autostart possible)
-- **4 UART Ports**: Connect up to 4 LEGO© WeDo/Powered Up! devices simultaneously (motors, sensors, etc.)
+- **4 Motors / Devices**: Connect up to 4 generic or LEGO© WeDo 2.0/Powered Up! devices simultaneously (motors, sensors, etc.)
 - **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
 - **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
 - **Flexible GPIO**: Additional GPIO pins available for custom sensors, buttons, and peripherals

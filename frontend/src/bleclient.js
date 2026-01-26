@@ -29,8 +29,8 @@ const ControlMessageType = {
 	BUFFER_FULL : 0x04,
 	RESET : 0x05,
 	MTU_INFO : 0x06,
-	REQUEST_MTU_INFO : 0x07,
-	STREAM_ACK : 0x07,
+	REQUEST_MTU_INFO : 0x07,  // Browser -> ESP32 only
+	STREAM_ACK : 0x07,         // ESP32 -> Browser only (same value, different direction)
 	STREAM_ERROR : 0x09
 };
 
@@ -99,14 +99,14 @@ export class BLEClient {
 	}
 
 	/**
-	 * Establish connection to BLE device
+	 * Establish connection to BLE device (initial connection with user gesture)
 	 * @returns {Promise<void>}
 	 */
 	async connect() {
 		try {
 			this.logInfo('Starting BLE connection...');
 
-			// Select device
+			// Select device (requires user gesture)
 			this.device = await navigator.bluetooth.requestDevice({
 				filters : [ {services : [ SERVICE_UUID ]} ],
 				optionalServices : [ SERVICE_UUID ]
@@ -114,53 +114,155 @@ export class BLEClient {
 
 			this.logInfo('Device selected:', this.device.name);
 
-			// Disconnect handler
+			// Disconnect handler (only register once during initial connection)
 			this.device.addEventListener('gattserverdisconnected', () => {
 				this.handleDisconnect();
 			});
 
-			// Connect to GATT server
-			this.server = await this.device.gatt.connect();
-			this.logVerbose('GATT server connected');
-
-			// Get service
-			this.service = await this.server.getPrimaryService(SERVICE_UUID);
-			this.logVerbose('Service found');
-
-			// Get characteristics
-			this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
-			this.responseChar = await this.service.getCharacteristic(RESPONSE_CHAR_UUID);
-			this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
-			this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
-
-			this.logVerbose('All characteristics found');
-
-			// Enable notifications
-			await this.responseChar.startNotifications();
-			await this.eventChar.startNotifications();
-			await this.controlChar.startNotifications();
-
-			// Event listeners for incoming data
-			this.logVerbose('Registering event listeners for characteristics');
-			this.responseChar.addEventListener('characteristicvaluechanged',
-				(event) => this.handleFragment(event.target.value, 'response'));
-
-			this.eventChar.addEventListener('characteristicvaluechanged',
-				(event) => this.handleFragment(event.target.value, 'event'));
-
-			this.controlChar.addEventListener('characteristicvaluechanged',
-				(event) => this.handleControlMessage(event.target.value));
-
-			this.connected = true;
-			this.logInfo('BLE connection successfully established');
-
-			// Wait for MTU information from server (with timeout)
-			await this.waitForMTU(2000);
-			this.logInfo(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
+			// Perform the actual GATT connection setup
+			await this._setupGattConnection();
 
 		} catch (error) {
 			this.logError('Connection error:', error);
 			throw new Error(`BLE connection failed: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Reconnect to existing BLE device (no user gesture required)
+	 * @returns {Promise<void>}
+	 */
+	async reconnect() {
+		if (!this.device) {
+			throw new Error('No device available for reconnection. Please use connect() first.');
+		}
+
+		try {
+			this.logInfo('Reconnecting to device:', this.device.name);
+
+			// Perform the actual GATT connection setup
+			await this._setupGattConnection();
+
+		} catch (error) {
+			this.logError('Reconnection error:', error);
+			throw new Error(`BLE reconnection failed: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Internal method to set up GATT connection and characteristics
+	 * @private
+	 * @returns {Promise<void>}
+	 */
+	async _setupGattConnection() {
+		// Connect to GATT server
+		this.server = await this.device.gatt.connect();
+		this.logVerbose('GATT server connected');
+
+		// Get service
+		this.service = await this.server.getPrimaryService(SERVICE_UUID);
+		this.logVerbose('Service found');
+
+		// Get characteristics
+		this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
+		this.responseChar = await this.service.getCharacteristic(RESPONSE_CHAR_UUID);
+		this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
+		this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
+
+		this.logVerbose('All characteristics found');
+
+		// Event listeners for incoming data - register BEFORE starting notifications
+		this.logVerbose('Registering event listeners for characteristics');
+		this.responseChar.addEventListener('characteristicvaluechanged',
+			(event) => this.handleFragment(event.target.value, 'response'));
+
+		this.eventChar.addEventListener('characteristicvaluechanged',
+			(event) => this.handleFragment(event.target.value, 'event'));
+
+		this.controlChar.addEventListener('characteristicvaluechanged',
+			(event) => this.handleControlMessage(event.target.value));
+
+		// Enable notifications AFTER event listeners are registered
+		await this.responseChar.startNotifications();
+		this.logVerbose('Response notifications enabled');
+		await this.eventChar.startNotifications();
+		this.logVerbose('Event notifications enabled');
+		await this.controlChar.startNotifications();
+		this.logVerbose('Control notifications enabled');
+
+		// Verify notifications are active
+		if (!this.responseChar.properties.notify && !this.responseChar.properties.indicate) {
+			throw new Error('Response characteristic does not support notifications/indications');
+		}
+		if (!this.eventChar.properties.notify && !this.eventChar.properties.indicate) {
+			throw new Error('Event characteristic does not support notifications/indications');
+		}
+		if (!this.controlChar.properties.notify && !this.controlChar.properties.indicate) {
+			throw new Error('Control characteristic does not support notifications/indications');
+		}
+
+		// Give BLE stack time to fully initialize indication handling
+		// CRITICAL: CCCD writes need time to propagate through BLE stack
+		// Without this delay, ESP32 gets ESP_GATT_NO_RESOURCES when sending indications
+		await this.sleep(200);
+
+		this.connected = true;
+		this.logInfo('BLE connection established');
+
+		// Wait for MTU information from server (with timeout)
+		await this.waitForMTU(2000);
+		this.logVerbose(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
+
+		// Test control channel by requesting MTU info again
+		// This "primes" the indication confirmation path and verifies it works
+		await this.testControlChannel();
+
+		this.logVerbose('BLE stack fully initialized and ready for streaming');
+	}
+
+	/**
+	 * Test control channel to ensure indication confirmations work
+	 * @returns {Promise<void>}
+	 */
+	async testControlChannel() {
+		this.logVerbose('Testing control channel indication path...');
+
+		// Set up a test to verify we can receive control indications
+		let controlTestReceived = false;
+		const originalMtuResolve = this.mtuReceivedResolve;
+
+		const testPromise = new Promise((resolve) => {
+			this.mtuReceivedResolve = () => {
+				controlTestReceived = true;
+				resolve();
+			};
+		});
+
+		try {
+			// Send REQUEST_MTU_INFO control message
+			// This should trigger an MTU_INFO indication response
+			const data = new Uint8Array([ ControlMessageType.REQUEST_MTU_INFO, 0x00 ]);
+			await this.controlChar.writeValueWithResponse(data);
+
+			// Wait for MTU_INFO response (or timeout)
+			const raceResult = await Promise.race([
+				testPromise,
+				this.sleep(500).then(() => 'timeout')
+			]);
+
+			if (raceResult === 'timeout' || !controlTestReceived) {
+				this.logVerbose('Control channel test: No indication received');
+				// Give more time for BLE stack to initialize
+				await this.sleep(200);
+			} else {
+				this.logVerbose('Control channel test: Indication received successfully');
+			}
+		} catch (error) {
+			this.logVerbose('Control channel test failed (non-fatal):', error.message);
+			// Give more time for BLE stack to settle
+			await this.sleep(200);
+		} finally {
+			this.mtuReceivedResolve = originalMtuResolve;
 		}
 	}
 
@@ -232,6 +334,9 @@ export class BLEClient {
 	handleDisconnect() {
 		this.logInfo('Disconnected');
 		this.connected = false;
+
+		// Clean up event listeners for proper resource cleanup
+		this.removeAllEventListeners();
 
 		for (const [messageId, request] of this.pendingRequests) {
 			request.reject(new Error('Connection closed'));
@@ -400,7 +505,7 @@ export class BLEClient {
 
 		const ctrlType = dataView.getUint8(0);
 
-		this.logVerbose(`Control message received: Type=${ctrlType}, Length=${dataView.byteLength}`);
+		this.logVerbose(`Control message received: Type=0x${ctrlType.toString(16)} (${ctrlType}), Length=${dataView.byteLength}`);
 
 		switch (ctrlType) {
 			case ControlMessageType.MTU_INFO:
@@ -493,9 +598,11 @@ export class BLEClient {
 	 * @param {number} chunkIndex - 0xFFFF = start ACK, 0xFFFE = completion ACK
 	 */
 	handleStreamAck(streamId, chunkIndex) {
+		this.logVerbose(`STREAM_ACK received: streamId=${streamId}, chunkIndex=0x${chunkIndex.toString(16)}`);
+
 		const stream = this.activeStreams.get(streamId);
 		if (!stream) {
-			this.logWarn(`STREAM_ACK for unknown stream ${streamId}`);
+			this.logWarn(`STREAM_ACK for unknown stream ${streamId} (active streams: ${Array.from(this.activeStreams.keys()).join(', ')})`);
 			return;
 		}
 
@@ -504,16 +611,24 @@ export class BLEClient {
 			stream.startAcked = true;
 			if (stream.startResolve) {
 				stream.startResolve();
+				stream.startResolve = null;
 			}
 		} else if (chunkIndex === 0xFFFE) {
-			this.logInfo(`Stream ${streamId} complete`);
+			this.logInfo(`Stream ${streamId} upload complete`);
 			stream.complete = true;
 			if (stream.completeResolve) {
 				stream.completeResolve();
+				stream.completeResolve = null;
 			}
 		} else {
 			stream.ackedChunks.add(chunkIndex);
 			stream.lastAckedChunk = chunkIndex;
+
+			// Resolve any pending chunk ACK waiter
+			if (stream.chunkAckResolve) {
+				stream.chunkAckResolve(chunkIndex);
+			}
+
 			if (stream.onProgress) {
 				const bytesAcked = Math.min((chunkIndex + 1) * stream.chunkPayloadSize, stream.totalSize);
 				stream.onProgress(bytesAcked, stream.totalSize);
@@ -713,6 +828,14 @@ export class BLEClient {
 	}
 
 	/**
+	 * Remove all event listeners
+	 */
+	removeAllEventListeners() {
+		this.eventListeners.clear();
+		this.logVerbose('All event listeners removed');
+	}
+
+	/**
 	 * Send control message (INTERNAL)
 	 * @param {number} ctrlType
 	 * @param {number} messageId
@@ -765,12 +888,13 @@ export class BLEClient {
 			onProgress: onProgress,
 			startResolve: null,
 			completeResolve: null,
-			errorReject: null
+			errorReject: null,
+			chunkAckResolve: null
 		};
 		this.activeStreams.set(streamId, streamState);
 
 		try {
-			// 1. Send STREAM_START
+			// 1. Send STREAM_START with retry logic
 			const metadata = JSON.stringify({ project: projectId, filename: filename });
 			const metadataBytes = new TextEncoder().encode(metadata);
 			const startPacket = new Uint8Array(9 + metadataBytes.length);
@@ -787,45 +911,71 @@ export class BLEClient {
 			startPacket[8] = 0x01; // Flags: overwrite
 			startPacket.set(metadataBytes, 9);
 
-			await this.requestChar.writeValueWithResponse(startPacket);
-			this.logVerbose(`Stream ${streamId}: STREAM_START sent`);
+			// Send STREAM_START with retry logic for transient errors
+			let startSuccess = false;
+			for (let attempt = 0; attempt < 3 && !startSuccess; attempt++) {
+				try {
+					if (attempt > 0) {
+						this.logWarn(`Stream ${streamId}: Retrying STREAM_START (attempt ${attempt + 1}/3)...`);
+						await this.sleep(200 * attempt); // Short retry delay
+					}
 
-			// Wait for start ACK
-			await this.waitForStreamEvent(streamState, 'start', 5000);
-			this.logVerbose(`Stream ${streamId}: Start acknowledged`);
+					await this.requestChar.writeValueWithResponse(startPacket);
+					this.logVerbose(`Stream ${streamId}: STREAM_START sent (attempt ${attempt + 1})`);
 
-			// 2. Send STREAM_DATA chunks
-			for (let i = 0; i < chunkCount; i++) {
+					// Wait for start ACK (ESP32 now properly uses indications with confirmation)
+					await this.waitForStreamEvent(streamState, 'start', 5000);
+					this.logVerbose(`Stream ${streamId}: Start acknowledged on attempt ${attempt + 1}`);
+					startSuccess = true;
+				} catch (error) {
+					if (attempt === 2) {
+						throw new Error(`Stream start failed after 3 attempts: ${error.message}`);
+					}
+					this.logWarn(`Stream ${streamId}: Start ACK timeout on attempt ${attempt + 1}: ${error.message}`);
+					streamState.startAcked = false; // Reset for retry
+				}
+			}
+
+			// 2. Send STREAM_DATA chunks with sliding window flow control
+			// Window size balances throughput vs ESP32 queue capacity (20 items)
+			const WINDOW_SIZE = 8; // Max chunks in flight
+			let nextChunkToSend = 0;
+			let nextChunkToAck = 0;
+
+			while (nextChunkToAck < chunkCount) {
 				if (streamState.error) {
 					throw streamState.error;
 				}
 
-				const start = i * chunkPayloadSize;
-				const end = Math.min(start + chunkPayloadSize, totalSize);
-				const chunkData = data.slice(start, end);
-				const isLast = (i === chunkCount - 1);
+				// Send chunks up to window limit
+				while (nextChunkToSend < chunkCount && (nextChunkToSend - nextChunkToAck) < WINDOW_SIZE) {
+					const i = nextChunkToSend;
+					const start = i * chunkPayloadSize;
+					const end = Math.min(start + chunkPayloadSize, totalSize);
+					const chunkData = data.slice(start, end);
+					const isLast = (i === chunkCount - 1);
 
-				const dataPacket = new Uint8Array(5 + chunkData.length);
-				dataPacket[0] = ProtocolMessageType.STREAM_DATA;
-				dataPacket[1] = streamId;
-				dataPacket[2] = i & 0xFF;
-				dataPacket[3] = (i >> 8) & 0xFF;
-				dataPacket[4] = isLast ? 0x01 : 0x00;
-				dataPacket.set(chunkData, 5);
+					const dataPacket = new Uint8Array(5 + chunkData.length);
+					dataPacket[0] = ProtocolMessageType.STREAM_DATA;
+					dataPacket[1] = streamId;
+					dataPacket[2] = i & 0xFF;
+					dataPacket[3] = (i >> 8) & 0xFF;
+					dataPacket[4] = isLast ? 0x01 : 0x00;
+					dataPacket.set(chunkData, 5);
 
-				await this.requestChar.writeValueWithResponse(dataPacket);
+					await this.requestChar.writeValueWithResponse(dataPacket);
+					this.logVerbose(`Stream ${streamId}: Sent chunk ${i}/${chunkCount - 1}`);
+					nextChunkToSend++;
+				}
 
-				// Flow control: wait every 10 chunks if we're getting too far ahead
-				if (i % 10 === 9 && i < chunkCount - 1) {
-					const targetAck = Math.max(0, i - 5);
+				// Wait for ACK of the oldest unacked chunk
+				if (nextChunkToAck < chunkCount) {
 					try {
-						await this.waitForCondition(
-							() => streamState.lastAckedChunk >= targetAck || streamState.error,
-							2000
-						);
-					} catch (e) {
-						// Timeout on flow control is a warning, not an error
-						this.logWarn(`Stream ${streamId}: Flow control timeout, continuing...`);
+						await this.waitForChunkAck(streamState, nextChunkToAck, 5000);
+						this.logVerbose(`Stream ${streamId}: Chunk ${nextChunkToAck} ACKed`);
+						nextChunkToAck++;
+					} catch (error) {
+						throw new Error(`Stream ${streamId}: ACK timeout for chunk ${nextChunkToAck}: ${error.message}`);
 					}
 				}
 
@@ -851,7 +1001,7 @@ export class BLEClient {
 			// Wait for completion ACK
 			await this.waitForStreamEvent(streamState, 'complete', 5000);
 
-			this.logInfo(`Stream ${streamId} completed successfully`);
+			this.logVerbose(`Stream ${streamId} completed successfully`);
 			return true;
 
 		} catch (error) {
@@ -888,8 +1038,75 @@ export class BLEClient {
 			}
 
 			// Timeout
-			setTimeout(() => {
+			const timeoutId = setTimeout(() => {
+				if (eventType === 'start') {
+					streamState.startResolve = null;
+				} else if (eventType === 'complete') {
+					streamState.completeResolve = null;
+				}
 				reject(new Error(`Stream ${eventType} timeout (${timeoutMs}ms)`));
+			}, timeoutMs);
+
+			// Clean up timeout if resolved early
+			const originalResolve = resolve;
+			const wrappedResolve = () => {
+				clearTimeout(timeoutId);
+				originalResolve();
+			};
+
+			if (eventType === 'start') {
+				streamState.startResolve = wrappedResolve;
+			} else if (eventType === 'complete') {
+				streamState.completeResolve = wrappedResolve;
+			}
+		});
+	}
+
+	/**
+	 * Wait for ACK of a specific chunk
+	 * @param {object} streamState
+	 * @param {number} chunkIndex
+	 * @param {number} timeoutMs
+	 */
+	async waitForChunkAck(streamState, chunkIndex, timeoutMs) {
+		return new Promise((resolve, reject) => {
+			// Check if already ACKed
+			if (streamState.ackedChunks.has(chunkIndex) || streamState.lastAckedChunk >= chunkIndex) {
+				resolve(chunkIndex);
+				return;
+			}
+
+			// Check for error
+			if (streamState.error) {
+				reject(streamState.error);
+				return;
+			}
+
+			// Set up ACK waiter
+			streamState.chunkAckResolve = (ackedIndex) => {
+				if (ackedIndex >= chunkIndex) {
+					clearTimeout(timeoutId);
+					streamState.chunkAckResolve = null;
+					resolve(ackedIndex);
+				}
+			};
+
+			// Set up error rejection
+			const originalErrorReject = streamState.errorReject;
+			streamState.errorReject = (error) => {
+				clearTimeout(timeoutId);
+				streamState.chunkAckResolve = null;
+				if (originalErrorReject) {
+					originalErrorReject(error);
+				}
+				reject(error);
+			};
+
+			// Timeout
+			const timeoutId = setTimeout(() => {
+				streamState.chunkAckResolve = null;
+				streamState.errorReject = originalErrorReject;
+				reject(new Error(`Chunk ${chunkIndex} ACK timeout (${timeoutMs}ms)`));
 			}, timeoutMs);
 		});
 	}

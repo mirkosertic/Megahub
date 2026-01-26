@@ -1,8 +1,8 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-01-25
+**Generated:** 2026-01-26
 
-This documentation covers all 72 blocks used in the Megahub project, including 24 custom blocks and 48 standard Blockly blocks with custom colors.
+This documentation covers all 73 blocks used in the Megahub project, including 25 custom blocks and 48 standard Blockly blocks with custom colors.
 
 Block images are rendered as high-quality PNG screenshots to accurately show all block features including text inputs, checkboxes, and statement blocks.
 
@@ -20,6 +20,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 - [FastLED](#fastled) (4 blocks)
 - [IMU](#imu) (1 blocks)
 - [UI](#ui) (1 blocks)
+- [Algorithms](#algorithms) (1 blocks)
 - [Debug](#debug) (2 blocks)
 
 ## Control flow
@@ -940,6 +941,37 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 ---
 
+## Algorithms
+
+### mh_alg_pid
+
+![mh_alg_pid](docs/blocks/algorithms/mh_alg_pid.png)
+
+**Description:** Proportional-Integral-Derivative controller. Returns control output based on setpoint and process variable (PV).
+
+**Type:** Custom Value Block
+
+**Message:** `PID controller %1 setpoint: %2 PV: %3 
+%4 Kp: %5 Ki: %6 Kd: %7 %8 
+output: %9 to %10`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| undefined | input_dummy | Any |
+| SETPOINT | input_value | Number |
+| PV | input_value | Number |
+| undefined | input_dummy | Any |
+| KP | input_value | Number |
+| KI | input_value | Number |
+| KD | input_value | Number |
+| undefined | input_dummy | Any |
+| OUT_MIN | input_value | Number |
+| OUT_MAX | input_value | Number |
+
+---
+
 ## Debug
 
 ### mh_debug_free_heap
@@ -964,10 +996,10 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 ## Generation Statistics
 
-- Total blocks: 72
-- Custom Megahub blocks: 24
+- Total blocks: 73
+- Custom Megahub blocks: 25
 - Standard Blockly blocks: 48
-- PNG images generated: 72
+- PNG images generated: 73
 
 ---
 

@@ -9,4 +9,5 @@ export const colorGamepad = 160;
 export const colorFastLED = 180;
 export const colorIMU = 200;
 export const colorUI = 220;
+export const colorAlgorithms = 230;
 export const colorDebug = 240;

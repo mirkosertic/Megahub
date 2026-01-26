@@ -22,9 +22,9 @@ TaskHandle_t statusReporterTaskHandle = NULL;
 
 // Snapshot structures for status reporting - uses fixed-size arrays to avoid heap allocations
 // during lock-held section for minimal i2c lock time
-#define SNAPSHOT_MAX_MODES		 16
-#define SNAPSHOT_NAME_MAX_LEN	 32
-#define SNAPSHOT_UNITS_MAX_LEN	 16
+#define SNAPSHOT_MAX_MODES	   16
+#define SNAPSHOT_NAME_MAX_LEN  32
+#define SNAPSHOT_UNITS_MAX_LEN 16
 
 struct ModeSnapshot {
 	int id;
@@ -205,6 +205,8 @@ extern int lego_library(lua_State *luaState);
 
 extern int gamepad_library(lua_State *luaState);
 
+extern int alg_library(lua_State *luaState);
+
 int global_wait(lua_State *luaState) {
 	int delay = lua_tointeger(luaState, 1);
 
@@ -258,6 +260,8 @@ lua_State *Megahub::newLuaState() {
 	lua_pop(ls, 1); // remove lib from stack
 	luaL_requiref(ls, "gamepad", gamepad_library, 1);
 	lua_pop(ls, 1); // remove lib from stack
+	luaL_requiref(ls, "alg", alg_library, 1);
+	lua_pop(ls, 1); // remove lib from stack
 
 	// And also global functions
 	lua_register(ls, "wait", global_wait);
@@ -265,7 +269,7 @@ lua_State *Megahub::newLuaState() {
 	lua_register(ls, "millis", global_millis);
 
 	// The self reference
-	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *)); 
+	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *));
 	*userdata = this;
 	lua_setfield(ls, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
 

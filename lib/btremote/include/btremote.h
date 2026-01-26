@@ -44,7 +44,7 @@ const uint32_t FRAGMENT_TIMEOUT_MS = 50000;
 const size_t MAX_CONCURRENT_MESSAGES = 3;
 
 // Streaming file transfer constants
-const size_t MAX_CONCURRENT_STREAMS = 2;
+const size_t MAX_CONCURRENT_STREAMS = 5;
 const uint32_t STREAM_TIMEOUT_MS = 60000;
 
 // Stream state machine for file transfers
@@ -83,10 +83,8 @@ struct BLEHandles {
 	uint16_t response_char_value_handle;
 	uint16_t response_cccd_handle;
 	uint16_t event_char_handle;
-	uint16_t event_char_value_handle;
 	uint16_t event_cccd_handle;
 	uint16_t control_char_handle;
-	uint16_t control_char_value_handle;
 	uint16_t control_cccd_handle;
 };
 
@@ -147,8 +145,8 @@ struct HIDDevice {
 struct HIDEventItem {
 	esp_hidh_cb_event_t event;
 	esp_hidh_cb_param_t param;
-	uint8_t *data_copy;  // Deep copy of data for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT (must be freed manually)
-	uint16_t data_len;   // Length of copied data
+	uint8_t *data_copy; // Deep copy of data for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT (must be freed manually)
+	uint16_t data_len; // Length of copied data
 };
 
 class BTRemote {

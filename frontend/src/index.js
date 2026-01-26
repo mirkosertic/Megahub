@@ -21,7 +21,6 @@ import {
 	APP_REQUEST_TYPE_PUT_AUTOSTART,
 	APP_REQUEST_TYPE_SYNTAX_CHECK,
 	APP_REQUEST_TYPE_RUN_PROGRAM,
-	APP_REQUEST_TYPE_PUT_PROJECT_FILE,
 	APP_REQUEST_TYPE_DELETE_PROJECT,
 	APP_EVENT_TYPE_BTCLASSICDEVICES,
 	APP_REQUEST_TYPE_REQUEST_PAIRING,
@@ -39,6 +38,11 @@ var portstatus = null
 var btdevicelist = null
 var autoSaveEnabled = false;
 var autoSaveIntervalId = null;
+var isReconnecting = false;
+var reconnectAttempts = 0;
+var maxReconnectAttempts = 10;
+var disconnectHandlerRegistered = false; // Prevents duplicate disconnect handler registration
+var connectionLostNotification = null; // Reference to "Connection Lost" notification for dismissal
 
 // ===== Notification System =====
 
@@ -395,21 +399,13 @@ window.Application = {
 				localStorage.setItem(STRORAGE_KEY, content);
 			}
 		} else if (mode === 'bt') {
-			console.log("Saving file " + filename + " to project " + projectId + " (streaming)");
 			try {
 				// Use streaming protocol for memory-efficient uploads
-				await bleClient.uploadFileStreaming(projectId, filename, content,
-					(uploaded, total) => {
-						const percent = Math.round((uploaded / total) * 100);
-						console.log(`Upload progress: ${percent}% (${uploaded}/${total} bytes)`);
-					}
-				);
-				console.log("File saved successfully via streaming protocol");
+				await bleClient.uploadFileStreaming(projectId, filename, content);
 			} catch (error) {
-				console.warn("Streaming upload failed, falling back to legacy JSON:", error.message);
-				// Fallback to legacy JSON method for compatibility
-				const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename, "content": content}));
-				console.log("File saved via legacy JSON method");
+				console.error("Upload failed:", error.message);
+				showNotification('error', 'Upload Failed', `Could not save ${filename}: ${error.message}`);
+				throw error; // Re-throw to let caller handle it
 			}
 		} else if (mode === 'web') {
 			fetch("/project/" + encodeURIComponent(projectId) + "/" + filename, {
@@ -591,44 +587,107 @@ window.Application = {
 	},
 }
 
-async function initBLEConnection() {
-	try {
-		await bleClient.connect();
-		console.log('Connected!');
+function setupEventListeners() {
+	const logger = document.getElementById('logger');
 
-		const logger = document.getElementById('logger');
+	// Remove any existing listeners to prevent duplicates
+	bleClient.removeAllEventListeners();
+
+	bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
+		const message = new TextDecoder().decode(data);
+		logger.addToLog(message);
+	});
+
+	bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {
+		const status = JSON.parse(new TextDecoder().decode(data));
+		portstatus.updateStatus(status);
+	});
+
+	bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
+		const command = JSON.parse(new TextDecoder().decode(data));
+		if (command.type === "thread_statistics") {
+			blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
+		} else {
+			uiComponents.processUIEvent(command);
+		}
+	});
+
+	bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
+		const devices = JSON.parse(new TextDecoder().decode(data));
+		btdevicelist.updateDevices(devices);
+	});
+}
+
+async function handleDisconnect() {
+	console.log('Connection terminated!');
+	// Store notification reference so it can be dismissed on successful reconnection
+	connectionLostNotification = showNotification('warning', 'Connection Lost', 'Attempting to reconnect...', 0);
+
+	// Start reconnection attempts
+	attemptReconnection();
+}
+
+async function attemptReconnection() {
+	if (isReconnecting) {
+		return; // Already attempting to reconnect
+	}
+
+	isReconnecting = true;
+	reconnectAttempts = 0;
+
+	while (reconnectAttempts < maxReconnectAttempts) {
+		reconnectAttempts++;
+
+		// Calculate delay with exponential backoff, starting at 2 seconds
+		// Attempts: 1=2s, 2=4s, 3=8s, 4=16s, 5=30s, 6+=30s (capped)
+		const delayMs = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
+
+		console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs/1000}s...`);
+		// Notification duration proportional to delay time (90% of delay)
+		showNotification('info', 'Reconnecting', `Attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs/1000}s...`, Math.floor(delayMs * 0.9));
+
+		await new Promise(resolve => setTimeout(resolve, delayMs));
+
+		try {
+			await initBLEConnection(true); // Pass true to indicate this is a reconnection
+			// Success! Dismiss the "Connection Lost" notification
+			if (connectionLostNotification) {
+				const closeBtn = connectionLostNotification.querySelector('.notification-close');
+				if (closeBtn) {
+					closeBtn.click();
+				}
+				connectionLostNotification = null;
+			}
+			showNotification('success', 'Reconnected', 'Connection restored successfully');
+			isReconnecting = false;
+			reconnectAttempts = 0;
+			return;
+		} catch (error) {
+			console.warn(`Reconnection attempt ${reconnectAttempts} failed:`, error.message);
+		}
+	}
+
+	// All attempts failed
+	isReconnecting = false;
+	showNotification('error', 'Reconnection Failed', 'Could not reconnect. Please refresh and connect manually.', 0);
+	window.Application.setInitState();
+}
+
+async function initBLEConnection(reconnecting = false) {
+	try {
+		// Use reconnect() for automatic reconnection, connect() for initial user-initiated connection
+		if (reconnecting) {
+			await bleClient.reconnect();
+		} else {
+			await bleClient.connect();
+		}
+		console.log('Connected!');
 
 		portstatus.initialize();
 		btdevicelist.initialize();
 
-		bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
-			const message = new TextDecoder().decode(data);
-			logger.addToLog(message);
-		});
-
-		bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {
-			const status = JSON.parse(new TextDecoder().decode(data));
-			portstatus.updateStatus(status);
-		});
-
-		bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
-			const command = JSON.parse(new TextDecoder().decode(data));
-			if (command.type === "thread_statistics") {
-				blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
-			} else {
-				uicomponents.processUIEvent(command);
-			}
-		});
-
-		bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
-			const devices = JSON.parse(new TextDecoder().decode(data));
-			btdevicelist.updateDevices(devices);
-		});
-
-		// Wildcard listener
-		// bleClient.addEventListener('*', (appEventType, data) => {
-		//	console.log(`Event Type ${appEventType} received:`, new TextDecoder().decode(data));
-		//});
+		// Set up event listeners
+		setupEventListeners();
 
 		// Activate Eventing
 		console.log("Notifying, I am ready!");
@@ -636,16 +695,22 @@ async function initBLEConnection() {
 
 		console.log("Now I should get log messages");
 
-		bleClient.onDisconnect(() => {
-			console.log('Connection terminated!');
-			window.Application.setInitState();
-		});
+		// Register disconnect handler only once to prevent duplicates during reconnections
+		if (!disconnectHandlerRegistered) {
+			bleClient.onDisconnect(() => {
+				handleDisconnect();
+			});
+			disconnectHandlerRegistered = true;
+		}
 
-		// We are ready to do something, we start with the files view
-		window.Application.jumpToFilesView();
+		// Only jump to files view if this is the initial connection (not a reconnection)
+		if (!isReconnecting) {
+			window.Application.jumpToFilesView();
+		}
 
 	} catch (error) {
 		console.error('Error:', error);
+		throw error; // Re-throw to allow reconnection logic to handle it
 	}
 };
 
@@ -693,6 +758,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Initialize accordion behavior
 	initSidebarAccordion();
+
+	// ===== Drag-and-Drop File Support =====
+	let dragCounter = 0; // Track nested drag events
+
+	blocklyEditor.addEventListener('dragenter', (e) => {
+		e.preventDefault();
+		dragCounter++;
+		if (dragCounter === 1) {
+			blocklyEditor.classList.add('drag-over');
+		}
+	});
+
+	blocklyEditor.addEventListener('dragover', (e) => {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = 'copy';
+	});
+
+	blocklyEditor.addEventListener('dragleave', (e) => {
+		e.preventDefault();
+		dragCounter--;
+		if (dragCounter === 0) {
+			blocklyEditor.classList.remove('drag-over');
+		}
+	});
+
+	blocklyEditor.addEventListener('drop', async (e) => {
+		e.preventDefault();
+		dragCounter = 0;
+		blocklyEditor.classList.remove('drag-over');
+
+		const files = e.dataTransfer.files;
+		if (files.length === 0) {
+			showNotification('warning', 'No File', 'No file was dropped');
+			return;
+		}
+
+		const file = files[0];
+
+		// Validate file extension
+		if (!file.name.toLowerCase().endsWith('.xml')) {
+			showNotification('error', 'Invalid File Type', 'Only XML files are supported. Please drop a .xml file.');
+			return;
+		}
+
+		try {
+			const fileContent = await file.text();
+
+			// Validate XML content (same as paste handler)
+			if (!fileContent.trim().startsWith('<xml') && !fileContent.trim().startsWith('<?xml')) {
+				showNotification('error', 'Invalid XML', 'File does not contain valid Blockly XML');
+				return;
+			}
+
+			// Confirm before loading
+			const confirmed = await showConfirmDialog(
+				'Load Workspace',
+				`This will replace your current workspace with ${file.name}. Continue?`,
+				{ confirmText: 'Load', cancelText: 'Cancel', destructive: true }
+			);
+
+			if (confirmed) {
+				const success = blocklyEditor.loadXML(fileContent);
+				if (success) {
+					showNotification('success', 'Workspace Loaded', `${file.name} has been loaded successfully`);
+				} else {
+					showNotification('error', 'Load Failed', 'Could not parse the Blockly XML from file');
+				}
+			}
+		} catch (error) {
+			console.error('Failed to read dropped file:', error);
+			showNotification('error', 'Read Failed', 'Could not read the dropped file');
+		}
+	});
 
 	if (mode === 'bt') {
 		window.Application.setInitState();

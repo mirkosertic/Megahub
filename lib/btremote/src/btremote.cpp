@@ -338,7 +338,7 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 	, hidEventTaskHandle_(nullptr)
 	, streamsMutex_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
-	responseQueue_ = xQueueCreate(10, sizeof(MessageProcessorItem));
+	responseQueue_ = xQueueCreate(20, sizeof(MessageProcessorItem));
 	fragmentBuffersMutex_ = xSemaphoreCreateMutex();
 	indicationConfirmSemaphore_ = xSemaphoreCreateBinary();
 	discoveredDevicesMutex_ = xSemaphoreCreateMutex();
@@ -816,7 +816,7 @@ void BTRemote::sendStreamAck(uint8_t streamId, uint16_t chunkIndex) {
 	ackData[3] = (chunkIndex >> 8) & 0xFF;
 
 	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_value_handle, sizeof(ackData), ackData, false);
+		handles_.control_char_handle, sizeof(ackData), ackData, false);
 }
 
 void BTRemote::sendStreamError(uint8_t streamId, uint8_t errorCode) {
@@ -831,7 +831,7 @@ void BTRemote::sendStreamError(uint8_t streamId, uint8_t errorCode) {
 	errData[2] = errorCode;
 
 	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_value_handle, sizeof(errData), errData, false);
+		handles_.control_char_handle, sizeof(errData), errData, false);
 
 	WARN("Stream %d error sent: code=0x%02X", streamId, errorCode);
 }
@@ -1289,8 +1289,7 @@ void BTRemote::processMessageQueue() {
 						stream.filename,
 						stream.bytesReceived,
 						(uint8_t *) chunkData->payload.data(),
-						chunkData->payload.size()
-					);
+						chunkData->payload.size());
 
 					if (!success) {
 						stream.state = StreamState::ERROR;

@@ -550,10 +550,18 @@ custom-blockly {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  transition: all var(--transition-fast);
 
   & .blocklyToolbox {
     color: var(--vscode-bg-primary);
   }
+}
+
+/* Drag-and-drop visual feedback */
+custom-blockly.drag-over {
+  outline: 3px dashed var(--vscode-accent-blue);
+  outline-offset: -3px;
+  background: rgba(0, 122, 204, 0.05);
 }
 
 

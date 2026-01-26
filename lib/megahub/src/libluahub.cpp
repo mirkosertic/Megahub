@@ -1,6 +1,6 @@
+#include "commands.h"
 #include "megahub.h"
 
-#include "commands.h"
 #include <ArduinoJson.h>
 
 struct HubThreadParams {
@@ -25,12 +25,12 @@ void hub_thread_task(void *parameters) {
 	unsigned long minDuration = ULONG_MAX;
 	unsigned long maxDuration = 0;
 	double avgDuration = 0.0;
-	const double alpha = 0.01;  // Smoothing factor for exponential moving average
+	const double alpha = 0.01; // Smoothing factor for exponential moving average
 	bool firstIteration = true;
 
 	// Timer for periodic operations (every 10 seconds)
 	unsigned long lastPeriodicOp = millis();
-	const unsigned long periodicInterval = 10000;  // 10 seconds in milliseconds
+	const unsigned long periodicInterval = 10000; // 10 seconds in milliseconds
 
 	while (true) {
 
@@ -115,7 +115,7 @@ int hub_startthread(lua_State *luaState) {
 
 	String threadName = lua_tostring(luaState, 1);
 	String blockId = lua_tostring(luaState, 2);
-	int stackSize = lua_tointeger(luaState, 3);	
+	int stackSize = lua_tointeger(luaState, 3);
 	bool profiling = lua_toboolean(luaState, 4);
 
 	luaL_checktype(luaState, 5, LUA_TFUNCTION);
@@ -147,7 +147,7 @@ int hub_startthread(lua_State *luaState) {
 
 	hub->registerThread(taskHandle);
 
-	TaskHandle_t* udata = (TaskHandle_t*)lua_newuserdata(luaState, sizeof(TaskHandle_t*));
+	TaskHandle_t *udata = (TaskHandle_t *) lua_newuserdata(luaState, sizeof(TaskHandle_t *));
 	*udata = taskHandle;
 	return 1;
 }
@@ -156,15 +156,15 @@ int hub_stopthread(lua_State *luaState) {
 
 	INFO("Stopping thread");
 
- 	TaskHandle_t* task_handle = (TaskHandle_t*) lua_touserdata(luaState, 1);
-    
-    if (*task_handle != NULL) {
+	TaskHandle_t *task_handle = (TaskHandle_t *) lua_touserdata(luaState, 1);
+
+	if (*task_handle != NULL) {
 		Megahub *hub = getMegaHubRef(luaState);
 		hub->stopThread(*task_handle);
-        *task_handle = NULL;
-    }
-    
-    return 0;
+		*task_handle = NULL;
+	}
+
+	return 0;
 }
 
 int hub_init(lua_State *luaState) {
@@ -195,13 +195,13 @@ int hub_setmotorspeed(lua_State *luaState) {
 	int port = lua_tointeger(luaState, 1);
 	int speed = lua_tointeger(luaState, 2);
 
-	INFO("Setting motor speed of port %d to %d", port, speed);
+	DEBUG("Setting motor speed of port %d to %d", port, speed);
 
 	Megahub *megahub = getMegaHubRef(luaState);
 	LegoDevice *device = megahub->port(port);
 	device->setMotorSpeed(speed);
 
-	INFO("Finished with setting motor speed");
+	DEBUG("Finished with setting motor speed");
 
 	return 0;
 }
@@ -250,7 +250,7 @@ int hub_set_pin_mode(lua_State *luaState) {
 int hub_library(lua_State *luaState) {
 	const luaL_Reg hubfunctions[] = {
 		{	 "startthread",	hub_startthread},
-		{	 "stopthread",	hub_stopthread},
+		{	 "stopthread",	   hub_stopthread},
 		{		 "init",			 hub_init},
 		{"setmotorspeed", hub_setmotorspeed},
 		{		 "pinMode",	hub_set_pin_mode},
