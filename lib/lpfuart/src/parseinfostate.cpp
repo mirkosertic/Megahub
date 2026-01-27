@@ -31,8 +31,13 @@ void ParseInfoState::parseINFOName() {
 			break;
 		}
 	}
-	INFO("Mode %d name is '%s'", messageMode, name.c_str());
-	legoDevice->getMode(messageMode)->setName(name);
+	if (name.length() > 0 && isUpperCase(name.at(0))) {
+		INFO("Mode %d name is '%s'", messageMode, name.c_str());
+
+		legoDevice->getMode(messageMode)->setName(name);
+	} else {
+		WARN("Ignoring Name for mode %d as it seems to be invalid (length %d or no uppercase character at start)", messageMode, name.length());
+	}
 }
 
 void ParseInfoState::parseINFOMapping() {

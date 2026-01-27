@@ -2073,7 +2073,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 	// ESP_HIDH_OPEN_EVT can fire multiple times during connection process
 	if (param->open.status == ESP_HIDH_OK && param->open.conn_status == ESP_HIDH_CONN_STATE_CONNECTED) {
 
-		// Update device state
+		// Update device state in hidDevices_
 		if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 			auto it = hidDevices_.find(addrStr);
 			if (it != hidDevices_.end()) {
@@ -2091,6 +2091,54 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 				INFO("New HID device added to connected list");
 			}
 			xSemaphoreGive(hidDevicesMutex_);
+		}
+
+		// Add connected device to discoveredDevices_ so it appears in the frontend UI
+		// This is critical for auto-connected paired devices that reconnect without discovery
+		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+			auto it = discoveredDevices_.find(addrStr);
+			if (it == discoveredDevices_.end()) {
+				// Device not in discovered list, add it now
+				BTClassicDevice device;
+				memcpy(device.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
+
+				// Try to get device name from HID device list (may have been set earlier)
+				const char *deviceName = addrStr.c_str();
+				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+					auto hidIt = hidDevices_.find(addrStr);
+					if (hidIt != hidDevices_.end() && strlen(hidIt->second.name) > 0) {
+						deviceName = hidIt->second.name;
+					}
+					xSemaphoreGive(hidDevicesMutex_);
+				}
+
+				strncpy(device.name, deviceName, ESP_BT_GAP_MAX_BDNAME_LEN);
+				device.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
+
+				// HID devices are peripherals - use GAMEPAD as default type
+				// CoD for HID gamepad: Major=0x05 (Peripheral), Minor=0x08 (Joystick/Gamepad)
+				device.deviceType = BTClassicDeviceType::GAMEPAD;
+				device.cod = 0x000508; // Peripheral + Joystick/Gamepad
+				device.paired = true; // Device successfully connected, so it must be paired
+				device.rssi = 0; // RSSI not available during auto-connect, use 0 as placeholder
+
+				discoveredDevices_[addrStr] = device;
+				INFO("Auto-connected device added to discovered list: %s (%s)",
+					addrStr.c_str(), device.name);
+
+				// Force immediate publish to update frontend (bypass 30-second timer)
+				lastDeviceListPublishTime_ = 0;
+			} else {
+				// Device already in list, just update paired/connected status
+				it->second.paired = true;
+				INFO("Device already in discovered list, marked as paired: %s", addrStr.c_str());
+
+				// Force immediate publish to update frontend
+				lastDeviceListPublishTime_ = 0;
+			}
+			xSemaphoreGive(discoveredDevicesMutex_);
+		} else {
+			WARN("Failed to acquire discoveredDevicesMutex to add auto-connected device");
 		}
 
 		// Initialize gamepad state

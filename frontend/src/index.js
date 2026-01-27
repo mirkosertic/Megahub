@@ -47,10 +47,10 @@ var connectionLostNotification = null; // Reference to "Connection Lost" notific
 // ===== Notification System =====
 
 const NotificationIcons = {
-	success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
-	error: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
-	warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-	info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+	success : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+	error : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+	warning : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+	info : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
 };
 
 /**
@@ -62,7 +62,8 @@ const NotificationIcons = {
  */
 function showNotification(type, title, message = '', duration = 4000) {
 	const container = document.getElementById('notificationContainer');
-	if (!container) return;
+	if (!container)
+		return;
 
 	const notification = document.createElement('div');
 	notification.className = `notification ${type}`;
@@ -113,7 +114,8 @@ function showConfirmDialog(title, message, options = {}) {
 		confirmText = 'Confirm',
 		cancelText = 'Cancel',
 		destructive = true
-	} = options;
+	}
+	= options;
 
 	return new Promise((resolve) => {
 		const overlay = document.getElementById('confirmDialog');
@@ -160,7 +162,8 @@ function initConfirmDialog() {
 	const confirmBtn = document.getElementById('confirmDialogConfirm');
 	const cancelBtn = document.getElementById('confirmDialogCancel');
 
-	if (!overlay || !confirmBtn || !cancelBtn) return;
+	if (!overlay || !confirmBtn || !cancelBtn)
+		return;
 
 	confirmBtn.addEventListener('click', () => closeConfirmDialog(true));
 	cancelBtn.addEventListener('click', () => closeConfirmDialog(false));
@@ -191,7 +194,8 @@ window.showConfirmDialog = showConfirmDialog;
  */
 function showBluetoothUnsupportedMessage() {
 	const welcomeDiv = document.querySelector('.layout-content.welcome');
-	if (!welcomeDiv) return;
+	if (!welcomeDiv)
+		return;
 
 	welcomeDiv.innerHTML = `
 		<div class="bt-unsupported">
@@ -507,7 +511,7 @@ window.Application = {
 				showNotification('success', 'Program Stopped', 'Execution has been halted');
 			});
 		}
-		blocklyEditor.removeAllProfilingOverlays();		
+		blocklyEditor.removeAllProfilingOverlays();
 		// clang-format on
 	},
 
@@ -599,7 +603,9 @@ function setupEventListeners() {
 	});
 
 	bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {
-		const status = JSON.parse(new TextDecoder().decode(data));
+		const portstatustext = new TextDecoder().decode(data);
+		console.log("Got Portstatus : " + portstatustext);
+		const status = JSON.parse(portstatustext);
 		portstatus.updateStatus(status);
 	});
 
@@ -642,9 +648,9 @@ async function attemptReconnection() {
 		// Attempts: 1=2s, 2=4s, 3=8s, 4=16s, 5=30s, 6+=30s (capped)
 		const delayMs = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
 
-		console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs/1000}s...`);
+		console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs / 1000}s...`);
 		// Notification duration proportional to delay time (90% of delay)
-		showNotification('info', 'Reconnecting', `Attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs/1000}s...`, Math.floor(delayMs * 0.9));
+		showNotification('info', 'Reconnecting', `Attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs / 1000}s...`, Math.floor(delayMs * 0.9));
 
 		await new Promise(resolve => setTimeout(resolve, delayMs));
 
@@ -815,8 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			const confirmed = await showConfirmDialog(
 				'Load Workspace',
 				`This will replace your current workspace with ${file.name}. Continue?`,
-				{ confirmText: 'Load', cancelText: 'Cancel', destructive: true }
-			);
+				{confirmText : 'Load', cancelText : 'Cancel', destructive : true});
 
 			if (confirmed) {
 				const success = blocklyEditor.loadXML(fileContent);
@@ -958,8 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		const confirmed = await showConfirmDialog(
 			'Reset Workspace',
 			'Are you sure you want to reset the workspace? All unsaved changes to your Blockly program will be lost.',
-			{ confirmText: 'Reset', cancelText: 'Cancel', destructive: true }
-		);
+			{confirmText : 'Reset', cancelText : 'Cancel', destructive : true});
 		if (confirmed) {
 			blocklyEditor.clearWorkspace();
 			showNotification('success', 'Workspace Reset', 'All blocks have been cleared');
@@ -1018,8 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			const confirmed = await showConfirmDialog(
 				'Paste Project',
 				'This will replace your current workspace with the project from clipboard. Continue?',
-				{ confirmText: 'Paste', cancelText: 'Cancel', destructive: true }
-			);
+				{confirmText : 'Paste', cancelText : 'Cancel', destructive : true});
 
 			if (confirmed) {
 				const success = blocklyEditor.loadXML(clipboardText);

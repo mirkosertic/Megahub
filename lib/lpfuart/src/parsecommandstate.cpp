@@ -96,17 +96,23 @@ void ParseCommandState::parseCMDType() {
 
 void ParseCommandState::parseCMDModes() {
 	int modes = messagePayload[0] + 1;
-	legoDevice->initNumberOfModes(modes);
-	INFO("Number of supported modes is %d", modes);
+	if (messageSize == 1) {
+		legoDevice->initNumberOfModes(modes);
+		INFO("Number of supported modes is %d (1 byte payload)", modes);
+	} else if (messageSize == 2) {
+		legoDevice->initNumberOfModes(modes);
+		INFO("Number of supported modes is %d (2 bytes payload)", modes);
 
-	if (messageSize == 2) {
 		int views = messagePayload[1] + 1;
 		INFO("Number of supported views is %d", views);
-	} else if (messageSize == 5) {
+	} else if (messageSize == 4) {
 		int modes2 = messagePayload[2] + 1;
 		int views2 = messagePayload[3] + 1;
-		INFO("Number of supported modes2 is %d", modes2);
-		INFO("Number of supported views2 is %d", views2);
+
+		legoDevice->initNumberOfModes(modes2);
+		INFO("Number of supported modes is %d (4 bytes payload)", modes2);
+	} else {
+		WARN("Unsupported payload length for CMD_MODES : %d", messageSize);
 	}
 }
 

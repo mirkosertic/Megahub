@@ -1,0 +1,43 @@
+{
+	"type": "BOOST Interactive Motor",
+	"deviceId": 38,
+	"icon": "⚙️",
+	"modes": [
+		{
+			"id": 0,
+			"name": "POWER",
+			"units": "PCT",
+			"datasets": 1,
+			"figures": 4,
+			"decimals": 0,
+			"type": "DATA8"
+		},
+		{
+			"id": 1,
+			"name": "SPEED",
+			"units": "PCT",
+			"datasets": 1,
+			"figures": 4,
+			"decimals": 0,
+			"type": "DATA8"
+		},
+		{
+			"id": 2,
+			"name": "POS",
+			"units": "DEG",
+			"datasets": 1,
+			"figures": 6,
+			"decimals": 0,
+			"type": "DATA32"
+		},
+		{
+			"id": 3,
+			"name": "TEST",
+			"units": "TST",
+			"datasets": 5,
+			"figures": 6,
+			"decimals": 0,
+			"type": "DATA16"
+		}
+	]
+}
