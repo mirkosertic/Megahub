@@ -151,14 +151,58 @@ void LegoDevice::needsKeepAlive() {
 
 void LegoDevice::selectMode(int modeIndex) {
 	INFO("Selecting mode %d", modeIndex);
-	int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
-	int checksum = 0xff ^ command ^ modeIndex;
-	// int checksum = 0xff ^ modeIndex;
-	serialIO_->sendByte(command);
-	serialIO_->sendByte(modeIndex);
-	serialIO_->sendByte(checksum);
-	serialIO_->flush();
-	INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+	// TODO: Check if this is a powered up device!
+	if (true) {
+		if (modeIndex >= 8) {
+			INFO("Using Ext-Mode 8");
+			int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_EXT_MODE | ProtocolState::LUMP_MSG_SIZE_1;
+			int ext = ProtocolState::LUMP_EXT_MODE_8;
+			int checksum = 0xff ^ command ^ ext;
+			serialIO_->sendByte(command);
+			serialIO_->sendByte(ext);
+			serialIO_->sendByte(checksum);
+
+			modeIndex -= 8;
+			command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+			checksum = 0xff ^ command ^ modeIndex;
+			// int checksum = 0xff ^ modeIndex;
+			serialIO_->sendByte(command);
+			serialIO_->sendByte(modeIndex);
+			serialIO_->sendByte(checksum);
+			serialIO_->flush();
+			
+			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+
+		} else {
+			INFO("Using Ext-Mode 0");
+			int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_EXT_MODE | ProtocolState::LUMP_MSG_SIZE_1;
+			int ext = ProtocolState::LUMP_EXT_MODE_0;
+			int checksum = 0xff ^ command ^ ext;
+			serialIO_->sendByte(command);
+			serialIO_->sendByte(ext);
+			serialIO_->sendByte(checksum);
+
+			command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+			checksum = 0xff ^ command ^ modeIndex;
+			// int checksum = 0xff ^ modeIndex;
+			serialIO_->sendByte(command);
+			serialIO_->sendByte(modeIndex);
+			serialIO_->sendByte(checksum);
+			serialIO_->flush();
+			
+			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+		}
+	} else {
+		INFO("Using standard CMD_SELECT for non powered up devices");
+		int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+		int checksum = 0xff ^ command ^ modeIndex;
+		// int checksum = 0xff ^ modeIndex;
+		serialIO_->sendByte(command);
+		serialIO_->sendByte(modeIndex);
+		serialIO_->sendByte(checksum);
+		serialIO_->flush();
+		INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+	}
 
 	selectedMode_ = modeIndex;
 }

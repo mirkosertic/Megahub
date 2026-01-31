@@ -19,6 +19,7 @@ private:
 	void parseINFOSI();
 	void parseINFOUnits();
 	void parseINFOFormat();
+	void parseINFOModeCombos();
 	void parseINFO();
 
 	LegoDevice *legoDevice;

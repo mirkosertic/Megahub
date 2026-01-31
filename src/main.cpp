@@ -167,8 +167,8 @@ void loop() {
 
 	// Log free heap memory every 10 seconds
 	if (currentMillis - lastHeapLog >= 10000) {
-		INFO("Free HEAP: %d bytes",
-			ESP.getFreeHeap());
+		INFO("Free HEAP: %d bytes, Free PSRAM : %d bytes",
+			ESP.getFreeHeap(), ESP.getFreePsram());
 
 		char task_list_buffer[1024];
 		vTaskList(task_list_buffer);

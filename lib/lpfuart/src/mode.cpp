@@ -173,6 +173,6 @@ Dataset *Mode::getDataset(int index) {
 	return &datasets_[index];
 }
 
-Format* Mode::getFormat() {
+Format *Mode::getFormat() {
 	return format_;
 }

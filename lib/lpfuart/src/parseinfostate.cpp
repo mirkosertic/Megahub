@@ -140,6 +140,13 @@ void ParseInfoState::parseINFOFormat() {
 	legoDevice->getMode(messageMode)->setFormat(new Format(datasets, Format::forId(format), figures, decimals));
 }
 
+void ParseInfoState::parseINFOModeCombos() {
+	INFO("Got Info Mode Combos for Mode %d and length %d", messageMode, messageSize);
+	for (int i = 0; i < messageSize; i++) {
+		INFO("Byte %d = %d", i, messagePayload[i]);
+	}
+}
+
 void ParseInfoState::parseINFO() {
 	int messageType = messagePayload[0];
 	if ((messageType & LUMP_INFO_MODE_PLUS_8) > 0) {
@@ -166,7 +173,7 @@ void ParseInfoState::parseINFO() {
 			parseINFOMapping();
 			break;
 		case LUMP_INFO_MODE_COMBOS:
-			// Skip this for now
+			parseINFOModeCombos();
 			break;
 		case LUMP_INFO_FORMAT:
 			parseINFOFormat();

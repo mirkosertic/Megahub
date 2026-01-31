@@ -38,8 +38,26 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 	int modeIndex = legoDevice->getSelectedModeIndex();
 	Mode *selectedMode = legoDevice->getMode(modeIndex);
 	if (selectedMode != nullptr) {
-		DEBUG("Processing data packet for mode %d", legoDevice->getSelectedModeIndex());
+		DEBUG("Processing data packet for mode %d with size %d", legoDevice->getSelectedModeIndex(), messageSize);
 		selectedMode->processDataPacket(messagePayload, messageSize);
+		/*
+		if (modeIndex == 8) {
+			const char hexChars[] = "0123456789ABCDEF";
+			std::string payloadHex;
+			payloadHex.reserve(messageSize * 3); // 2 chars + space per byte
+
+			for (int i = 0; i < messageSize; ++i) {
+				int v = messagePayload[i] & 0xFF;
+				payloadHex.push_back(hexChars[(v >> 4) & 0xF]);
+				payloadHex.push_back(hexChars[v & 0xF]);
+				if (i + 1 < messageSize) {
+					payloadHex.push_back(' ');
+				}
+			}
+
+			INFO("Mode %d Got data %s, message size is %d", modeIndex, payloadHex.c_str(), messageSize);
+		}
+		*/
 	} else {
 		WARN("Got datapacket, but no mode for index %d", modeIndex);
 	}

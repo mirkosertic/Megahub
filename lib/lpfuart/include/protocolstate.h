@@ -20,6 +20,7 @@ public:
 	static const int LUMP_CMD_SPEED = 0x2;
 	static const int LUMP_CMD_SELECT = 0x3;
 	static const int LUMP_CMD_VERSION = 0x7;
+	static const int LUMP_CMD_EXT_MODE = 0x06;
 	static const int LUMP_SYS_SYNC = 0x0;
 	static const int LUMP_SYS_NACK = 0x2;
 	static const int LUMP_SYS_ACK = 0x4;
@@ -39,6 +40,9 @@ public:
 	static const int LUMP_INFO_UNK12 = 0x0C;
 	static const int LUMP_INFO_MODE_PLUS_8 = 0x20;
 	static const int LUMP_INFO_FORMAT = 0x80;
+
+	static const int LUMP_EXT_MODE_0 = 0x00;
+	static const int LUMP_EXT_MODE_8 = 0x08;
 
 	virtual ~ProtocolState() { }
 	virtual ProtocolState *parse(int datapoint) = 0;
