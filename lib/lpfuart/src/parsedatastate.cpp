@@ -3,7 +3,6 @@
 #include "format.h"
 #include "legodevice.h"
 #include "logging.h"
-#include "mode.h"
 #include "waitingstate.h"
 
 ParseDataState::ParseDataState(LegoDevice *legoDevice, int messageType, int messageMode, int messageSize)
@@ -17,6 +16,30 @@ ParseDataState::ParseDataState(LegoDevice *legoDevice, int messageType, int mess
 
 ParseDataState::~ParseDataState() {
 	delete[] messagePayload;
+}
+
+void ParseDataState::processDataPacketDefault(int modeIndex, Mode *mode) {
+	DEBUG("Processing data packet for mode %d with size %d", legoDevice->getSelectedModeIndex(), messageSize);
+	mode->processDataPacket(messagePayload, messageSize);
+}
+
+void ParseDataState::processDataPacket_BoostColorAndDistanceSensor(int modeIndex, Mode *mode) {
+	DEBUG("Processing data packet for mode %d with size %d", legoDevice->getSelectedModeIndex(), messageSize);
+	// TODO: Implement special modes >8 handling here (Mode-Combos)
+	processDataPacketDefault(modeIndex, mode);
+}
+
+void ParseDataState::processDataPacket(int modeIndex, Mode *mode) {
+	switch (legoDevice->getDeviceId()) {
+		case DEVICEID_BOOST_COLOR_DISTANCE_SENSOR: {
+			processDataPacket_BoostColorAndDistanceSensor(modeIndex, mode);
+			break;
+		}
+		default: {
+			processDataPacketDefault(modeIndex, mode);
+			break;
+		}
+	}
 }
 
 ProtocolState *ParseDataState::parse(int datapoint) {

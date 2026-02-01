@@ -29,61 +29,61 @@ void ParseCommandState::parseCMDType() {
 	std::string deviceName;
 
 	switch (deviceId) {
-		case 29:
+		case DEVICEID_EV3_COLOR_SENSOR:
 			deviceName = "MINDSTORMS EV3 Color Sensor";
 			break;
-		case 30:
+		case DEVICEID_EV3_ULTRASONIC_SENSOR:
 			deviceName = "MINDSTORMS EV3 Ultrasonic Sensor";
 			break;
-		case 32:
+		case DEVICEID_EV3_GYRO_SENSOR:
 			deviceName = "MINDSTORMS EV3 Gyro Sensor";
 			break;
-		case 33:
+		case DEVICEID_EV3_INFRARED_SENSOR:
 			deviceName = "MINDSTORMS EV3 Infrared Sensor";
 			break;
-		case 34:
+		case DEVICEID_WEDO20_TILT:
 			deviceName = "WeDo 2.0 Tilt Sensor";
 			break;
-		case 35:
+		case DEVICEID_WEDO20_MOTION:
 			deviceName = "WeDo 2.0 Motion Sensor";
 			break;
-		case 37:
+		case DEVICEID_BOOST_COLOR_DISTANCE_SENSOR:
 			deviceName = "BOOST Color and Distance Sensor";
 			break;
-		case 38:
+		case DEVICEID_BOOST_INTERACTIVE_MOTOR:
 			deviceName = "BOOST Interactive Motor";
 			break;
-		case 46:
+		case DEVICEID_TECHNIC_MEDIUM_MOTOR:
 			deviceName = "Technic Medium Motor";
 			break;
-		case 45:
+		case DEVICEID_TECHNIC_XL_MOTOR:
 			deviceName = "Technic XL Motor";
 			break;
-		case 48:
+		case DEVICEID_SPIKE_MEDIUM_MOTOR:
 			deviceName = "SPIKE Medium Motor";
 			break;
-		case 49:
+		case DEVUCEID_SPIKE_LARGE_MOTOR:
 			deviceName = "SPIKE Large Motor";
 			break;
-		case 61:
+		case DEVICEID_SPIKE_COLOR_SENSOR:
 			deviceName = "SPIKE Color Sensor";
 			break;
-		case 62:
+		case DEVICEID_SPIKE_ULTRASONIC_SENSOR:
 			deviceName = "SPIKE Ultrasonic Sensor";
 			break;
-		case 63:
+		case DEVICEID_SPIKE_PRIME_FORCE_SENSOR:
 			deviceName = "SPIKE Prime Force Sensor";
 			break;
-		case 64:
+		case DEVICEID_TECHNIC_COLOR_LIGHT_MATRIX:
 			deviceName = "Technic Color Light Matrix";
 			break;
-		case 65:
+		case DEVICEID_SPIKE_SMALL_MOTOR:
 			deviceName = "SPIKE Small Motor";
 			break;
-		case 75:
+		case DEVICEID_TECHNIC_MEDIUM_ANGULAR_MOTOR:
 			deviceName = "Technic Medium Angular Motor";
 			break;
-		case 76:
+		case DEVICEID_TECHNIC_LARGE_ANGULAR_MOTOR:
 			deviceName = "Technic Large Angular Motor";
 			break;
 		default:

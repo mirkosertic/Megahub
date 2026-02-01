@@ -2,6 +2,7 @@
 #define PARSEDATASTATE_H
 
 #include "protocolstate.h"
+#include "mode.h"
 
 class LegoDevice;
 
@@ -13,6 +14,10 @@ public:
 	virtual ProtocolState *parse(int datapoint) override;
 
 private:
+	void processDataPacketDefault(int modeIndex, Mode* mode);
+	void processDataPacket_BoostColorAndDistanceSensor(int modeIndex, Mode* mode);
+	void processDataPacket(int modeIndex, Mode* mode);
+
 	LegoDevice *legoDevice;
 	int messageMode;
 	int messageSize;
