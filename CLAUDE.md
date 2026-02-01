@@ -135,6 +135,8 @@ To invoke this agent, Claude should use:
 Task tool with subagent_type="implement-review-loop"
 ```
 
+Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+
 **When to use implement-review-loop:**
 - Adding new features to firmware or frontend
 - Modifying Bluetooth communication code
