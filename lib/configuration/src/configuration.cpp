@@ -206,10 +206,13 @@ bool Configuration::writeFileChunkToProject(String projectId, String fileName, u
 		return false;
 	}
 
-	if (!content.write(data, length)) {
-		WARN("Failed wo write data");
-		content.close();
-		return false;
+	if (length != 0) {
+		// Support writing files of length 0
+		if (!content.write(data, length)) {
+			WARN("Failed to write data");
+			content.close();
+			return false;
+		}
 	}
 
 	content.close();

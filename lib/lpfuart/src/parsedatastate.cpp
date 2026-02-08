@@ -58,13 +58,22 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 		return new WaitingState(legoDevice);
 	}
 
+	if ((messageType & LUMP_INFO_MODE_PLUS_8) > 0) {
+		messageMode += 8;
+		messageType &= 31;
+	}
+	
 	int modeIndex = legoDevice->getSelectedModeIndex();
 	Mode *selectedMode = legoDevice->getMode(modeIndex);
 	if (selectedMode != nullptr) {
-		DEBUG("Processing data packet for mode %d with size %d", legoDevice->getSelectedModeIndex(), messageSize);
-		selectedMode->processDataPacket(messagePayload, messageSize);
-		/*
-		if (modeIndex == 8) {
+		DEBUG("Processing data packet for mode %d with size %d, message mode is %d", modeIndex, messageSize, messageMode);
+		processDataPacket(modeIndex, selectedMode);
+
+		static unsigned long lastDataLog = 0;
+		unsigned long currentMillis = millis();
+
+		// Log sample every 10 seconds
+		if (currentMillis - lastDataLog >= 10000 && messageSize > 0) {
 			const char hexChars[] = "0123456789ABCDEF";
 			std::string payloadHex;
 			payloadHex.reserve(messageSize * 3); // 2 chars + space per byte
@@ -78,9 +87,11 @@ ProtocolState *ParseDataState::parse(int datapoint) {
 				}
 			}
 
-			INFO("Mode %d Got data %s, message size is %d", modeIndex, payloadHex.c_str(), messageSize);
+			// Only printed to Serial to not overload the logging framework
+			INFO("Mode %d / %d , Got data %s, message size is %d, messagetype is %d", modeIndex, messageMode, payloadHex.c_str(), messageSize, messageType);
+
+			lastDataLog = currentMillis;
 		}
-		*/
 	} else {
 		WARN("Got datapacket, but no mode for index %d", modeIndex);
 	}

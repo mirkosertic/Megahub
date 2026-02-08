@@ -151,8 +151,8 @@ void LegoDevice::needsKeepAlive() {
 
 void LegoDevice::selectMode(int modeIndex) {
 	INFO("Selecting mode %d", modeIndex);
-	// TODO: Check if this is a powered up device!
-	if (true) {
+	// TODO: Check if this is a powered up device, and if this code is correct as it is!
+	if (false) {
 		if (modeIndex >= 8) {
 			INFO("Using Ext-Mode 8");
 			int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_EXT_MODE | ProtocolState::LUMP_MSG_SIZE_1;
@@ -161,17 +161,18 @@ void LegoDevice::selectMode(int modeIndex) {
 			serialIO_->sendByte(command);
 			serialIO_->sendByte(ext);
 			serialIO_->sendByte(checksum);
+			serialIO_->flush();
 
-			modeIndex -= 8;
+			int idxToSend = modeIndex -= 8;
 			command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
-			checksum = 0xff ^ command ^ modeIndex;
-			// int checksum = 0xff ^ modeIndex;
+			checksum = 0xff ^ command ^ idxToSend;
+			// int checksum = 0xff ^ idxToSend;
 			serialIO_->sendByte(command);
-			serialIO_->sendByte(modeIndex);
+			serialIO_->sendByte(idxToSend);
 			serialIO_->sendByte(checksum);
 			serialIO_->flush();
 			
-			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
+			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, idxToSend, checksum);
 
 		} else {
 			INFO("Using Ext-Mode 0");
@@ -257,6 +258,7 @@ void LegoDevice::loop() {
 
 	if (isHandshakeComplete() && !isInDataMode()) {
 		finishHandshake();
+		// TODO: Set the default mode based on the detected device id!
 		selectMode(0);
 		switchToDataMode();
 	} else if (isInDataMode()) {
@@ -283,6 +285,7 @@ int LegoDevice::digitalRead(int pin) {
 	i2c_unlock();
 	return value;
 }
+
 void LegoDevice::digitalWrite(int pin, int value) {
 	i2c_lock();
 	serialIO_->digitalWrite(pin, value);
