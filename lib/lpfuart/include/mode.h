@@ -38,7 +38,7 @@ public:
 
 	void reset();
 
-	void processDataPacket(int *payload, int payloadSize);
+	void processDataPacket(const uint8_t *payload, int payloadSize);
 	Dataset *getDataset(int index);
 	Format* getFormat();
 

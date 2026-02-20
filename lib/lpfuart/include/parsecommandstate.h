@@ -1,9 +1,10 @@
 #ifndef PARSECOMMANDSTATE_H
 #define PARSECOMMANDSTATE_H
 
-#include "protocolstate.h"
-
+#include <cstdint>
 #include <string>
+
+#include "protocolstate.h"
 
 class LegoDevice;
 
@@ -25,7 +26,7 @@ private:
 	LegoDevice *legoDevice;
 	int messageMode;
 	int messageSize;
-	int *messagePayload;
+	uint8_t *messagePayload;
 	int received;
 	int messageType;
 };

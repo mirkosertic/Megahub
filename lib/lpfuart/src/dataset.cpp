@@ -11,15 +11,17 @@ Dataset::Dataset()
 	, floatValue_(0.0f) {
 }
 
-void Dataset::readData(Format::FormatType type, int *payload) {
+void Dataset::readData(Format::FormatType type, const uint8_t *payload) {
 	formatType_ = type;
 	switch (type) {
 		case Format::FormatType::DATA8: {
-			// 8-bit signed integer little endian
-			intValue_ = payload[0];
+			DEBUG("Parsing DATA8");
+			// 8-bit signed integer
+			intValue_ = static_cast<int8_t>(payload[0]);
 			break;
 		}
 		case Format::FormatType::DATA16: {
+			DEBUG("Parsing DATA16");
 			// 16-bit signed integer little endian
 			int16_t value16;
 			std::memcpy(&value16, payload, 2);
@@ -27,6 +29,7 @@ void Dataset::readData(Format::FormatType type, int *payload) {
 			break;
 		}
 		case Format::FormatType::DATA32: {
+			DEBUG("Parsing DATA32");
 			// 32-bit signed integer little endian
 			int32_t value32;
 			std::memcpy(&value32, payload, 4);
@@ -34,6 +37,7 @@ void Dataset::readData(Format::FormatType type, int *payload) {
 			break;
 		}
 		case Format::FormatType::DATAFLOAT: {
+			DEBUG("Parsing DATAFLOAT");
 			// 32-bot little endian IEEE 754 floating point
 			float valueFloat;
 			std::memcpy(&valueFloat, payload, 4);

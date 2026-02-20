@@ -111,10 +111,10 @@ float Mode::getSiMax() {
 	return siMax_;
 }
 
-void Mode::processDataPacket(int *payload, int payloadSize) {
+void Mode::processDataPacket(const uint8_t *payload, int payloadSize) {
 
 	if (format_ == nullptr) {
-		DEBUG("Not fully initialized yet!");
+		WARN("Not fully initialized yet!");
 		return;
 	}
 
@@ -162,8 +162,9 @@ void Mode::processDataPacket(int *payload, int payloadSize) {
 		return;
 	}
 
-	int *startPtr = payload;
+	const uint8_t *startPtr = payload;
 	for (int i = 0; i < format_->getDatasets(); i++) {
+		DEBUG("Got data %s, expecting %d datasets of type %d, parsing dataset %d", payloadHex.c_str(), format_->getDatasets(), format_->getFormatType(), i);
 		datasets_[i].readData(format_->getFormatType(), startPtr);
 		startPtr += datasetSize;
 	}

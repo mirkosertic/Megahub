@@ -10,7 +10,7 @@ ParseCommandState::ParseCommandState(LegoDevice *legoDevice, int messageType, in
 	, messageSize(messageSize)
 	, messageType(messageType) {
 	received = 0;
-	messagePayload = new int[messageSize];
+	messagePayload = new uint8_t[messageSize];
 }
 
 ParseCommandState::~ParseCommandState() {
@@ -132,7 +132,7 @@ void ParseCommandState::parseCMDSpeed() {
 
 ProtocolState *ParseCommandState::parse(int datapoint) {
 	if (received < messageSize) {
-		messagePayload[received++] = datapoint;
+		messagePayload[received++] = static_cast<uint8_t>(datapoint);
 		return this;
 	}
 

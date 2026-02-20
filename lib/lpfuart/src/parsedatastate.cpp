@@ -10,7 +10,7 @@ ParseDataState::ParseDataState(LegoDevice *legoDevice, int messageType, int mess
 	, messageMode(messageMode)
 	, messageSize(messageSize)
 	, messageType(messageType) {
-	messagePayload = new int[this->messageSize];
+	messagePayload = new uint8_t[this->messageSize];
 	received = 0;
 }
 
@@ -44,7 +44,7 @@ void ParseDataState::processDataPacket(int modeIndex, Mode *mode) {
 
 ProtocolState *ParseDataState::parse(int datapoint) {
 	if (received < messageSize) {
-		messagePayload[received++] = datapoint;
+		messagePayload[received++] = static_cast<uint8_t>(datapoint);
 		return this;
 	}
 

@@ -253,13 +253,27 @@ void LegoDevice::initialize() {
 	setMotorSpeed(0);
 }
 
+int LegoDevice::getDefaultMode() {
+	switch (deviceId_)
+	{
+		case DEVICEID_BOOST_COLOR_DISTANCE_SENSOR:
+			return 8; // Mode SPEC_1, so it returns multiple values
+		case DEVICEID_BOOST_INTERACTIVE_MOTOR:
+			return 2; // Mode POS, so we get back absolute rotation in angle since startup
+		default:
+			break;
+	}
+	return 0;
+}
+
 void LegoDevice::loop() {
 	parseIncomingData();
 
 	if (isHandshakeComplete() && !isInDataMode()) {
 		finishHandshake();
-		// TODO: Set the default mode based on the detected device id!
-		selectMode(0);
+		int defaultMode = getDefaultMode();
+		INFO("Setting default mode %d for deviceId 0x%04x", defaultMode, deviceId_);
+		selectMode(getDefaultMode());
 		switchToDataMode();
 	} else if (isInDataMode()) {
 		needsKeepAlive();

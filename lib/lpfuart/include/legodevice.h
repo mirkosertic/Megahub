@@ -72,6 +72,8 @@ public:
 	int getDeviceId();
 
 private:
+	int getDefaultMode();
+
 	long serialSpeed_;
 	Mode **modes_;
 	int numModes_;

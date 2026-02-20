@@ -1,6 +1,8 @@
 #ifndef PARSEINFOSTATE_H
 #define PARSEINFOSTATE_H
 
+#include <cstdint>
+
 #include "protocolstate.h"
 
 class LegoDevice;
@@ -25,7 +27,7 @@ private:
 	LegoDevice *legoDevice;
 	int messageMode;
 	int messageSize;
-	int *messagePayload;
+	uint8_t *messagePayload;
 	int received;
 	int messageType;
 };

@@ -58,10 +58,8 @@ ProtocolState *WaitingState::parse(int datapoint) {
 			break;
 	}
 
-	int x = 7 << 3;
-
 	if (size == 0) {
-		WARN("Unknown message size %d in datapoint %d and mode %d", messageSize, datapoint, messageMode);
+		DEBUG("Unknown message size %d in datapoint %d and mode %d", messageSize, datapoint, messageMode);
 		return this;
 	}
 

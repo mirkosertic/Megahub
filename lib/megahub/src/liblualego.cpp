@@ -36,7 +36,7 @@ int lego_getmodedataset(lua_State *luaState) {
 							return 1;
 						}
 						default: {
-							WARN("Unsupported data format for mode %d and dataset %d", selectedMode, dataset);
+							WARN("Unsupported data format for mode %d and dataset %d : %d", selectedMode, dataset, ds->getType());
 						}
 					}
 				} else {
