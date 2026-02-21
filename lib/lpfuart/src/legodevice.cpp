@@ -70,7 +70,9 @@ void LegoDevice::markAsHandshakeComplete() {
 }
 
 void LegoDevice::parseIncomingData() {
-	while (serialIO_->available() > 0) {
+	int count = 0;
+	// We read a maximum of 32 bytes, even if more are available
+	while (serialIO_->available() > 0 && count++ < 32) {
 		lastReceivedDataInMillis_ = millis();
 		int datapoint = serialIO_->readByte();
 		ProtocolState *newState = protocolState_->parse(datapoint);
@@ -121,7 +123,7 @@ void LegoDevice::finishHandshake() {
 }
 
 void LegoDevice::sendAck() {
-	INFO("Sending ACK message to Lego device");
+	DEBUG("Sending ACK message to Lego device");
 	serialIO_->sendByte(ProtocolState::LUMP_SYS_ACK);
 	serialIO_->flush();
 }
@@ -142,10 +144,13 @@ void LegoDevice::needsKeepAlive() {
 		return;
 	}
 
-	if (now - lastKeepAliveCheck_ > 50) {
+	unsigned long delay = now - lastKeepAliveCheck_;
+	if (delay > 50) {
 		lastKeepAliveCheck_ = now;
 		DEBUG("Sending keep alive message to Lego device");
 		sendNack();
+	} else {
+		DEBUG("No need to send keep alive, delay %lu", delay);
 	}
 }
 
@@ -236,6 +241,7 @@ void LegoDevice::switchToDataMode() {
 
 void LegoDevice::setMotorSpeed(int speed) {
 	i2c_lock();
+	INFO("Setting motor speed to %d", speed);
 	if (speed == 0) {
 		serialIO_->setM1(false);
 		serialIO_->setM2(false);
@@ -281,7 +287,7 @@ void LegoDevice::loop() {
 		unsigned long now = millis();
 		if (now - lastReceivedDataInMillis_ > 200) {
 			// We didn't receive data for more than 200 milliseconds, so we will perform a reset as we assume the device was unplugged
-			INFO("Did't receive data for some time, performing a device reset");
+			WARN("Did't receive data for some time, performing a device reset");
 			reset();
 		}
 	}
