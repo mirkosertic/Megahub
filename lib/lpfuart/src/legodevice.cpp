@@ -2,7 +2,6 @@
 
 #include "i2csync.h"
 #include "logging.h"
-#include "waitingstate.h"
 
 LegoDevice::LegoDevice(SerialIO *serialIO)
 	: serialSpeed_(2400)
@@ -10,13 +9,14 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 	, deviceId_(-1)
 	, fwVersion_("")
 	, hwVersion_("")
+	, parser_(this)
 	, serialIO_(serialIO)
 	, handshakeComplete_(false)
 	, lastKeepAliveCheck_(0)
 	, inDataMode_(false)
 	, lastReceivedDataInMillis_(0)
-	, selectedMode_(-1) {
-	protocolState_ = new WaitingState(this);
+	, selectedMode_(-1)
+	, lastParserStatsLog_(0) {
 
 	modes_ = new Mode *[16];
 	for (int i = 0; i < 16; i++) {
@@ -33,8 +33,7 @@ void LegoDevice::reset() {
 	handshakeComplete_ = false;
 	inDataMode_ = false;
 
-	delete protocolState_;
-	protocolState_ = new WaitingState(this);
+	parser_.reset();
 
 	for (int i = 0; i < 16; i++) {
 		modes_[i]->reset();
@@ -47,13 +46,10 @@ void LegoDevice::reset() {
 
 LegoDevice::~LegoDevice() {
 	if (modes_ != nullptr) {
-		for (int i = 0; i < numModes_; i++) {
+		for (int i = 0; i < 16; i++) {
 			delete modes_[i];
 		}
 		delete[] modes_;
-	}
-	if (protocolState_ != nullptr) {
-		delete protocolState_;
 	}
 }
 
@@ -71,15 +67,10 @@ void LegoDevice::markAsHandshakeComplete() {
 
 void LegoDevice::parseIncomingData() {
 	int count = 0;
-	// We read a maximum of 32 bytes, even if more are available
+	// Read a maximum of 32 bytes per call to bound latency
 	while (serialIO_->available() > 0 && count++ < 32) {
 		lastReceivedDataInMillis_ = millis();
-		int datapoint = serialIO_->readByte();
-		ProtocolState *newState = protocolState_->parse(datapoint);
-		if (newState != protocolState_) {
-			delete protocolState_;
-			protocolState_ = newState;
-		}
+		parser_.feedByte((uint8_t)serialIO_->readByte());
 	}
 }
 
@@ -107,7 +98,7 @@ void LegoDevice::setVersions(std::string &fwVersion, std::string &hwVersion) {
 }
 
 Mode *LegoDevice::getMode(int index) {
-	if (index == -1) {
+	if (index < 0 || index >= 16) {
 		return nullptr;
 	}
 	return modes_[index];
@@ -124,17 +115,17 @@ void LegoDevice::finishHandshake() {
 
 void LegoDevice::sendAck() {
 	DEBUG("Sending ACK message to Lego device");
-	serialIO_->sendByte(ProtocolState::LUMP_SYS_ACK);
+	serialIO_->sendByte(lumpSysAck);
 	serialIO_->flush();
 }
 
 void LegoDevice::sendNack() {
-	serialIO_->sendByte(ProtocolState::LUMP_SYS_NACK);
+	serialIO_->sendByte(lumpSysNack);
 	serialIO_->flush();
 }
 
 void LegoDevice::sendSync() {
-	serialIO_->sendByte(ProtocolState::LUMP_SYS_SYNC);
+	serialIO_->sendByte(lumpSysSync);
 }
 
 void LegoDevice::needsKeepAlive() {
@@ -144,13 +135,13 @@ void LegoDevice::needsKeepAlive() {
 		return;
 	}
 
-	unsigned long delay = now - lastKeepAliveCheck_;
-	if (delay > 50) {
+	unsigned long elapsed = now - lastKeepAliveCheck_;
+	if (elapsed > 50) {
 		lastKeepAliveCheck_ = now;
 		DEBUG("Sending keep alive message to Lego device");
 		sendNack();
 	} else {
-		DEBUG("No need to send keep alive, delay %lu", delay);
+		DEBUG("No need to send keep alive, delay %lu", elapsed);
 	}
 }
 
@@ -160,8 +151,8 @@ void LegoDevice::selectMode(int modeIndex) {
 	if (false) {
 		if (modeIndex >= 8) {
 			INFO("Using Ext-Mode 8");
-			int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_EXT_MODE | ProtocolState::LUMP_MSG_SIZE_1;
-			int ext = ProtocolState::LUMP_EXT_MODE_8;
+			int command = lumpMsgTypeCmd | lumpCmdExtMode | lumpMsgSize1;
+			int ext = lumpExtMode8;
 			int checksum = 0xff ^ command ^ ext;
 			serialIO_->sendByte(command);
 			serialIO_->sendByte(ext);
@@ -169,40 +160,37 @@ void LegoDevice::selectMode(int modeIndex) {
 			serialIO_->flush();
 
 			int idxToSend = modeIndex -= 8;
-			command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+			command = lumpMsgTypeCmd | lumpCmdSelect | lumpMsgSize1;
 			checksum = 0xff ^ command ^ idxToSend;
-			// int checksum = 0xff ^ idxToSend;
 			serialIO_->sendByte(command);
 			serialIO_->sendByte(idxToSend);
 			serialIO_->sendByte(checksum);
 			serialIO_->flush();
-			
+
 			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, idxToSend, checksum);
 
 		} else {
 			INFO("Using Ext-Mode 0");
-			int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_EXT_MODE | ProtocolState::LUMP_MSG_SIZE_1;
-			int ext = ProtocolState::LUMP_EXT_MODE_0;
+			int command = lumpMsgTypeCmd | lumpCmdExtMode | lumpMsgSize1;
+			int ext = lumpExtMode0;
 			int checksum = 0xff ^ command ^ ext;
 			serialIO_->sendByte(command);
 			serialIO_->sendByte(ext);
 			serialIO_->sendByte(checksum);
 
-			command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+			command = lumpMsgTypeCmd | lumpCmdSelect | lumpMsgSize1;
 			checksum = 0xff ^ command ^ modeIndex;
-			// int checksum = 0xff ^ modeIndex;
 			serialIO_->sendByte(command);
 			serialIO_->sendByte(modeIndex);
 			serialIO_->sendByte(checksum);
 			serialIO_->flush();
-			
+
 			INFO("Sending select mode command: 0x%02X 0x%02X 0x%02X", command, modeIndex, checksum);
 		}
 	} else {
 		INFO("Using standard CMD_SELECT for non powered up devices");
-		int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SELECT | ProtocolState::LUMP_MSG_SIZE_1;
+		int command = lumpMsgTypeCmd | lumpCmdSelect | lumpMsgSize1;
 		int checksum = 0xff ^ command ^ modeIndex;
-		// int checksum = 0xff ^ modeIndex;
 		serialIO_->sendByte(command);
 		serialIO_->sendByte(modeIndex);
 		serialIO_->sendByte(checksum);
@@ -215,7 +203,7 @@ void LegoDevice::selectMode(int modeIndex) {
 
 void LegoDevice::selectSpeed(long speed) {
 	INFO("Selecting speed %ld", speed);
-	int command = ProtocolState::LUMP_MSG_TYPE_CMD | ProtocolState::LUMP_CMD_SPEED | ProtocolState::LUMP_MSG_SIZE_4;
+	int command = lumpMsgTypeCmd | lumpCmdSpeed | lumpMsgSize4;
 	int byte0 = (speed >> 0) & 0xFF;
 	int byte1 = (speed >> 8) & 0xFF;
 	int byte2 = (speed >> 16) & 0xFF;
@@ -235,6 +223,7 @@ void LegoDevice::selectSpeed(long speed) {
 bool LegoDevice::isInDataMode() {
 	return inDataMode_;
 }
+
 void LegoDevice::switchToDataMode() {
 	inDataMode_ = true;
 }
@@ -260,16 +249,23 @@ void LegoDevice::initialize() {
 }
 
 int LegoDevice::getDefaultMode() {
-	switch (deviceId_)
-	{
+	switch (deviceId_) {
 		case DEVICEID_BOOST_COLOR_DISTANCE_SENSOR:
-			return 8; // Mode SPEC_1, so it returns multiple values
+			return 8; // Mode SPEC_1, returns multiple values
 		case DEVICEID_BOOST_INTERACTIVE_MOTOR:
-			return 2; // Mode POS, so we get back absolute rotation in angle since startup
+			return 2; // Mode POS, absolute rotation angle since startup
 		default:
 			break;
 	}
 	return 0;
+}
+
+void LegoDevice::logParserStats() {
+	const LumpParserStats &s = parser_.stats();
+	INFO("Parser: ok=%lu csErr=%lu discarded=%lu recoveries=%lu overflow=%lu unknownSys=%lu invalidSize=%lu",
+	     s.framesOk, s.checksumErrors, s.bytesDiscarded,
+	     s.syncRecoveries, s.bufferOverflows,
+	     s.unknownSysBytes, s.invalidSizeBytes);
 }
 
 void LegoDevice::loop() {
@@ -286,9 +282,16 @@ void LegoDevice::loop() {
 
 		unsigned long now = millis();
 		if (now - lastReceivedDataInMillis_ > 200) {
-			// We didn't receive data for more than 200 milliseconds, so we will perform a reset as we assume the device was unplugged
-			WARN("Did't receive data for some time, performing a device reset");
+			// No data for more than 200 ms — assume device was unplugged
+			WARN("Didn't receive data for some time, performing a device reset");
 			reset();
+			return;
+		}
+
+		// Log parser statistics every 5 seconds in data mode
+		if (now - lastParserStatsLog_ >= 5000) {
+			lastParserStatsLog_ = now;
+			logParserStats();
 		}
 	}
 }
@@ -326,4 +329,17 @@ int LegoDevice::getSelectedModeIndex() {
 
 int LegoDevice::getDeviceId() {
 	return deviceId_;
+}
+
+void LegoDevice::onDataFrame(int mode, const uint8_t *payload, int payloadSize) {
+	Mode *m = getMode(mode);
+	if (m == nullptr) {
+		WARN("onDataFrame: invalid mode %d", mode);
+		return;
+	}
+	m->processDataPacket(payload, payloadSize);
+}
+
+void LegoDevice::onCombiDataFrame(int mode, const uint8_t *payload, int payloadSize) {
+	onDataFrame(mode, payload, payloadSize);
 }

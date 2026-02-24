@@ -8,7 +8,15 @@ Megahub is an ESP32-based robotics experimentation platform that combines LEGO W
 - **Frontend**: Web-based IDE built with Vite, Blockly, and vanilla JavaScript
 - **Libraries**: Custom ESP32 libraries for Bluetooth, UART, IMU, etc.
 
-## Critical Development Guidelines
+## Critical Rules
+
+1. **ALWAYS use the `implement-review-loop` agent** for code changes
+2. **ALWAYS update README.md** when adding, removing, or changing:
+   - Configuration options
+   - User-facing behavior
+   - Troubleshooting information
+3. **NEVER duplicate README content here** - this file is for development context only
+5. Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 
 ### Memory Management
 
@@ -64,7 +72,7 @@ Megahub is an ESP32-based robotics experimentation platform that combines LEGO W
 ### Build System & Project Structure
 
 **PlatformIO Configuration:**
-- Build environment: `esp32dev`
+- Build environment: `esp-wrover-kit`
 - Framework: Arduino + ESP-IDF hybrid
 - Custom partition table: [custom_4mb_noota.csv](custom_4mb_noota.csv)
 - Pre-build scripts: [gitversion.py](gitversion.py), [buildfrontend.py](buildfrontend.py), [embedfiles.py](embedfiles.py)
@@ -120,35 +128,6 @@ Megahub is an ESP32-based robotics experimentation platform that combines LEGO W
 - Test in supported browsers (Chrome, Edge, Opera)
 - Use compression (gzip) for embedded files
 
-### Code Review & Implementation
-
-**IMPORTANT: When making code changes to this project:**
-
-For significant code changes or new features, please use the **implement-review-loop** agent. This ensures:
-- Code is reviewed before being committed
-- Potential issues are caught early
-- Changes follow project conventions
-- Memory and Bluetooth considerations are validated
-
-To invoke this agent, Claude should use:
-```
-Task tool with subagent_type="implement-review-loop"
-```
-
-Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
-
-**When to use implement-review-loop:**
-- Adding new features to firmware or frontend
-- Modifying Bluetooth communication code
-- Changing memory-critical sections
-- Refactoring core libraries
-- Adding new Lua bindings
-
-**When NOT to use it:**
-- Trivial documentation updates
-- Simple bug fixes (< 10 lines)
-- Configuration file changes
-
 ### Common Pitfalls to Avoid
 
 1. **Bluetooth Race Conditions**: Always use proper synchronization when accessing BLE state from multiple tasks
@@ -180,28 +159,6 @@ Always use Context7 MCP when I need library/API documentation, code generation, 
 - Framework: Unity (PlatformIO)
 - Test files should be in `/test` directory
 - Run with `pio test`
-
-### Git Workflow
-
-- Main branch: `main`
-- Commit messages should be clear and descriptive
-- Include "Co-Authored-By: Claude <noreply@anthropic.com>" when applicable
-- Don't commit secrets or credentials (use `config/secrets.ini`)
-
-### External Dependencies
-
-**PlatformIO Libraries:**
-- ArduinoJson 7.4.2
-- PubSubClient 2.8.0 (MQTT)
-- PsychicHttp 2.1.1 (HTTP server)
-- SC16IS752 (UART expander)
-- MPU6050 (IMU)
-- FastLED (LED control)
-
-**Frontend Dependencies:**
-- Blockly 12.3.1
-- Vite 5.0.0
-- Prism.js 1.30.0
 
 ### Important Files Reference
 
@@ -237,8 +194,6 @@ Always use Context7 MCP when I need library/API documentation, code generation, 
 - Web Bluetooth API: https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API
 - Lua 5.4 Reference: https://www.lua.org/manual/5.4/
 - Blockly Documentation: https://developers.google.com/blockly
-
----
 
 ## Quick Reference for Claude
 

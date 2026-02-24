@@ -18,13 +18,15 @@ jobs:
           python-version: '3.11'
       - uses: actions/setup-node@v6
         with:
-          node-version: 24          
+          node-version: 24
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
+      - name: Prepare configuration
+        run: cp ./config/secrets.ini.template ./config/secrets.ini
+      - name: Run native unit tests
+        run: pio test -e native
       - name: Build PlatformIO Project
-        run: |
-          cp ./config/secrets.ini.template ./config/secrets.ini
-          pio run
+        run: pio run
       - uses: JamesIves/github-pages-deploy-action@3.7.1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
