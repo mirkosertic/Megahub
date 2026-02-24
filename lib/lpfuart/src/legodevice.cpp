@@ -234,6 +234,15 @@ void LegoDevice::switchToDataMode() {
 	inDataMode_ = true;
 	firstDataFrameReceived_ = false;
 	lastReceivedDataInMillis_ = millis();  // reset timeout clock so startup window starts from data-mode entry
+
+	// Send an immediate NACK to kick-start streaming.
+	// Without this, lastKeepAliveCheck_ stays 0, the emergency-NACK guard
+	// (lastKeepAliveCheck_ != 0) never fires, no keep-alive reaches the device,
+	// and the device times out before any DATA frame arrives — creating a deadlock
+	// where NACKs never start because no DATA frames arrive, and DATA frames never
+	// arrive because no NACK was sent.
+	sendNack();
+	lastKeepAliveCheck_ = millis();
 }
 
 void LegoDevice::setMotorSpeed(int speed) {
