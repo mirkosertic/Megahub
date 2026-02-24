@@ -13,6 +13,7 @@ SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS
 	hardwareserial_->pinMode(m2pin, OUTPUT);
 	hardwareserial_->digitalWrite(m1pin, LOW);
 	hardwareserial_->digitalWrite(m2pin, LOW);
+	fifoOverrunCount_ = 0;
 
 	INFO("Motor M1 %d + M2 %d set to low", m1pin, m2pin);
 }
@@ -33,12 +34,19 @@ int SC16IS752SerialAdapter::available() {
 }
 
 int SC16IS752SerialAdapter::readByte() {
-	const int value = hardwareserial_->read(channel_ == CHANNEL_A ? SC16IS752_CHANNEL_A : SC16IS752_CHANNEL_B);
-	if (value < 0) {
-		return value;
-	}
+	uint8_t ch = (channel_ == CHANNEL_A) ? SC16IS752_CHANNEL_A : SC16IS752_CHANNEL_B;
+	return hardwareserial_->read(ch);
+}
 
-	return value;
+void SC16IS752SerialAdapter::pollDiagnostics() {
+	uint8_t ch = (channel_ == CHANNEL_A) ? SC16IS752_CHANNEL_A : SC16IS752_CHANNEL_B;
+	// Check LSR OE bit (bit 1) once per read-batch rather than per byte.
+	// OE is sticky: set when any byte was overwritten in the RX FIFO since the
+	// last LSR read. Checking here (called once per parseIncomingData() cycle)
+	// keeps the diagnostic accurate without doubling I2C overhead per byte.
+	if (hardwareserial_->readLSR(ch) & 0x02) {
+		fifoOverrunCount_++;
+	}
 }
 
 void SC16IS752SerialAdapter::sendByte(int byteData) {
@@ -63,6 +71,10 @@ void SC16IS752SerialAdapter::switchToBaudrate(long serialSpeed) {
 
 void SC16IS752SerialAdapter::flush() {
 	hardwareserial_->flush(channel_ == CHANNEL_A ? SC16IS752_CHANNEL_A : SC16IS752_CHANNEL_B);
+}
+
+uint32_t SC16IS752SerialAdapter::uartOverrunCount() {
+	return fifoOverrunCount_;
 }
 
 int SC16IS752SerialAdapter::digitalRead(int pin) {

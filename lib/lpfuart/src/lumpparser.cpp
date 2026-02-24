@@ -57,9 +57,12 @@ LumpParser::LumpParser(LegoDevice *device)
     , extModeOffset_(0)
     , inSyncLoss_(false)
     , consecutiveErrors_(0)
+    , syncLossDiscardStart_(0)
+    , discardCapCount_(0)
     , device_(device) {
     memset(buf_, 0, sizeof(buf_));
     memset(&stats_, 0, sizeof(stats_));
+    memset(discardCap_, 0, sizeof(discardCap_));
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +87,7 @@ void LumpParser::feedBytes(const uint8_t *data, int len) {
     }
 }
 
-const LumpParserStats &LumpParser::stats() const {
+auto LumpParser::stats() const -> const LumpParserStats & {
     return stats_;
 }
 
@@ -93,18 +96,31 @@ void LumpParser::resetStats() {
 }
 
 void LumpParser::reset() {
-    head_              = 0;
-    count_             = 0;
-    extModeOffset_     = 0;
-    inSyncLoss_        = false;
-    consecutiveErrors_ = 0;
+    head_                  = 0;
+    count_                 = 0;
+    extModeOffset_         = 0;
+    inSyncLoss_            = false;
+    consecutiveErrors_     = 0;
+    syncLossDiscardStart_  = 0;
+    discardCapCount_       = 0;
     memset(&stats_, 0, sizeof(stats_));
+}
+
+void LumpParser::clearBuffer() {
+    head_                  = 0;
+    count_                 = 0;
+    extModeOffset_         = 0;
+    inSyncLoss_            = false;
+    consecutiveErrors_     = 0;
+    syncLossDiscardStart_  = 0;
+    discardCapCount_       = 0;
+    // stats_ intentionally preserved — they cover the pre-switch phase
 }
 
 // ---------------------------------------------------------------------------
 // Static helpers
 // ---------------------------------------------------------------------------
-int LumpParser::decodePayloadSize(uint8_t header) {
+auto LumpParser::decodePayloadSize(uint8_t header) -> int {
     uint8_t sizeEnc = (header >> 3) & 0x07;
     switch (sizeEnc) {
         case 0: return 1;
@@ -157,6 +173,13 @@ void LumpParser::processBuffer() {
         int frameSize = 1 + payloadSize + 1;  // header + payload + checksum
 
         // ---------------------------------------------------------------
+        // INFO messages have an extra byte for INFO type (not in payload size)
+        // ---------------------------------------------------------------
+        if (type == LUMP_MSG_TYPE_INFO) {
+            frameSize += 1;  // Add 1 byte for INFO type byte
+        }
+
+        // ---------------------------------------------------------------
         // Wait for more bytes if buffer doesn't have a complete frame
         // ---------------------------------------------------------------
         if (count_ < (uint16_t)frameSize) {
@@ -176,9 +199,15 @@ void LumpParser::processBuffer() {
         if (expected == actual) {
             // -----------------------------------------------------------
             // Valid frame: copy payload to stack buffer and dispatch
+            // For INFO messages, payload includes the INFO type byte
             // -----------------------------------------------------------
-            uint8_t payload[32];
-            for (int i = 0; i < payloadSize; i++) {
+            int bytesToExtract = payloadSize;
+            if (type == LUMP_MSG_TYPE_INFO) {
+                bytesToExtract += 1;  // Include INFO type byte in payload
+            }
+
+            uint8_t payload[33];  // Max 32 data bytes + 1 INFO type byte
+            for (int i = 0; i < bytesToExtract; i++) {
                 payload[i] = buf_[(head_ + 1 + i) % ringBufSize];
             }
 
@@ -188,26 +217,51 @@ void LumpParser::processBuffer() {
 
             // Sync recovery tracking
             if (inSyncLoss_) {
-                INFO("LUMP sync recovered after discarding %lu bytes", stats_.bytesDiscarded);
+                uint32_t episodeBytes = stats_.bytesDiscarded - syncLossDiscardStart_;
+                INFO("LUMP sync recovered after discarding %lu bytes", episodeBytes);
+                // Hex-dump the captured discard bytes
+                if (discardCapCount_ > 0) {
+                    // Build hex string: "xx xx xx ..."
+                    char hexbuf[discardCapSize * 3 + 1];
+                    int  pos = 0;
+                    const char hex[] = "0123456789ABCDEF";
+                    for (uint8_t i = 0; i < discardCapCount_; i++) {
+                        hexbuf[pos++] = hex[(discardCap_[i] >> 4) & 0x0F];
+                        hexbuf[pos++] = hex[ discardCap_[i]       & 0x0F];
+                        hexbuf[pos++] = ' ';
+                    }
+                    if (pos > 0) hexbuf[pos - 1] = '\0';
+                    else         hexbuf[0]        = '\0';
+                    bool truncated = (discardCapCount_ == discardCapSize &&
+                                      episodeBytes     > discardCapSize);
+                    INFO("  Discarded bytes (first %u%s): %s",
+                         discardCapCount_, truncated ? ", truncated" : "", hexbuf);
+                }
                 stats_.syncRecoveries++;
-                inSyncLoss_ = false;
+                inSyncLoss_      = false;
+                discardCapCount_ = 0;
             }
             consecutiveErrors_ = 0;
             stats_.framesOk++;
 
-            dispatchFrame(header, payload, payloadSize);
+            dispatchFrame(header, payload, bytesToExtract);
         } else {
             // -----------------------------------------------------------
             // Bad checksum: slide by 1 byte
             // -----------------------------------------------------------
             if (!inSyncLoss_) {
-                WARN("LUMP sync lost after %lu good frames (checksum expected=0x%02X actual=0x%02X)",
-                     stats_.framesOk, expected, actual);
-                inSyncLoss_ = true;
+                WARN("LUMP sync lost after %lu good frames (checksum expected=0x%02X actual=0x%02X, header=0x%02X, type=0x%02X, payloadSize=0x%02X)",
+                     stats_.framesOk, expected, actual, header, type, payloadSize);
+                inSyncLoss_           = true;
+                syncLossDiscardStart_ = stats_.bytesDiscarded;
+                discardCapCount_      = 0;
             }
             consecutiveErrors_++;
             stats_.checksumErrors++;
             stats_.bytesDiscarded++;
+            if (discardCapCount_ < discardCapSize) {
+                discardCap_[discardCapCount_++] = buf_[head_];
+            }
             head_  = (head_ + 1) % ringBufSize;
             count_--;
 
@@ -255,6 +309,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
 
         switch (cmd) {
             case LUMP_CMD_TYPE: {
+                INFO("Parsing LUMP_CMD_TYPE");
                 // payload[0] = device type ID
                 int deviceId = payload[0];
                 std::string deviceName;
@@ -326,6 +381,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_CMD_MODES: {
+                INFO("Parsing LUMP_CMD_MODES");
                 // payload size determines the format:
                 // 1 byte: numModes = payload[0]+1
                 // 2 bytes: numModes = payload[0]+1, views = payload[1]+1
@@ -339,7 +395,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
                     device_->initNumberOfModes(numModes);
                     INFO("Number of supported modes is %d (2 bytes payload)", numModes);
                 } else if (payloadSize == 4) {
-                    int numModes = payload[2] + 1;
+                    int numModes = payload[0] + 1;
                     device_->initNumberOfModes(numModes);
                     INFO("Number of supported modes is %d (4 bytes payload)", numModes);
                 } else {
@@ -349,6 +405,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_CMD_SPEED: {
+                INFO("Parsing LUMP_CMD_SPEED");
                 // 4-byte little-endian uint32 baud rate
                 if (payloadSize >= 4) {
                     long speed = ((long)(payload[0] & 0xFF))
@@ -364,7 +421,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
 
             case LUMP_CMD_SELECT: {
                 // Hub -> device command; ignore if received from device
-                DEBUG("CMD_SELECT received (hub->device, ignoring)");
+                WARN("CMD_SELECT received (hub->device, ignoring)");
                 break;
             }
 
@@ -375,6 +432,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_CMD_EXT_MODE: {
+                INFO("Parsing LUMP_CMD_EXT_MODE");
                 // payload[0] = 0x00 (modes 0-7) or 0x08 (modes 8-15)
                 if (payloadSize >= 1) {
                     extModeOffset_ = payload[0];
@@ -386,6 +444,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_CMD_VERSION: {
+                INFO("Parsing LUMP_CMD_VERSION");
                 // 8 bytes: FW version (bytes 0-3 BCD LE) + HW version (bytes 4-7 BCD LE)
                 if (payloadSize >= 8) {
                     char tmp[3];
@@ -455,6 +514,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
 
         switch (infoType) {
             case LUMP_INFO_NAME: {
+                INFO("Parsing LUMP_INFO_NAME");
                 // payload[1..] = null-terminated ASCII name
                 if (payloadSize < 2) {
                     WARN("INFO_NAME payload too short: %d bytes", payloadSize);
@@ -480,6 +540,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_RAW: {
+                INFO("Parsing LUMP_INFO_RAW");
                 // payload[1..4] = float min, payload[5..8] = float max (little-endian IEEE 754)
                 if (payloadSize < 9) {
                     WARN("INFO_RAW payload too short: %d bytes", payloadSize);
@@ -496,6 +557,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_PCT: {
+                INFO("Parsing LUMP_INFO_PCT");                
                 // payload[1..4] = float min, payload[5..8] = float max
                 if (payloadSize < 9) {
                     WARN("INFO_PCT payload too short: %d bytes", payloadSize);
@@ -509,6 +571,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_SI: {
+                INFO("Parsing LUMP_INFO_SI");
                 // payload[1..4] = float min, payload[5..8] = float max
                 if (payloadSize < 9) {
                     WARN("INFO_SI payload too short: %d bytes", payloadSize);
@@ -522,6 +585,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_UNITS: {
+                INFO("Parsing LUMP_INFO_UNITS");
                 // payload[1..] = null-terminated ASCII units string, max 4 chars
                 if (payloadSize < 2) {
                     WARN("INFO_UNITS payload too short: %d bytes", payloadSize);
@@ -541,6 +605,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_MAPPING: {
+                INFO("Parsing LUMP_INFO_MAPPING");
                 // payload[1] = input flags, payload[2] = output flags
                 if (payloadSize < 3) {
                     WARN("INFO_MAPPING payload too short: %d bytes", payloadSize);
@@ -564,6 +629,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_MODE_COMBOS: {
+                INFO("Parsing LUMP_INFO_MODE_COMBOS");
                 INFO("Got Info Mode Combos for mode %d, payload size %d", mode, payloadSize);
                 for (int i = 0; i < payloadSize; i++) {
                     DEBUG("  Byte %d = 0x%02X", i, payload[i]);
@@ -573,6 +639,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
             }
 
             case LUMP_INFO_FORMAT: {
+                INFO("Parsing LUMP_INFO_FORMAT");
                 // payload[1]=datasets, payload[2]=format type, payload[3]=figures, payload[4]=decimals
                 if (payloadSize < 5) {
                     WARN("INFO_FORMAT payload too short: %d bytes", payloadSize);
@@ -593,7 +660,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
 
             default: {
                 // Unknown info types 0x07-0x0C and anything else: log at DEBUG, do not discard
-                DEBUG("Unknown INFO type 0x%02X for mode %d, ignoring", infoType, mode);
+                WARN("Unknown INFO type 0x%02X for mode %d, ignoring", infoType, mode);
                 break;
             }
         }
@@ -613,6 +680,9 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
         }
 
         device_->onDataFrame(mode, payload, payloadSize);
+        // Signal LegoDevice that we are now in the inter-frame gap.
+        // This is the safest moment to transmit the keep-alive NACK.
+        device_->onDataFrameDispatched();
         return;
     }
 

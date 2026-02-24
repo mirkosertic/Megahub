@@ -80,6 +80,11 @@ public:
 	// Default: delegates to onDataFrame().
 	virtual void onCombiDataFrame(int mode, const uint8_t *payload, int payloadSize);
 
+	// Called by LumpParser immediately after a validated DATA frame is dispatched.
+	// Signals that the hub is in the inter-frame gap — the safest moment to send
+	// the keep-alive NACK without colliding with incoming device data.
+	void onDataFrameDispatched();
+
 private:
 	int getDefaultMode();
 	void logParserStats();
@@ -96,6 +101,7 @@ private:
 	bool handshakeComplete_;
 	unsigned long lastKeepAliveCheck_;
 	bool inDataMode_;
+	bool firstDataFrameReceived_;   // false until first DATA frame arrives after mode entry
 	unsigned long lastReceivedDataInMillis_;
 	int selectedMode_;
 	unsigned long lastParserStatsLog_;

@@ -14,6 +14,7 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 	, handshakeComplete_(false)
 	, lastKeepAliveCheck_(0)
 	, inDataMode_(false)
+	, firstDataFrameReceived_(false)
 	, lastReceivedDataInMillis_(0)
 	, selectedMode_(-1)
 	, lastParserStatsLog_(0) {
@@ -32,6 +33,7 @@ void LegoDevice::reset() {
 	hwVersion_ = "";
 	handshakeComplete_ = false;
 	inDataMode_ = false;
+	firstDataFrameReceived_ = false;
 
 	parser_.reset();
 
@@ -67,6 +69,8 @@ void LegoDevice::markAsHandshakeComplete() {
 
 void LegoDevice::parseIncomingData() {
 	int count = 0;
+	// Poll diagnostic counters (e.g. FIFO overrun) once per batch, not per byte.
+	serialIO_->pollDiagnostics();
 	// Read a maximum of 32 bytes per call to bound latency
 	while (serialIO_->available() > 0 && count++ < 32) {
 		lastReceivedDataInMillis_ = millis();
@@ -111,6 +115,7 @@ void LegoDevice::finishHandshake() {
 	delay(10);
 	serialIO_->switchToBaudrate(serialSpeed_);
 	delay(10);
+	parser_.clearBuffer();  // discard stale bytes from 2400-baud phase
 }
 
 void LegoDevice::sendAck() {
@@ -121,7 +126,8 @@ void LegoDevice::sendAck() {
 
 void LegoDevice::sendNack() {
 	serialIO_->sendByte(lumpSysNack);
-	serialIO_->flush();
+	// No flush needed: WriteByte() already waited for TX FIFO space; the SC16IS752
+	// transmits autonomously. Blocking here would only delay RX servicing.
 }
 
 void LegoDevice::sendSync() {
@@ -226,6 +232,8 @@ bool LegoDevice::isInDataMode() {
 
 void LegoDevice::switchToDataMode() {
 	inDataMode_ = true;
+	firstDataFrameReceived_ = false;
+	lastReceivedDataInMillis_ = millis();  // reset timeout clock so startup window starts from data-mode entry
 }
 
 void LegoDevice::setMotorSpeed(int speed) {
@@ -262,10 +270,11 @@ int LegoDevice::getDefaultMode() {
 
 void LegoDevice::logParserStats() {
 	const LumpParserStats &s = parser_.stats();
-	INFO("Parser: ok=%lu csErr=%lu discarded=%lu recoveries=%lu overflow=%lu unknownSys=%lu invalidSize=%lu",
+	INFO("Parser: ok=%lu csErr=%lu discarded=%lu recoveries=%lu overflow=%lu unknownSys=%lu invalidSize=%lu uartOvr=%lu",
 	     s.framesOk, s.checksumErrors, s.bytesDiscarded,
 	     s.syncRecoveries, s.bufferOverflows,
-	     s.unknownSysBytes, s.invalidSizeBytes);
+	     s.unknownSysBytes, s.invalidSizeBytes,
+	     serialIO_->uartOverrunCount());
 }
 
 void LegoDevice::loop() {
@@ -278,11 +287,22 @@ void LegoDevice::loop() {
 		selectMode(getDefaultMode());
 		switchToDataMode();
 	} else if (isInDataMode()) {
-		needsKeepAlive();
+		// Post-frame NACK (onDataFrameDispatched) handles keep-alive for streaming devices.
+		// Emergency fallback only: fires when no DATA frames have arrived for >95 ms,
+		// covering non-streaming modes and brief device pauses.
+		bool approachingTimeout = (lastKeepAliveCheck_ != 0 &&
+		                           millis() - lastKeepAliveCheck_ > 95);
+		if (approachingTimeout) {
+			needsKeepAlive();
+		}
 
 		unsigned long now = millis();
-		if (now - lastReceivedDataInMillis_ > 200) {
-			// No data for more than 200 ms — assume device was unplugged
+		// Two-tier timeout: generous window until first DATA frame, tight thereafter.
+		// Devices can take 200–600 ms to start streaming after mode selection, especially
+		// after a troubled handshake. Once streaming, 500 ms covers normal inter-frame gaps.
+		unsigned long noDataTimeout = firstDataFrameReceived_ ? 500UL : 2000UL;
+		if (now - lastReceivedDataInMillis_ > noDataTimeout) {
+			// No data within timeout — assume device was unplugged
 			WARN("Didn't receive data for some time, performing a device reset");
 			reset();
 			return;
@@ -342,4 +362,17 @@ void LegoDevice::onDataFrame(int mode, const uint8_t *payload, int payloadSize) 
 
 void LegoDevice::onCombiDataFrame(int mode, const uint8_t *payload, int payloadSize) {
 	onDataFrame(mode, payload, payloadSize);
+}
+
+void LegoDevice::onDataFrameDispatched() {
+	firstDataFrameReceived_ = true;  // switch to tight 500 ms unplug-detection timeout
+	unsigned long now = millis();
+	// Rate-limit: do not send NACK more often than every 50 ms.
+	// If lastKeepAliveCheck_ is 0 (first frame ever), send immediately.
+	if (lastKeepAliveCheck_ != 0 && (now - lastKeepAliveCheck_) < 50) {
+		return;
+	}
+	DEBUG("Post-frame NACK: sending keep-alive in inter-frame gap");
+	sendNack();
+	lastKeepAliveCheck_ = now;
 }

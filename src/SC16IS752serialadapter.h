@@ -21,6 +21,8 @@ public:
 	virtual void sendByte(int byteData);
 	virtual void switchToBaudrate(long serialSpeed);
 	virtual void flush();
+	virtual uint32_t uartOverrunCount();
+	virtual void pollDiagnostics();
 
 	virtual void setM1(bool status);
 	virtual void setM2(bool status);
@@ -34,6 +36,7 @@ private:
 	SC16IS752SerialAdapterChannel channel_;
 	int m1pin_;
 	int m2pin_;
+	uint32_t fifoOverrunCount_;
 };
 
 #endif

@@ -12,6 +12,8 @@ public:
 	virtual void sendByte(int byteData) = 0;
 	virtual void switchToBaudrate(long serialSpeed) = 0;
 	virtual void flush() = 0;
+	virtual uint32_t uartOverrunCount() { return 0; }
+	virtual void pollDiagnostics() { }
 
 	virtual void setM1(bool status) = 0;
 	virtual void setM2(bool status) = 0;

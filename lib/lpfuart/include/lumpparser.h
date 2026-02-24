@@ -33,7 +33,7 @@ class LumpParser {
 public:
     static constexpr int      ringBufSize            = 128;
     // Consecutive checksum errors before triggering device reset
-    static constexpr uint32_t syncLossResetThreshold = 50;
+    static constexpr uint32_t syncLossResetThreshold = 300;
 
     explicit LumpParser(LegoDevice *device);
 
@@ -45,7 +45,7 @@ public:
     void feedBytes(const uint8_t *data, int len);
 
     // Retrieve current statistics snapshot.
-    const LumpParserStats &stats() const;
+    auto stats() const -> const LumpParserStats &;
 
     // Reset statistics counters (e.g. after logging them).
     void resetStats();
@@ -54,10 +54,14 @@ public:
     // Called from LegoDevice::reset().
     void reset();
 
+    // Flush ring buffer without clearing statistics.
+    // Call after a baud-rate switch to discard stale bytes from the previous speed.
+    void clearBuffer();
+
 private:
     // Decode the payload size from a header byte.
     // Returns payload byte count (1/2/4/8/16/32), or -1 for reserved encodings.
-    static int decodePayloadSize(uint8_t header);
+    static auto decodePayloadSize(uint8_t header) -> int;
 
     // Inner loop: consume as many frames as possible from the head of the buffer.
     void processBuffer();
@@ -79,6 +83,12 @@ private:
     // Sync-loss tracking
     bool     inSyncLoss_;
     uint32_t consecutiveErrors_;
+
+    // Sync-loss per-episode tracking
+    uint32_t syncLossDiscardStart_;          // bytesDiscarded value at sync-loss entry
+    static constexpr uint8_t discardCapSize = 64;
+    uint8_t  discardCap_[discardCapSize];    // captures first N discarded bytes per episode
+    uint8_t  discardCapCount_;               // how many bytes captured this episode
 
     LumpParserStats stats_;
     LegoDevice     *device_;
