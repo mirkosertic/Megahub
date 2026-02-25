@@ -29,7 +29,7 @@ Megahub is an ESP32-based robotics experimentation platform that combines LEGO W
 5. **Lua VM Memory**: The Lua interpreter runs in constrained memory. Large scripts can cause crashes.
 
 **Memory Best Practices:**
-- Use the already existing custim `INFO`, `ERROR` or `WARN` logging macros instead of excessive `Serial.print()`
+- Use the already existing custom `INFO`, `ERROR` or `WARN` logging macros instead of excessive `Serial.print()`
 - Avoid creating temporary String objects in loops
 - Monitor free heap with `ESP.getFreeHeap()` during development
 - Use `const` and `PROGMEM` for large constant data

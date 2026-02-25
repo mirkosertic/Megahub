@@ -123,6 +123,20 @@ The default baud rate is 115200.
 
 ## Documentation
 
+### LEGO UART Message Protocol (LUMP)
+
+For an in-depth technical reference of the LUMP wire protocol — from the big-picture handshake flow down to individual bits in each message type — see the [LUMP Protocol Documentation](LUMP.md).
+
+This covers:
+- Physical layer (UART baud rates, single-wire operation)
+- Complete handshake sequence with annotated byte examples
+- All message types: SYS, CMD, INFO, DATA
+- Header byte anatomy, payload size encoding, and checksum algorithm
+- The mode system and how sensor data formats are negotiated
+- Keep-alive mechanism
+- Known device IDs
+- LumpParser implementation internals
+
 ### Blockly Blocks Reference
 
 For a complete reference of all available Blockly blocks including visual examples, see the [Blockly Blocks Documentation](BLOCKS.md).
