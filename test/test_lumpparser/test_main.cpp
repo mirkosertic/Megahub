@@ -376,7 +376,20 @@ public:
     }
 
     void feedBytes(const uint8_t *data, int len) {
-        for (int i = 0; i < len; i++) feedByte(data[i]);
+        // Pre-load all bytes into the ring buffer, then process once.
+        // This ensures onDataFrameDispatched() fires only after the last
+        // frame in the batch (count_ == 0), not after each individual frame.
+        for (int i = 0; i < len; i++) {
+            if (count_ >= RING_BUF_SIZE) {
+                stats_.bufferOverflows++;
+                head_  = (head_ + 1) % RING_BUF_SIZE;
+                count_--;
+            }
+            uint16_t tail = (head_ + count_) % RING_BUF_SIZE;
+            buf_[tail] = data[i];
+            count_++;
+        }
+        processBuffer();
     }
 
     const LumpParserStats &stats() const { return stats_; }

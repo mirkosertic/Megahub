@@ -82,9 +82,20 @@ void LumpParser::feedByte(uint8_t byte) {
 }
 
 void LumpParser::feedBytes(const uint8_t *data, int len) {
+    // Add all bytes to the ring buffer first, then process once.
+    // This ensures onDataFrameDispatched() fires only after the last
+    // frame in the batch (count_ == 0), not after each individual frame.
     for (int i = 0; i < len; i++) {
-        feedByte(data[i]);
+        if (count_ >= ringBufSize) {
+            stats_.bufferOverflows++;
+            head_ = (head_ + 1) % ringBufSize;
+            count_--;
+        }
+        uint16_t tail = (head_ + count_) % ringBufSize;
+        buf_[tail] = data[i];
+        count_++;
     }
+    processBuffer();
 }
 
 auto LumpParser::stats() const -> const LumpParserStats & {
