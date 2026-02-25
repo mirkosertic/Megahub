@@ -392,7 +392,7 @@ void LegoDevice::loop() {
 		static uint32_t lastLoggedOverrunCount = 0;
 		uint32_t currentOverruns = serialIO_->uartOverrunCount();
 		if (currentOverruns != lastLoggedOverrunCount) {
-			WARN("UART FIFO overruns detected: total=%lu (delta=+%lu since last check)",
+			DEBUG("UART FIFO overruns detected: total=%lu (delta=+%lu since last check)",
 			     currentOverruns, currentOverruns - lastLoggedOverrunCount);
 			lastLoggedOverrunCount = currentOverruns;
 		}

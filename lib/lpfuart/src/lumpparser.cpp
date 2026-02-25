@@ -229,7 +229,7 @@ void LumpParser::processBuffer() {
             // Sync recovery tracking
             if (inSyncLoss_) {
                 uint32_t episodeBytes = stats_.bytesDiscarded - syncLossDiscardStart_;
-                INFO("LUMP sync recovered after discarding %lu bytes", episodeBytes);
+                DEBUG("LUMP sync recovered after discarding %lu bytes", episodeBytes);
                 // Hex-dump the captured discard bytes
                 if (discardCapCount_ > 0) {
                     // Build hex string: "xx xx xx ..."
@@ -245,7 +245,7 @@ void LumpParser::processBuffer() {
                     else         hexbuf[0]        = '\0';
                     bool truncated = (discardCapCount_ == discardCapSize &&
                                       episodeBytes     > discardCapSize);
-                    INFO("  Discarded bytes (first %u%s): %s",
+                    DEBUG("  Discarded bytes (first %u%s): %s",
                          discardCapCount_, truncated ? ", truncated" : "", hexbuf);
                 }
                 stats_.syncRecoveries++;
@@ -261,7 +261,7 @@ void LumpParser::processBuffer() {
             // Bad checksum: slide by 1 byte
             // -----------------------------------------------------------
             if (!inSyncLoss_) {
-                WARN("LUMP sync lost after %lu good frames (checksum expected=0x%02X actual=0x%02X, header=0x%02X, type=0x%02X, payloadSize=0x%02X)",
+                DEBUG("LUMP sync lost after %lu good frames (checksum expected=0x%02X actual=0x%02X, header=0x%02X, type=0x%02X, payloadSize=0x%02X)",
                      stats_.framesOk, expected, actual, header, type, payloadSize);
                 inSyncLoss_           = true;
                 syncLossDiscardStart_ = stats_.bytesDiscarded;
