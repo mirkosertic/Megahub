@@ -2,8 +2,9 @@
 
 #include "i2csync.h"
 #include "logging.h"
+#include "motorpwmcontroller.h"
 
-LegoDevice::LegoDevice(SerialIO *serialIO)
+LegoDevice::LegoDevice(SerialIO *serialIO, uint8_t deviceIndex)
 	: serialSpeed_(2400)
 	, numModes_(-1)
 	, deviceId_(-1)
@@ -17,7 +18,9 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 	, firstDataFrameReceived_(false)
 	, lastReceivedDataInMillis_(0)
 	, selectedMode_(-1)
-	, lastParserStatsLog_(0) {
+	, lastParserStatsLog_(0)
+	, deviceIndex_(deviceIndex)
+	, pwmController_(nullptr) {
 
 	modes_ = new Mode *[16];
 	for (int i = 0; i < 16; i++) {
@@ -27,6 +30,13 @@ LegoDevice::LegoDevice(SerialIO *serialIO)
 
 void LegoDevice::reset() {
 	INFO("Performing a device reset");
+
+	// Stop motor and unregister from PWM controller during reset
+	if (deviceIndex_ != 255 && pwmController_ != nullptr) {
+		pwmController_->setSpeed(deviceIndex_, 0);
+		pwmController_->disableDevice(deviceIndex_);
+	}
+
 	numModes_ = 0;
 	deviceId_ = -1;
 	fwVersion_ = "";
@@ -44,6 +54,11 @@ void LegoDevice::reset() {
 	serialSpeed_ = 2400;
 	selectedMode_ = -1;
 	serialIO_->switchToBaudrate(2400);
+
+	// Re-register with PWM controller after reset
+	if (deviceIndex_ != 255 && pwmController_ != nullptr) {
+		pwmController_->enableDevice(deviceIndex_, this);
+	}
 }
 
 LegoDevice::~LegoDevice() {
@@ -71,8 +86,10 @@ void LegoDevice::parseIncomingData() {
 	int count = 0;
 	// Poll diagnostic counters (e.g. FIFO overrun) once per batch, not per byte.
 	serialIO_->pollDiagnostics();
-	// Read a maximum of 32 bytes per call to bound latency
-	while (serialIO_->available() > 0 && count++ < 32) {
+	// Read a maximum of 64 bytes per call to bound latency.
+	// Increased from 32 to 64 to empty FIFO faster and reduce overrun probability
+	// when motor noise generates spurious bytes.
+	while (serialIO_->available() > 0 && count++ < 64) {
 		lastReceivedDataInMillis_ = millis();
 		parser_.feedByte((uint8_t)serialIO_->readByte());
 	}
@@ -259,10 +276,46 @@ void LegoDevice::setMotorSpeed(int speed) {
 		serialIO_->setM2(true);
 	}
 	i2c_unlock();
+	/*
+
+	// Check if PWM controller is injected
+	if (pwmController_ == nullptr) {
+		WARN("PWM controller not injected - cannot control motor speed");
+		return;
+	}
+
+	// Check if this device has a valid index
+	if (deviceIndex_ == 255) {
+		WARN("Device not registered for PWM control (deviceIndex not set)");
+		return;
+	}
+
+	// Clamp speed to valid range (-127 to +127)
+	int8_t clampedSpeed = speed;
+	if (clampedSpeed < -127) clampedSpeed = -127;
+	if (clampedSpeed > 127) clampedSpeed = 127;
+
+	INFO("Setting motor speed to %d (device index %d)", clampedSpeed, deviceIndex_);
+
+	// Use the PWM controller for variable speed control
+	pwmController_->setSpeed(deviceIndex_, clampedSpeed);
+
+	*/
 }
 
 void LegoDevice::initialize() {
+	// Register this device with the PWM controller if it has a valid index
+	if (deviceIndex_ != 255 && pwmController_ != nullptr) {
+		pwmController_->enableDevice(deviceIndex_, this);
+	}
+
+	// Initialize motor to stopped state
 	setMotorSpeed(0);
+}
+
+void LegoDevice::setPWMController(MotorPWMController* controller) {
+	pwmController_ = controller;
+	INFO("PWM controller injected for device index %d", deviceIndex_);
 }
 
 int LegoDevice::getDefaultMode() {
@@ -296,16 +349,26 @@ void LegoDevice::loop() {
 		selectMode(getDefaultMode());
 		switchToDataMode();
 	} else if (isInDataMode()) {
-		// Post-frame NACK (onDataFrameDispatched) handles keep-alive for streaming devices.
-		// Emergency fallback only: fires when no DATA frames have arrived for >95 ms,
-		// covering non-streaming modes and brief device pauses.
-		bool approachingTimeout = (lastKeepAliveCheck_ != 0 &&
-		                           millis() - lastKeepAliveCheck_ > 95);
-		if (approachingTimeout) {
-			needsKeepAlive();
+		unsigned long now = millis();
+		// Keep-alive: send NACK every 50 ms, but only when we are at least 4 ms past
+		// the last received byte.  parseIncomingData() sets lastReceivedDataInMillis_
+		// each time it reads bytes from the FIFO; when the FIFO was empty the value
+		// is stale and (now - last) grows until the gap condition is met.  At 100 Hz
+		// the inter-frame gap is ~9.5 ms, so a 4 ms threshold places the NACK near
+		// the middle of the gap — far from both the just-finished and the upcoming
+		// DATA frame.  Using available()==0 instead would be vacuous: parseIncomingData
+		// always empties the FIFO just before this check.
+		// Safety valve: force-send at 80 ms even if data is still flowing, to stay
+		// within the device's ~100 ms keep-alive window.
+		if (now - lastKeepAliveCheck_ >= 50) {
+			bool inGap    = (now - lastReceivedDataInMillis_ >= 4);
+			bool mustSend = (now - lastKeepAliveCheck_       >= 80);
+			if (inGap || mustSend) {
+				sendNack();
+				lastKeepAliveCheck_ = now;
+			}
 		}
 
-		unsigned long now = millis();
 		// Two-tier timeout: generous window until first DATA frame, tight thereafter.
 		// Devices can take 200–600 ms to start streaming after mode selection, especially
 		// after a troubled handshake. Once streaming, 500 ms covers normal inter-frame gaps.
@@ -321,6 +384,17 @@ void LegoDevice::loop() {
 		if (now - lastParserStatsLog_ >= 5000) {
 			lastParserStatsLog_ = now;
 			logParserStats();
+		}
+
+		// Monitor and report UART FIFO overruns to detect hardware issues.
+		// Overruns indicate the ESP32 is not reading the SC16IS752 FIFO fast enough,
+		// typically caused by motor-induced electrical noise generating spurious bytes.
+		static uint32_t lastLoggedOverrunCount = 0;
+		uint32_t currentOverruns = serialIO_->uartOverrunCount();
+		if (currentOverruns != lastLoggedOverrunCount) {
+			WARN("UART FIFO overruns detected: total=%lu (delta=+%lu since last check)",
+			     currentOverruns, currentOverruns - lastLoggedOverrunCount);
+			lastLoggedOverrunCount = currentOverruns;
 		}
 	}
 }
@@ -360,6 +434,10 @@ int LegoDevice::getDeviceId() {
 	return deviceId_;
 }
 
+SerialIO* LegoDevice::getSerialIO() {
+	return serialIO_.get();
+}
+
 void LegoDevice::onDataFrame(int mode, const uint8_t *payload, int payloadSize) {
 	Mode *m = getMode(mode);
 	if (m == nullptr) {
@@ -374,14 +452,9 @@ void LegoDevice::onCombiDataFrame(int mode, const uint8_t *payload, int payloadS
 }
 
 void LegoDevice::onDataFrameDispatched() {
-	firstDataFrameReceived_ = true;  // switch to tight 500 ms unplug-detection timeout
-	unsigned long now = millis();
-	// Rate-limit: do not send NACK more often than every 50 ms.
-	// If lastKeepAliveCheck_ is 0 (first frame ever), send immediately.
-	if (lastKeepAliveCheck_ != 0 && (now - lastKeepAliveCheck_) < 50) {
-		return;
-	}
-	DEBUG("Post-frame NACK: sending keep-alive in inter-frame gap");
-	sendNack();
-	lastKeepAliveCheck_ = now;
+	// Switches the no-data watchdog from the 2 s startup grace to the tight 500 ms
+	// running timeout once the first DATA frame arrives.  NACK keep-alive is handled
+	// entirely by the 50 ms timer in loop() — post-frame NACK would collide with
+	// buffered frames still pending in the SC16IS752 FIFO.
+	firstDataFrameReceived_ = true;
 }

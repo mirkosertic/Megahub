@@ -643,7 +643,11 @@ private:
             extModeOffset_ = 0;
             if (mode >= 0 && mode < 16) {
                 device_->onDataFrame(mode, payload, payloadSize);
-                device_->onDataFrameDispatched();
+                // Only signal inter-frame gap when ring buffer is empty —
+                // mirrors production: sending NACK mid-batch would collide.
+                if (count_ == 0) {
+                    device_->onDataFrameDispatched();
+                }
             }
             return;
         }
@@ -1497,6 +1501,26 @@ void test_LP23_post_frame_hook_called_for_each_data_frame() {
 }
 
 // ---------------------------------------------------------------------------
+// LP-24: onDataFrameDispatched() called only once when 3 frames arrive
+//        back-to-back in a single feedBytes() call (batched read simulation)
+// ---------------------------------------------------------------------------
+void test_LP24_post_frame_hook_called_once_for_batched_frames() {
+    // Three DATA-mode-0 frames concatenated — simulates SC16IS752 FIFO batching
+    uint8_t batch[] = {
+        0xC0, 0x00, 0x3F,   // frame 1
+        0xC0, 0x00, 0x3F,   // frame 2
+        0xC0, 0x00, 0x3F,   // frame 3
+    };
+    parser->feedBytes(batch, sizeof(batch));
+
+    // All 3 frames are dispatched to onDataFrame()
+    TEST_ASSERT_EQUAL_INT(3, dev->onDataFrameCalls);
+    // But onDataFrameDispatched() fires only after the last frame
+    // (count_ == 0 after frame 3; count_ was 6 and 3 after frames 1 and 2)
+    TEST_ASSERT_EQUAL_INT(1, dev->onDataFrameDispatchedCalls);
+}
+
+// ---------------------------------------------------------------------------
 // main()
 // ---------------------------------------------------------------------------
 int main() {
@@ -1534,6 +1558,7 @@ int main() {
     RUN_TEST(test_LP21_post_frame_hook_not_called_after_cmd_frame);
     RUN_TEST(test_LP22_post_frame_hook_not_called_after_info_frame);
     RUN_TEST(test_LP23_post_frame_hook_called_for_each_data_frame);
+    RUN_TEST(test_LP24_post_frame_hook_called_once_for_batched_frames);
 
     // New INFO message tests
     RUN_TEST(test_info_name_size4);

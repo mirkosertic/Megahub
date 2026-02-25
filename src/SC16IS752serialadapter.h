@@ -13,7 +13,7 @@ enum SC16IS752SerialAdapterChannel {
 
 class SC16IS752SerialAdapter : public SerialIO {
 public:
-	SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel port, int m1pin, int m2pin);
+	SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel port, int m1pin, int m2pin, uint8_t i2cAddress);
 	virtual ~SC16IS752SerialAdapter();
 
 	virtual int available();
@@ -37,6 +37,13 @@ private:
 	int m1pin_;
 	int m2pin_;
 	uint32_t fifoOverrunCount_;
+	uint8_t i2cAddress_;
+
+	/**
+	 * Read a register directly via I2C without using the base class private methods.
+	 * This is needed to access the LSR register for overrun detection.
+	 */
+	uint8_t readRegisterDirect(uint8_t channel, uint8_t reg_addr);
 };
 
 #endif

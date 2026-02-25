@@ -10,6 +10,8 @@
 #include <memory>
 #include <string>
 
+class MotorPWMController;
+
 #define DEVICEID_EV3_COLOR_SENSOR             29
 #define DEVICEID_EV3_ULTRASONIC_SENSOR        30
 #define DEVICEID_EV3_GYRO_SENSOR              32
@@ -32,7 +34,7 @@
 
 class LegoDevice {
 public:
-	LegoDevice(SerialIO *serialIO);
+	LegoDevice(SerialIO *serialIO, uint8_t deviceIndex = 255);
 	~LegoDevice();
 
 	void markAsHandshakeComplete();
@@ -56,6 +58,7 @@ public:
 	void switchToDataMode();
 
 	void setMotorSpeed(int speed);
+	void setPWMController(MotorPWMController* controller);
 
 	void setPinMode(int pin, int mode);
 	int digitalRead(int pin);
@@ -70,6 +73,7 @@ public:
 	void reset();
 
 	int getDeviceId();
+	SerialIO* getSerialIO();
 
 	// Called by LumpParser for every validated DATA frame.
 	// mode = resolved mode index (0-15, after applying extModeOffset).
@@ -81,8 +85,8 @@ public:
 	virtual void onCombiDataFrame(int mode, const uint8_t *payload, int payloadSize);
 
 	// Called by LumpParser immediately after a validated DATA frame is dispatched.
-	// Signals that the hub is in the inter-frame gap — the safest moment to send
-	// the keep-alive NACK without colliding with incoming device data.
+	// Switches the no-data watchdog from the 2 s startup grace to the tight 500 ms
+	// running timeout.  NACK keep-alive is handled by the 50 ms timer in loop().
 	void onDataFrameDispatched();
 
 private:
@@ -105,6 +109,8 @@ private:
 	unsigned long lastReceivedDataInMillis_;
 	int selectedMode_;
 	unsigned long lastParserStatsLog_;
+	uint8_t deviceIndex_;  // Device slot index (0-3) for PWM controller, 255 if unassigned
+	MotorPWMController* pwmController_;  // Injected PWM controller instance
 
 	// Protocol constants needed for outgoing messages
 	// (retained here since protocolstate.h is removed)

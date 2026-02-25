@@ -11,6 +11,7 @@
 #include "legodevice.h"
 #include "logging.h"
 #include "megahub.h"
+#include "motorpwmcontroller.h"
 #include "portstatus.h"
 #include "statusmonitor.h"
 
@@ -30,6 +31,7 @@ Configuration *configuration = NULL;
 SerialLoggingOutput *loggingOutput = NULL;
 InputDevices *inputDevices = NULL;
 BTRemote *btremote = NULL;
+MotorPWMController *pwmController = NULL;
 
 #define GPIO_SPI_SS	  GPIO_NUM_4
 #define GPIO_SPI_SCK  GPIO_NUM_18
@@ -101,17 +103,28 @@ void setup() {
 	i2cuart2->begin(2400, 2400);
 
 	INFO("Initializing Lego Device ports ...");
-	SC16IS752SerialAdapter *adapter1 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_A, 0, 1);
-	LegoDevice *legodevice1 = new LegoDevice(adapter1);
+	SC16IS752SerialAdapter *adapter1 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_AA >> 1);
+	LegoDevice *legodevice1 = new LegoDevice(adapter1, 0);  // Device index 0
 
-	SC16IS752SerialAdapter *adapter2 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_B, 2, 3);
-	LegoDevice *legodevice2 = new LegoDevice(adapter2);
+	SC16IS752SerialAdapter *adapter2 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_AA >> 1);
+	LegoDevice *legodevice2 = new LegoDevice(adapter2, 1);  // Device index 1
 
-	SC16IS752SerialAdapter *adapter3 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_A, 0, 1);
-	LegoDevice *legodevice3 = new LegoDevice(adapter3);
+	SC16IS752SerialAdapter *adapter3 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_BB >> 1);
+	LegoDevice *legodevice3 = new LegoDevice(adapter3, 2);  // Device index 2
 
-	SC16IS752SerialAdapter *adapter4 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_B, 2, 3);
-	LegoDevice *legodevice4 = new LegoDevice(adapter4);
+	SC16IS752SerialAdapter *adapter4 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_BB >> 1);
+	LegoDevice *legodevice4 = new LegoDevice(adapter4, 3);  // Device index 3
+
+	INFO("Creating Motor PWM Controller...");
+	pwmController = new MotorPWMController();
+	//pwmController->start();
+
+	INFO("Injecting PWM controller into devices...");
+	legodevice1->setPWMController(pwmController);
+	legodevice2->setPWMController(pwmController);
+	legodevice3->setPWMController(pwmController);
+	legodevice4->setPWMController(pwmController);
+	INFO("Free HEAP  is %d", ESP.getFreeHeap());
 
 	INFO("Initializing IMU");
 	imu = new IMU();

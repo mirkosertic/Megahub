@@ -680,9 +680,13 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
         }
 
         device_->onDataFrame(mode, payload, payloadSize);
-        // Signal LegoDevice that we are now in the inter-frame gap.
-        // This is the safest moment to transmit the keep-alive NACK.
-        device_->onDataFrameDispatched();
+        // Signal the inter-frame gap only when the ring buffer is empty.
+        // If more frames are batched (count_ > 0), the device is already
+        // transmitting subsequent frames; sending a NACK now would collide.
+        // When count_ == 0 we have fully caught up — the wire is idle.
+        if (count_ == 0) {
+            device_->onDataFrameDispatched();
+        }
         return;
     }
 

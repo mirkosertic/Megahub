@@ -1,13 +1,16 @@
 #include "SC16IS752serialadapter.h"
 
+#include <Wire.h>
+
 #include "logging.h"
 #include "megahub.h"
 
-SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel channel, int m1pin, int m2pin) {
+SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel channel, int m1pin, int m2pin, uint8_t i2cAddress) {
 	hardwareserial_ = hardwareserial;
 	channel_ = channel;
 	m1pin_ = m1pin;
 	m2pin_ = m2pin;
+	i2cAddress_ = i2cAddress;
 
 	hardwareserial_->pinMode(m1pin, OUTPUT);
 	hardwareserial_->pinMode(m2pin, OUTPUT);
@@ -44,9 +47,22 @@ void SC16IS752SerialAdapter::pollDiagnostics() {
 	// OE is sticky: set when any byte was overwritten in the RX FIFO since the
 	// last LSR read. Checking here (called once per parseIncomingData() cycle)
 	// keeps the diagnostic accurate without doubling I2C overhead per byte.
-	if (hardwareserial_->readLSR(ch) & 0x02) {
+	if (readRegisterDirect(ch, SC16IS750_REG_LSR) & 0x02) {
 		fifoOverrunCount_++;
 	}
+}
+
+uint8_t SC16IS752SerialAdapter::readRegisterDirect(uint8_t channel, uint8_t reg_addr) {
+	uint8_t result = 0;
+
+	// Direct I2C read following the same pattern as SC16IS752::ReadRegister
+	Wire.beginTransmission(i2cAddress_);
+	Wire.write((reg_addr << 3 | channel << 1));
+	Wire.endTransmission(0);
+	Wire.requestFrom(i2cAddress_, (uint8_t)1);
+	result = Wire.read();
+
+	return result;
 }
 
 void SC16IS752SerialAdapter::sendByte(int byteData) {
