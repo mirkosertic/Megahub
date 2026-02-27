@@ -57,7 +57,7 @@ void Configuration::enterWiFiConfiguration() {
 		doc["ssid"] = WiFi.SSID().c_str();
 		doc["pwd"] = WiFi.psk().c_str();
 
-		File configFile = fs_->open("/wificonfig.json", FILE_WRITE, true);
+		File configFile = fs_->open("/config.json", FILE_WRITE, true);
 		if (!configFile) {
 			WARN("Could not create config file!");
 		} else {
@@ -74,7 +74,7 @@ void Configuration::enterWiFiConfiguration() {
 void Configuration::load() {
 	INFO("Loading configuration...")
 
-	File configFile = fs_->open("/wificonfig.json", FILE_READ);
+	File configFile = fs_->open("/config.json", FILE_READ);
 	if (!configFile) {
 		WARN("No configuration file detected!");
 	} else {

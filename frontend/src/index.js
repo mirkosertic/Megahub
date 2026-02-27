@@ -53,6 +53,19 @@ const NotificationIcons = {
 	info : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
 };
 
+// ===== Top Progress Bar =====
+
+const Progress = {
+	show() {
+		const bar = document.getElementById('progressBar');
+		if (bar) bar.classList.add('active');
+	},
+	hide() {
+		const bar = document.getElementById('progressBar');
+		if (bar) bar.classList.remove('active');
+	}
+};
+
 /**
  * Show a notification toast
  * @param {string} type - 'success' | 'error' | 'warning' | 'info'
@@ -187,6 +200,120 @@ function initConfirmDialog() {
 window.showNotification = showNotification;
 window.showConfirmDialog = showConfirmDialog;
 
+// ===== BLE Connection Modal =====
+
+const ConnectionStepDefs = [
+	{ id: 'requesting',    label: 'Requesting device...' },
+	{ id: 'connecting',    label: 'Connecting to GATT server...' },
+	{ id: 'services',      label: 'Discovering services...' },
+	{ id: 'notifications', label: 'Enabling notifications...' },
+	{ id: 'mtu',           label: 'Negotiating MTU...' },
+	{ id: 'ready',         label: 'Connection established!' },
+];
+
+const ConnectionModal = {
+	_rendered: false,
+
+	_render() {
+		if (this._rendered) return;
+		this._rendered = true;
+		const stepsEl = document.getElementById('connectionSteps');
+		if (!stepsEl) return;
+		stepsEl.innerHTML = ConnectionStepDefs.map(s => `
+      <div class="connection-step pending" id="cstep-${s.id}">
+        <div class="connection-step-indicator">
+          <div class="connection-step-spinner"></div>
+          <svg class="connection-step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg class="connection-step-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+        <span class="connection-step-label">${s.label}</span>
+      </div>
+    `).join('');
+	},
+
+	show() {
+		this._render();
+		// Reset all steps
+		ConnectionStepDefs.forEach(s => {
+			const el = document.getElementById('cstep-' + s.id);
+			if (el) el.className = 'connection-step pending';
+		});
+		const errEl = document.getElementById('connectionModalError');
+		if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+		const overlay = document.getElementById('connectionModal');
+		if (overlay) overlay.setAttribute('aria-hidden', 'false');
+	},
+
+	hide() {
+		const overlay = document.getElementById('connectionModal');
+		if (overlay) overlay.setAttribute('aria-hidden', 'true');
+	},
+
+	setStep(stepId) {
+		// Mark all previous steps as done, current as active, rest as pending
+		let found = false;
+		ConnectionStepDefs.forEach(s => {
+			const el = document.getElementById('cstep-' + s.id);
+			if (!el) return;
+			if (s.id === stepId) {
+				el.className = 'connection-step active';
+				found = true;
+			} else if (!found) {
+				el.className = 'connection-step done';
+			} else {
+				el.className = 'connection-step pending';
+			}
+		});
+	},
+
+	setAllDone() {
+		ConnectionStepDefs.forEach(s => {
+			const el = document.getElementById('cstep-' + s.id);
+			if (el) el.className = 'connection-step done';
+		});
+	},
+
+	setError(stepId, message) {
+		// Mark current step as error
+		const el = document.getElementById('cstep-' + stepId);
+		if (el) el.className = 'connection-step error';
+		const errEl = document.getElementById('connectionModalError');
+		if (errEl) { errEl.textContent = message; errEl.classList.add('visible'); }
+	}
+};
+
+// ===== VS Code Status Bar =====
+
+const StatusBar = {
+	setConnecting() {
+		const dot = document.getElementById('statusbarDot');
+		const label = document.getElementById('statusbarConnectionLabel');
+		if (dot) { dot.className = 'statusbar-dot connecting'; }
+		if (label) label.textContent = 'Connecting...';
+	},
+	setConnected(deviceName) {
+		const dot = document.getElementById('statusbarDot');
+		const label = document.getElementById('statusbarConnectionLabel');
+		if (dot) { dot.className = 'statusbar-dot connected'; }
+		if (label) label.textContent = deviceName ? `Connected to ${deviceName}` : 'Connected';
+	},
+	setDisconnected() {
+		const dot = document.getElementById('statusbarDot');
+		const label = document.getElementById('statusbarConnectionLabel');
+		if (dot) { dot.className = 'statusbar-dot disconnected'; }
+		if (label) label.textContent = 'Not connected';
+		this.clearMessage();
+	},
+	setMessage(text) {
+		const el = document.getElementById('statusbarMessage');
+		if (el) el.textContent = text;
+	},
+	clearMessage() {
+		const el = document.getElementById('statusbarMessage');
+		if (el) el.textContent = '';
+	}
+};
+
 // ===== Bluetooth Compatibility Check =====
 
 /**
@@ -262,6 +389,7 @@ const STRORAGE_KEY = 'blockly_robot_workspace';
 // Save workspace as XML
 async function saveWorkspace() {
 	try {
+		Progress.show();
 		const xmlText = blocklyEditor.generateXML();
 		await window.Application.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
 		const luaCode = generateCode();
@@ -271,6 +399,8 @@ async function saveWorkspace() {
 	} catch (error) {
 		console.error('Error while saving project:', error);
 		return false;
+	} finally {
+		Progress.hide();
 	}
 };
 
@@ -283,6 +413,7 @@ window.Application = {
 	},
 
 	setMode : function(mode) {
+		document.body.dataset.mode = mode;
 		const items = document.querySelectorAll(".dynamicvisibility");
 		for (const item of items) {
 			item.style.display = 'none';
@@ -296,7 +427,9 @@ window.Application = {
 
 	jumpToFilesView : function() {
 		window.Application.setMode('management');
+		Progress.show();
 		window.Application.requestProjectsAndAutostartConfig((projectList, autostartProject) => {
+			Progress.hide();
 			document.getElementById("files").initialize(projectList, autostartProject);
 		});
 	},
@@ -306,6 +439,8 @@ window.Application = {
 		window.Application.setMode('editor');
 
 		window.Application.activeProject = projectId;
+		const nameEl = document.getElementById('headerProjectName');
+		if (nameEl) nameEl.textContent = projectId;
 	},
 
 	openProject : function(projectId) {
@@ -313,8 +448,12 @@ window.Application = {
 		window.Application.setMode('editor');
 
 		window.Application.activeProject = projectId;
+		const nameEl = document.getElementById('headerProjectName');
+		if (nameEl) nameEl.textContent = projectId;
 
+		Progress.show();
 		window.Application.requestProjectFile(projectId, 'model.xml', function(projectId, filename, content) {
+			Progress.hide();
 			if (!blocklyEditor.loadXML(content)) {
 				console.log("Error loading workspace! Blockly failed to parse?");
 			}
@@ -626,6 +765,7 @@ function setupEventListeners() {
 
 async function handleDisconnect() {
 	console.log('Connection terminated!');
+	StatusBar.setDisconnected();
 	// Store notification reference so it can be dismissed on successful reconnection
 	connectionLostNotification = showNotification('warning', 'Connection Lost', 'Attempting to reconnect...', 0);
 
@@ -681,12 +821,28 @@ async function attemptReconnection() {
 
 async function initBLEConnection(reconnecting = false) {
 	try {
+		if (!reconnecting) {
+			ConnectionModal.show();
+			ConnectionModal.setStep('requesting');
+			StatusBar.setConnecting();
+		}
+
 		// Use reconnect() for automatic reconnection, connect() for initial user-initiated connection
 		if (reconnecting) {
 			await bleClient.reconnect();
 		} else {
-			await bleClient.connect();
+			await bleClient.connect((stepId, label) => {
+				ConnectionModal.setStep(stepId);
+			});
 		}
+
+		if (!reconnecting) {
+			ConnectionModal.setAllDone();
+			// Brief pause so user sees the completed state, then close
+			setTimeout(() => ConnectionModal.hide(), 600);
+		}
+
+		StatusBar.setConnected(bleClient.device?.name);
 		console.log('Connected!');
 
 		portstatus.initialize();
@@ -716,6 +872,14 @@ async function initBLEConnection(reconnecting = false) {
 
 	} catch (error) {
 		console.error('Error:', error);
+		if (!reconnecting) {
+			// Find which step was active and mark it as error
+			const activeStep = document.querySelector('.connection-step.active');
+			const stepId = activeStep ? activeStep.id.replace('cstep-', '') : 'connecting';
+			ConnectionModal.setError(stepId, error.message || 'Connection failed');
+			// Auto-close error modal after 4 seconds
+			setTimeout(() => ConnectionModal.hide(), 4000);
+		}
 		throw error; // Re-throw to allow reconnection logic to handle it
 	}
 };
@@ -959,6 +1123,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Initialize confirmation dialog
 	initConfirmDialog();
 
+	document.getElementById("backToProjects").addEventListener("click", () => {
+		window.Application.jumpToFilesView();
+	});
+
 	document.getElementById("reset").addEventListener("click", async () => {
 		const confirmed = await showConfirmDialog(
 			'Reset Workspace',
@@ -985,11 +1153,19 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Manual save button
 	document.getElementById("save").addEventListener("click", async () => {
 		if (window.Application.activeProject) {
-			const success = await saveWorkspace();
-			if (success) {
-				showNotification('success', 'Saved', 'Workspace saved successfully');
-			} else {
-				showNotification('error', 'Save Failed', 'Could not save workspace');
+			const btn = document.getElementById("save");
+			btn.disabled = true;
+			btn.classList.add('btn-loading');
+			try {
+				const success = await saveWorkspace();
+				if (success) {
+					showNotification('success', 'Saved', 'Workspace saved successfully');
+				} else {
+					showNotification('error', 'Save Failed', 'Could not save workspace');
+				}
+			} finally {
+				btn.disabled = false;
+				btn.classList.remove('btn-loading');
 			}
 		} else {
 			showNotification('warning', 'No Project', 'Open or create a project first');

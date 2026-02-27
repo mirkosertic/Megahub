@@ -32,6 +32,8 @@ void hub_thread_task(void *parameters) {
 	unsigned long lastPeriodicOp = millis();
 	const unsigned long periodicInterval = 10000; // 10 seconds in milliseconds
 
+	bool exitedAbnormally = false;
+
 	while (true) {
 
 		unsigned long start = micros();
@@ -56,7 +58,7 @@ void hub_thread_task(void *parameters) {
 			const char *error_msg = lua_tostring(threadState, -1);
 			WARN("Error processing Lua function : %s", error_msg);
 			lua_pop(threadState, 1);
-
+			exitedAbnormally = true;
 			break;
 		}
 
@@ -106,8 +108,12 @@ void hub_thread_task(void *parameters) {
 	INFO("Thread stats - min: %lu µs, max: %lu µs, avg: %.2f µs", minDuration, maxDuration, avgDuration);
 
 	lua_closethread(threadState, params->mainstate);
+	Megahub *hubRef = params->hub;
 	delete params;
 	INFO("Done with thread");
+	if (exitedAbnormally) {
+		hubRef->notifyThreadExitedAbnormally();
+	}
 	vTaskDelete(NULL);
 }
 

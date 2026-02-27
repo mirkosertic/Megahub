@@ -9,6 +9,9 @@
 </head>
 
 <body>
+    <!-- Top Progress Bar -->
+    <div id="progressBar" class="progress-bar" role="progressbar" aria-hidden="true"></div>
+
     <!-- Notification Container -->
     <div id="notificationContainer" class="notification-container"></div>
 
@@ -28,8 +31,33 @@
         </div>
     </div>
 
+    <!-- BLE Connection Modal -->
+    <div id="connectionModal" class="connection-modal-overlay" aria-hidden="true">
+      <div class="connection-modal">
+        <div class="connection-modal-header">
+          <h3 class="connection-modal-title">Connecting to Megahub</h3>
+        </div>
+        <div class="connection-modal-body">
+          <div class="connection-steps" id="connectionSteps"></div>
+          <div class="connection-modal-error" id="connectionModalError"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="global-layout-sidebar">
-        <header id="header" class="layout-header">Megahub IDE<custom-sidebar-toggle></custom-sidebar-toggle></header>
+        <header id="header" class="layout-header">
+            <div class="header-left">
+                <button id="backToProjects" class="header-back-btn" title="Back to projects" aria-label="Back to projects">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <span class="header-title">Megahub IDE</span>
+                <span class="header-breadcrumb-sep" aria-hidden="true">/</span>
+                <span class="header-project-name" id="headerProjectName"></span>
+            </div>
+            <custom-sidebar-toggle></custom-sidebar-toggle>
+        </header>
         <div class="layout-content welcome dynamicvisibility visible-btconnect">
             <button id="btconnect">Connect with Megahub</button>
         </div>
@@ -94,6 +122,13 @@
             </div>
         </div>
         <custom-logger id="logger" class="layout-footer"></custom-logger>
+        <div class="layout-statusbar" id="statusbar">
+          <span class="statusbar-connection" id="statusbarConnection">
+            <span class="statusbar-dot disconnected" id="statusbarDot"></span>
+            <span id="statusbarConnectionLabel">Not connected</span>
+          </span>
+          <span class="statusbar-message" id="statusbarMessage"></span>
+        </div>
     </div>
     <script type="module" src="/src/index.js"></script>
 </body>

@@ -4,54 +4,30 @@
 
 ## Introduction
 
-Megahub is an ESP32-based experimentation platform designed for robotics enthusiasts and tinkerers. It brings together the versatility of the entire ESP32 ecosystem with convenient support for LEGO© WeDo/Powered Up! devices, offering both Lua scripting and Blockly visual programming for easy control and automation.
+Megahub is an ESP32-based experimentation platform for robotics enthusiasts and makers. It combines native support for LEGO WeDo/Powered Up devices with a web-based IDE featuring Lua scripting and Blockly visual programming. The project is fully open source and ships with hardware schematics, PCB production files, and firmware as a PlatformIO project.
 
-This open-source project empowers makers to explore and build robotic creations using the full capabilities of the ESP32 platform – from WiFi and Bluetooth connectivity to a vast array of sensors and actuators – while seamlessly integrating popular LEGO© components alongside standard electronics.
-It comes with the hardware schematics, production files and the Megahub firmware as a PlatformIO project as well.
+**Build and use it at your own risk.**
 
-**Build and use it at your own Risk!!**
+---
 
 ## Key Features
 
-- **KiCad**: All schematics and PCB production files are available in KiCad and Gerber format
-- **WiFi Enabled**: Built-in wireless connectivity for remote control and programming
-- **Bluetooth Enabled**: Acts as a Bluetooth BLE Server and Client
-- **IDE**: Configure and program Megahub through the intuitive [Megahub IDE](https://mirkosertic.github.io/Megahub/)
-- **Visual Programming Interface**: Blockly visual programming for beginners
-- **SD-Card**: Built-in SD-card reader to store multiple projects (autostart possible)
-- **4 Motors / Devices**: Connect up to 4 generic or LEGO© WeDo 2.0/Powered Up! devices simultaneously (motors, sensors, etc.)
-- **Built-in IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
-- **FastLED/NeoPixel Support**: Built-in support for addressable RGB LED strips
-- **Flexible GPIO**: Additional GPIO pins available for custom sensors, buttons, and peripherals
-- **Gamepad**: Can be paired with Bluetooth Classic HID compatible Gamepads (8BitDo M30, ...)
-- **BT/WiFi switch**: Allow configuration over Bluetooth API instead of Restful HTTP API is comming soon...
-- **ROS(Robot Operating System)**: Micro ROS support is comming soon...
-- **MQTT**: MQTT support is comming soon...
+- **KiCad schematics**: All schematics and PCB production files are available in KiCad and Gerber format
+- **WiFi**: Built-in wireless connectivity for remote control and programming
+- **Bluetooth**: Acts as a BLE (Bluetooth Low Energy) server and Bluetooth Classic client simultaneously
+- **Web IDE**: Configure and program Megahub through the [Megahub IDE](https://mirkosertic.github.io/Megahub/)
+- **Visual programming**: Blockly drag-and-drop programming for beginners and rapid prototyping
+- **Lua scripting**: Full Lua 5.4 scripting for advanced users
+- **SD card storage**: Store multiple projects on an SD card; the IDE remembers which project was last selected for autostart
+- **4 LEGO device ports**: Connect up to 4 LEGO WeDo 2.0/Powered Up motors, sensors, and other devices simultaneously
+- **IMU**: Integrated MPU6050 6-axis accelerometer and gyroscope for motion sensing
+- **FastLED/NeoPixel**: Built-in support for WS2812B addressable RGB LED strips
+- **GPIO expansion**: Additional GPIO pins for custom sensors, buttons, and peripherals
+- **Gamepad support**: Pair a Bluetooth Classic HID gamepad (e.g., 8BitDo M30) for manual control
 
-## Why not Micropython on existing hardware?
+---
 
-- I wanted to learn something new
-- Designing Hard- and Software work together is fun
-- There is no truly open system with the same capabilities available
-
-## How It Differs from Existing Solutions
-
-### vs. LEGO© Powered Up!
-
-- **Open Source**: Complete control over firmware and functionality
-- **Expandable**: Access to additional GPIO pins for custom hardware
-- **Programming Flexibility**: Choose between Lua scripting or visual programming
-- **Built-in Features**: Integrated IMU and LED controller without additional hubs
-- **Cost-effective**: Based on affordable ESP32 hardware
-
-### vs. fischertechnik© RX Controller
-
-- **LEGO Compatibility**: Native support for LEGO© WeDo 2.0 protocol
-- **Web-based Programming**: No proprietary software required
-- **Cost-effective**: Based on affordable ESP32 hardware
-- **Visual Programming**: Blockly support makes it accessible for all skill levels
-
-## WebUI Screenshots
+## Screenshots
 
 **Project management**
 ![Project Management](docs/screenshot_ide.png)
@@ -59,20 +35,25 @@ It comes with the hardware schematics, production files and the Megahub firmware
 **IMU interaction**
 ![IMU Interaction](docs/screenshot_imu.png)
 
-**LEGO / Gamepad interaction**
-![Lego / Gamepad interaction](docs/screenshot_lego_gamepad.png)
+**LEGO and Gamepad interaction**
+![LEGO and Gamepad interaction](docs/screenshot_lego_gamepad.png)
+
+---
 
 ## Hardware Photos
 
 ![Assembled prototype](docs/prototype_iteration1.jpg)
 
+---
+
 ## Getting Started
 
 ### Prerequisites
 
-- [PlatformIO](https://platformio.org/) installed (either as a CLI tool or as a VSCode extension)
+- [PlatformIO](https://platformio.org/) installed as a CLI tool or as a VSCode extension
 - An ESP32 development board
 - USB cable for flashing
+- Chrome, Edge, or Opera desktop browser (required for the Web Bluetooth API)
 
 ### Building the Firmware
 
@@ -82,61 +63,273 @@ It comes with the hardware schematics, production files and the Megahub firmware
    cd Megahub
    ```
 
-2. Build the project using PlatformIO:
+2. Build the project:
    ```bash
    pio run
    ```
-
-   Or if using VSCode with the PlatformIO extension, click the **Build** button in the bottom toolbar.
+   Or click **Build** in the PlatformIO toolbar inside VSCode.
 
 ### Flashing the Board
 
-1. Connect your ESP32 board via USB.
+1. Connect the ESP32 board via USB.
 
 2. Flash the firmware:
    ```bash
    pio run --target upload
    ```
+   Or click **Upload** in the PlatformIO toolbar inside VSCode.
 
-   Or use the **Upload** button in the PlatformIO toolbar in VSCode.
+### First Boot and Connection
 
-### First Boot and Configuration
+The device starts in **Bluetooth mode** by default.
 
-By default, the Megahub firmware runs in **Bluetooth mode**. To configure your board and start programming:
-
-1. Open the [Megahub IDE](https://mirkosertic.github.io/Megahub/) in your web browser.
-
-2. The web-based IDE uses the Web Bluetooth API to connect to your Megahub device. Make sure you are using a compatible browser (Chrome, Edge, or Opera on desktop).
-
-3. Click **Connect** in the IDE and select your Megahub device from the Bluetooth pairing dialog.
-
-4. Once connected, you can configure WiFi settings, upload projects, and program your device using either Lua scripting or Blockly visual programming.
+1. Open the [Megahub IDE](https://mirkosertic.github.io/Megahub/) in Chrome, Edge, or Opera on a desktop computer.
+2. Click **Connect** in the IDE.
+3. Select your Megahub device from the browser's Bluetooth pairing dialog.
+4. Once connected, the IDE shows the project list and the logger output.
 
 ### Serial Monitor
 
-To view debug output from the board:
+View diagnostic output from the board:
 ```bash
 pio device monitor
 ```
+Default baud rate: **115200**.
 
-The default baud rate is 115200.
+---
+
+## Hardware Reference
+
+### LEGO Device Ports
+
+Megahub provides **4 LEGO device ports**, numbered **0 to 3**. Each port uses the LEGO Powered Up UART protocol. The physical interface is an SC16IS752 I2C-to-UART bridge that translates between the ESP32 and the LEGO connector. All four ports are available from Blockly.
+
+Motor speed range: **-127** (full reverse) to **+127** (full forward). Zero stops the motor.
+
+### GPIO Pins
+
+**FastLED / NeoPixel output** — use any of these GPIO pins for WS2812B LED strips: **13, 16, 17, 25, 26, 27, 32, 33**.
+
+**SD card (SPI bus)**:
+
+| Signal | GPIO |
+|--------|------|
+| CLK    | 18   |
+| MOSI   | 23   |
+| MISO   | 19   |
+| CS     | 4    |
+
+**IMU (I2C)**: The MPU6050 is connected to the I2C bus. Its address and pins are fixed in hardware.
+
+### Supported LEGO Devices
+
+Megahub supports LEGO WeDo 2.0 and Powered Up devices that communicate over the LEGO Powered Up UART (LUMP) protocol. This includes motors, color and distance sensors, tilt sensors, and other compatible devices. See the [LUMP Protocol Documentation](LUMP.md) for the full technical specification.
+
+---
+
+## Using the IDE
+
+### Connecting
+
+The [Megahub IDE](https://mirkosertic.github.io/Megahub/) runs entirely in your browser and communicates over BLE when the device is in Bluetooth mode.
+
+**Supported browsers**: Chrome, Edge, Opera (desktop only). Firefox and Safari do not support the Web Bluetooth API and cannot connect to the device.
+
+Steps:
+1. Open the IDE in a supported browser.
+2. Click **Connect**.
+3. Select the Megahub device from the pairing dialog.
+4. The IDE connects and shows the project list on the left and a logger panel on the right.
+
+### Creating a Project
+
+1. Click **New project** in the project list.
+2. Enter a name for the project.
+3. The IDE opens the Blockly workspace for that project.
+
+### Programming with Blockly
+
+The Blockly workspace lets you build programs visually without writing code.
+
+1. Find a block in the **toolbox** on the left side of the workspace. Blocks are grouped by category: Control flow, LEGO, Gamepad, FastLED, IMU, I/O, Math, and more.
+2. Drag a block onto the canvas and connect it to other blocks.
+3. As you build, the IDE generates the corresponding Lua code automatically — expand the **Lua Preview** panel in the sidebar to inspect it.
+4. When the program is ready, click **Execute** to send and run it on the device.
+5. Output and log messages from the running program appear in the **Logger** panel.
+
+For a visual reference of every available block, see [BLOCKS.md](BLOCKS.md).
+
+### Running and Stopping Programs
+
+- Click **Execute** to upload and start the program.
+- Click **Stop** to halt a running program at any time.
+- The Logger panel shows output in real time.
+
+### Autostart
+
+You can mark a project as the autostart project. When the IDE connects to the device, it reads the autostart setting and opens that project automatically.
+
+In the IDE project list, find the project you want and toggle the **autostart** switch. This writes the following file to the SD card:
+
+```json
+{ "project": "your-project-id" }
+```
+
+The file is stored at `/autostart.json` on the SD card. To clear the autostart selection, toggle the switch off in the IDE or delete the file from the SD card.
+
+---
+
+## WiFi Mode
+
+By default Megahub runs in Bluetooth mode. You can switch to WiFi mode to access the web interface over your local network.
+
+### Switching from Bluetooth to WiFi Mode
+
+1. Insert an SD card into the device.
+2. Create a file named `config.json` in the root of the SD card with the following content:
+   ```json
+   {
+     "bluetoothEnabled": false,
+     "wifiEnabled": true,
+     "ssid": "YourNetwork",
+     "pwd": "YourPassword"
+   }
+   ```
+3. Reboot the device. It connects to your WiFi network and starts the web server.
+
+You can also run both Bluetooth and WiFi simultaneously by setting both `bluetoothEnabled` and `wifiEnabled` to `true`.
+
+### config.json Reference
+
+| Field              | Type    | Default | Description                        |
+|--------------------|---------|---------|------------------------------------|
+| `bluetoothEnabled` | boolean | `true`  | Enable BLE and Bluetooth Classic   |
+| `wifiEnabled`      | boolean | `false` | Connect to WiFi and start web server |
+| `ssid`             | string  | —       | WiFi network name                  |
+| `pwd`              | string  | —       | WiFi password                      |
+
+### Accessing the Web UI
+
+Once the device is connected to WiFi:
+- Open `http://<device-ip>/` in any browser, **or**
+- Open `http://<device-uid>.local/` (requires mDNS support — works on macOS, Linux, and Windows 10+)
+
+The web UI provides the same project management, Blockly programming, and execution features as the Bluetooth-connected IDE. For the full REST API reference used by the web server, see [HUBAPI.md](HUBAPI.md).
+
+---
+
+## Gamepad Support
+
+### Pairing a Gamepad
+
+Scanning and pairing are done from the IDE while the device is connected in Bluetooth mode.
+
+1. Open the **Bluetooth Devices** panel in the IDE sidebar.
+2. Click the **Scan** button (circular icon at the top of the panel). The panel shows "Scanning…" while the firmware searches for nearby Bluetooth Classic devices.
+3. Put your gamepad into pairing mode so it becomes discoverable.
+4. The gamepad appears in the list with its name, MAC address, device type, and signal strength.
+5. Click **Pair Device** on the gamepad entry. The firmware initiates pairing; the entry updates to show a **Paired** badge.
+6. Once paired, the gamepad state is available to your Blockly programs immediately.
+
+To remove a pairing, click **Remove Pairing** on the paired device entry in the panel.
+
+### Supported Gamepads
+
+Any Bluetooth Classic HID-compatible gamepad should work. The **8BitDo M30** has been tested and confirmed to work.
+
+Gamepad input available in Blockly:
+
+| Input           | Range / Values              |
+|-----------------|-----------------------------|
+| Buttons (1–16)  | pressed / not pressed       |
+| D-pad           | directional state           |
+| Left stick X/Y  | -32768 to +32767            |
+| Right stick X/Y | -32768 to +32767            |
+
+### Blockly Blocks for Gamepad
+
+The **Gamepad** category in the Blockly toolbox provides 5 blocks for reading button states, D-pad direction, and analog stick values. See [BLOCKS.md](BLOCKS.md) for the full visual reference.
+
+---
+
+## Hardware Features
+
+### LEGO Powered Up
+
+Megahub speaks the LEGO Powered Up UART protocol (LUMP) natively. Each of the 4 ports independently detects a connected device, negotiates its capabilities, and streams sensor data. Motors accept a speed value from -127 to +127. Sensors report values according to the mode you select in your Blockly program.
+
+The **LEGO** category in the Blockly toolbox provides blocks for:
+- Selecting a sensor mode on a port
+- Reading the current sensor data from a port and dataset
+
+Motor speed is set using the **Set motor speed** block in the **I/O** category.
+
+See [LUMP.md](LUMP.md) for the complete protocol specification.
+
+### FastLED / NeoPixel Addressable LEDs
+
+Connect a WS2812B LED strip to any of the supported GPIO pins (13, 16, 17, 25, 26, 27, 32, or 33). The **FastLED** category in the Blockly toolbox provides 4 blocks for:
+- Initializing the LED strip (type, GPIO pin, number of LEDs)
+- Setting individual LED colors (RGB)
+- Showing/updating the LED strip
+- Clearing all LEDs
+
+### IMU — Orientation and Acceleration
+
+The on-board MPU6050 provides 6-axis motion data, updated every 100 ms. Read it in Blockly using the **IMU** block:
+
+| Output          | Unit  | Description                    |
+|-----------------|-------|--------------------------------|
+| YAW             | °     | Rotation around vertical axis  |
+| PITCH           | °     | Forward/back tilt              |
+| ROLL            | °     | Left/right tilt                |
+| ACCELERATION_X  | m/s²  | Acceleration along X axis      |
+| ACCELERATION_Y  | m/s²  | Acceleration along Y axis      |
+| ACCELERATION_Z  | m/s²  | Acceleration along Z axis      |
+
+### SD Card Storage
+
+Projects created in the IDE are saved to the SD card. The SD card connects over SPI (CLK=18, MOSI=23, MISO=19, CS=4). Use a standard microSD card formatted as FAT32. Configuration files (`config.json`, `autostart.json`) also live in the root of the SD card.
+
+---
+
+## Troubleshooting
+
+### BLE Not Connecting
+
+- Make sure you are using Chrome, Edge, or Opera on a **desktop** computer. Mobile browsers and Firefox/Safari do not support the Web Bluetooth API.
+- Ensure Bluetooth is enabled on your computer.
+- Reload the IDE page and click Connect again — the browser may need a fresh connection attempt.
+- Check that no other browser tab or application is already connected to the device (only one BLE connection is active at a time).
+
+### Device Not Found in Bluetooth Scan
+
+- Confirm the device is powered on.
+- Move the device closer to your computer — BLE range is typically 5–10 metres in open air.
+- Reboot the device and try the scan again.
+- If the device was previously paired with a different computer, you may need to remove it from that computer's Bluetooth settings first.
+
+### LEGO Device Not Responding
+
+- Check that the LEGO device cable is fully seated in the port.
+- Confirm the port number in your Blockly program matches the physical port (0–3).
+- Some LEGO devices require a short delay between commands. Add a **wait** block between motor commands if the device ignores rapid successive commands.
+- Reboot the device. The port detection sequence runs on every startup.
+
+### Reading the Serial Log
+
+Connect the device via USB and run:
+```bash
+pio device monitor
+```
+The log (115200 baud) shows boot messages, port detection results, BLE connection events, and any errors from running Lua programs. Copy the relevant lines when reporting a bug.
+
+---
 
 ## Documentation
 
-### LEGO UART Message Protocol (LUMP)
-
-For an in-depth technical reference of the LUMP wire protocol — from the big-picture handshake flow down to individual bits in each message type — see the [LUMP Protocol Documentation](LUMP.md).
-
-This covers:
-- Physical layer (UART baud rates, single-wire operation)
-- Complete handshake sequence with annotated byte examples
-- All message types: SYS, CMD, INFO, DATA
-- Header byte anatomy, payload size encoding, and checksum algorithm
-- The mode system and how sensor data formats are negotiated
-- Keep-alive mechanism
-- Known device IDs
-- LumpParser implementation internals
-
-### Blockly Blocks Reference
-
-For a complete reference of all available Blockly blocks including visual examples, see the [Blockly Blocks Documentation](BLOCKS.md).
+| Document | Description |
+|----------|-------------|
+| [BLOCKS.md](BLOCKS.md) | Complete visual reference for all Blockly blocks, auto-generated with screenshots |
+| [HUBAPI.md](HUBAPI.md) | REST API and Server-Sent Events reference for WiFi mode |
+| [LUMP.md](LUMP.md) | LEGO Powered Up UART protocol technical specification |

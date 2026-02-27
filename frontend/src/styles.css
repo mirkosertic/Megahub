@@ -129,30 +129,32 @@ button:disabled {
   width: 100vw;
 
   /* Mobile: Full-width content, sidebar hidden by default */
-  grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-mobile), auto);
+  grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-mobile), auto) 20px;
   grid-template-columns: 100%;
   grid-template-areas:
     "header"
     "content"
-    "footer";
+    "footer"
+    "statusbar";
 }
 
 /* Tablet: Taller footer */
 @media (min-width: 768px) {
   .global-layout-sidebar {
-    grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-tablet), auto);
+    grid-template-rows: var(--header-height) 1fr minmax(var(--footer-height-tablet), auto) 20px;
   }
 }
 
 /* Desktop: Side-by-side 75/25 split, sidebar always visible */
 @media (min-width: 1512px) {
   .global-layout-sidebar {
-    grid-template-rows: var(--header-height) 1fr var(--footer-height-desktop);
+    grid-template-rows: var(--header-height) 1fr var(--footer-height-desktop) 20px;
     grid-template-columns: 75% 25%;
     grid-template-areas:
       "header header"
       "content sidebar"
-      "footer footer";
+      "footer footer"
+      "statusbar statusbar";
   }
 }
 
@@ -1090,4 +1092,415 @@ custom-blockly.drag-over {
 
 .profile-overlay text {
   user-select: none;
+}
+
+
+/* ===== Top Progress Bar ===== */
+
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: calc(var(--z-tooltip) + 10);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+  overflow: hidden;
+}
+
+.progress-bar.active {
+  opacity: 1;
+}
+
+.progress-bar::after {
+  content: '';
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 20%,
+    var(--vscode-accent-blue) 50%,
+    transparent 80%,
+    transparent 100%
+  );
+  background-size: 300% 100%;
+  animation: progress-shimmer 1.4s linear infinite;
+}
+
+@keyframes progress-shimmer {
+  0%   { background-position: 300% center; }
+  100% { background-position: -100% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar::after {
+    animation: none;
+    background: var(--vscode-accent-blue);
+    background-size: 100% 100%;
+  }
+}
+
+
+/* ===== BLE Connection Modal ===== */
+
+.connection-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.connection-modal-overlay[aria-hidden="false"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.connection-modal {
+  background: var(--vscode-bg-secondary);
+  border: 1px solid var(--vscode-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 280px;
+  max-width: 380px;
+  width: 100%;
+  transform: scale(0.95);
+  transition: transform var(--transition-fast);
+}
+
+.connection-modal-overlay[aria-hidden="false"] .connection-modal {
+  transform: scale(1);
+}
+
+.connection-modal-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--vscode-border-light);
+}
+
+.connection-modal-title {
+  margin: 0;
+  font-size: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--vscode-text-bright);
+}
+
+.connection-modal-body {
+  padding: 16px 20px 20px;
+}
+
+.connection-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.connection-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-sm);
+}
+
+.connection-step-indicator {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Pending: small gray dot */
+.connection-step.pending .connection-step-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-text-tertiary);
+}
+
+/* Active: spinner */
+.connection-step.active .connection-step-spinner {
+  display: block;
+}
+
+.connection-step-spinner {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--vscode-border-medium);
+  border-top-color: var(--vscode-accent-blue);
+  border-radius: 50%;
+  animation: step-spin 0.8s linear infinite;
+}
+
+@keyframes step-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Done: checkmark, scale-in */
+.connection-step.done .connection-step-check {
+  display: block;
+  animation: step-check-appear 0.15s ease-out;
+}
+
+.connection-step-check {
+  display: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-success);
+}
+
+@keyframes step-check-appear {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* Error: red X */
+.connection-step.error .connection-step-error-icon {
+  display: block;
+}
+
+.connection-step-error-icon {
+  display: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-error);
+}
+
+/* Step label colors */
+.connection-step.pending .connection-step-label {
+  color: var(--vscode-text-secondary);
+}
+.connection-step.active .connection-step-label {
+  color: var(--vscode-text-bright);
+}
+.connection-step.done .connection-step-label {
+  color: var(--vscode-text-primary);
+}
+.connection-step.error .connection-step-label {
+  color: var(--color-error);
+}
+
+/* Error message below steps */
+.connection-modal-error {
+  margin-top: 14px;
+  font-size: var(--font-sm);
+  color: var(--color-error);
+  display: none;
+  line-height: var(--line-height-relaxed);
+}
+
+.connection-modal-error.visible {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-step-spinner {
+    animation: none;
+    border-top-color: var(--vscode-accent-blue);
+  }
+  @keyframes step-check-appear {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+
+/* ===== Button Loading State ===== */
+
+.sidebar-icon-btn.btn-loading {
+  cursor: wait;
+  pointer-events: none;
+}
+
+.sidebar-icon-btn.btn-loading svg {
+  animation: btn-spin 1s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes btn-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-icon-btn.btn-loading svg {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+
+/* ===== VS Code Status Bar ===== */
+
+.layout-statusbar {
+  grid-area: statusbar;
+  background: var(--vscode-accent-blue-dark);
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacing-md);
+  gap: var(--spacing-lg);
+  font-size: var(--font-fixed-11);
+  font-family: var(--font-family-base);
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.statusbar-connection {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color 0.3s ease;
+}
+
+.statusbar-dot.connected {
+  background: var(--vscode-accent-teal);
+}
+
+.statusbar-dot.disconnected {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.statusbar-dot.connecting {
+  background: var(--vscode-accent-yellow);
+  animation: statusbar-pulse 1s ease-in-out infinite;
+}
+
+@keyframes statusbar-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.statusbar-message {
+  color: rgba(255, 255, 255, 0.7);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusbar-dot.connecting {
+    animation: none;
+    background: var(--vscode-accent-yellow);
+  }
+}
+
+
+/* ===== Header Breadcrumb Navigation ===== */
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0; /* allow flex children to shrink */
+}
+
+.header-title {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Back button — hidden by default, shown in editor mode via body[data-mode] */
+.header-back-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  min-height: unset;
+  flex-shrink: 0;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.header-back-btn:hover {
+  background: var(--vscode-bg-elevated);
+  border-color: var(--vscode-border-light);
+  color: var(--vscode-text-bright);
+}
+
+.header-back-btn:active {
+  background: var(--vscode-bg-input);
+  transform: none; /* suppress global active transform */
+}
+
+/* Breadcrumb separator — hidden by default */
+.header-breadcrumb-sep {
+  display: none;
+  color: var(--vscode-text-tertiary);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-normal);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Project name label — hidden by default */
+.header-project-name {
+  display: none;
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--vscode-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Show all three only in editor mode */
+body[data-mode="editor"] .header-back-btn {
+  display: flex;
+}
+
+body[data-mode="editor"] .header-breadcrumb-sep,
+body[data-mode="editor"] .header-project-name {
+  display: block;
+}
+
+/* Desktop: allow a bit more space for the project name */
+@media (min-width: 1024px) {
+  .header-project-name {
+    max-width: 200px;
+  }
+}
+
+/* Mobile: tighter, shorter max-width */
+@media (max-width: 767px) {
+  .header-project-name {
+    max-width: 100px;
+  }
 }

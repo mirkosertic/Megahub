@@ -424,10 +424,7 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 
 	globalLuaState_ = newLuaState();
 
-	device1_->initialize();
-	device2_->initialize();
-	device3_->initialize();
-	device4_->initialize();
+	reinitializeDevices();
 
 	currentprogramstate_ = nullptr;
 
@@ -569,6 +566,7 @@ void Megahub::executeLUACode(String luaCode) {
 	if (luaResult != LUA_OK) {
 		INFO("Lua execution failed with error %s", lua_tostring(currentprogramstate_, -1));
 		lua_pop(currentprogramstate_, 1);
+		reinitializeDevices();
 	}
 
 	INFO("Execution completed in %ld milliseconds", time);
@@ -578,6 +576,7 @@ bool Megahub::stopLUACode() {
 	INFO("Stopping Lua code execution");
 
 	stopRunningThreads();
+	reinitializeDevices();
 
 	return true;
 }
@@ -719,4 +718,17 @@ void Megahub::stopThread(TaskHandle_t handle) {
 	xTaskNotify(handle, 1, eSetValueWithOverwrite);
 	vTaskDelay(pdMS_TO_TICKS(100));
 	runningThreads_.erase(std::remove(runningThreads_.begin(), runningThreads_.end(), handle), runningThreads_.end());
+}
+
+void Megahub::reinitializeDevices() {
+	INFO("Reinitializing LEGO devices");
+	device1_->initialize();
+	device2_->initialize();
+	device3_->initialize();
+	device4_->initialize();
+}
+
+void Megahub::notifyThreadExitedAbnormally() {
+	INFO("Lua thread exited abnormally, reinitializing LEGO devices");
+	reinitializeDevices();
 }

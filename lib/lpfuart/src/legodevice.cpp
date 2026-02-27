@@ -269,11 +269,11 @@ void LegoDevice::setMotorSpeed(int speed) {
 		serialIO_->setM1(false);
 		serialIO_->setM2(false);
 	} else if (speed > 0) {
-		serialIO_->setM1(true);
-		serialIO_->setM2(false);
-	} else if (speed < 0) {
 		serialIO_->setM1(false);
 		serialIO_->setM2(true);
+	} else if (speed < 0) {
+		serialIO_->setM1(true);
+		serialIO_->setM2(false);
 	}
 	i2c_unlock();
 	/*

@@ -100,11 +100,13 @@ export class BLEClient {
 
 	/**
 	 * Establish connection to BLE device (initial connection with user gesture)
+	 * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
 	 * @returns {Promise<void>}
 	 */
-	async connect() {
+	async connect(onProgress = null) {
 		try {
 			this.logInfo('Starting BLE connection...');
+			if (onProgress) onProgress('requesting', 'Requesting device...');
 
 			// Select device (requires user gesture)
 			this.device = await navigator.bluetooth.requestDevice({
@@ -120,7 +122,7 @@ export class BLEClient {
 			});
 
 			// Perform the actual GATT connection setup
-			await this._setupGattConnection();
+			await this._setupGattConnection(onProgress);
 
 		} catch (error) {
 			this.logError('Connection error:', error);
@@ -152,14 +154,17 @@ export class BLEClient {
 	/**
 	 * Internal method to set up GATT connection and characteristics
 	 * @private
+	 * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
 	 * @returns {Promise<void>}
 	 */
-	async _setupGattConnection() {
+	async _setupGattConnection(onProgress = null) {
 		// Connect to GATT server
+		if (onProgress) onProgress('connecting', 'Connecting to GATT server...');
 		this.server = await this.device.gatt.connect();
 		this.logVerbose('GATT server connected');
 
 		// Get service
+		if (onProgress) onProgress('services', 'Discovering services...');
 		this.service = await this.server.getPrimaryService(SERVICE_UUID);
 		this.logVerbose('Service found');
 
@@ -183,6 +188,7 @@ export class BLEClient {
 			(event) => this.handleControlMessage(event.target.value));
 
 		// Enable notifications AFTER event listeners are registered
+		if (onProgress) onProgress('notifications', 'Enabling notifications...');
 		await this.responseChar.startNotifications();
 		this.logVerbose('Response notifications enabled');
 		await this.eventChar.startNotifications();
@@ -210,6 +216,7 @@ export class BLEClient {
 		this.logInfo('BLE connection established');
 
 		// Wait for MTU information from server (with timeout)
+		if (onProgress) onProgress('mtu', 'Negotiating MTU...');
 		await this.waitForMTU(2000);
 		this.logVerbose(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
 
@@ -217,6 +224,7 @@ export class BLEClient {
 		// This "primes" the indication confirmation path and verifies it works
 		await this.testControlChannel();
 
+		if (onProgress) onProgress('ready', 'Connection established!');
 		this.logVerbose('BLE stack fully initialized and ready for streaming');
 	}
 

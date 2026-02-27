@@ -98,8 +98,10 @@ public:
 	void registerThread(TaskHandle_t handle);
 	void stopRunningThreads();
 	void stopThread(TaskHandle_t handle);
+	void notifyThreadExitedAbnormally();
 
 private:
+	void reinitializeDevices();
 	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;
 	std::unique_ptr<LegoDevice> device2_;
