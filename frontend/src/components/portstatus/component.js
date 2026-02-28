@@ -1,10 +1,14 @@
 import template from './component.html?raw';
 import styleSheet from './style.css?raw';
+import { subscribe } from '../../app/state.js';
 
 class PortstatusElement extends HTMLElement {
 
 	status = undefined;
 	isCollapsed = true;
+
+	/** @type {function(): void} Unsubscribe from portStatuses state */
+	_unsubPortStatuses = null;
 
 	connectedCallback() {
 		const shadow = this.attachShadow({mode : 'open'})
@@ -18,7 +22,22 @@ class PortstatusElement extends HTMLElement {
 
 		// Set up collapse toggle functionality
 		this.setupCollapseToggle();
-	};
+
+		// Subscribe to portStatuses state — re-renders automatically when state changes
+		this._unsubPortStatuses = subscribe('portStatuses', ports => {
+			if (ports !== undefined) {
+				this.updateStatus({ ports });
+			}
+		});
+	}
+
+	disconnectedCallback() {
+		// Clean up state subscription to avoid memory leaks
+		if (this._unsubPortStatuses) {
+			this._unsubPortStatuses();
+			this._unsubPortStatuses = null;
+		}
+	}
 
 	/**
 	 * Set up collapse toggle button
@@ -77,13 +96,13 @@ class PortstatusElement extends HTMLElement {
 			ports : [
 			]
 		});
-	};
+	}
 
 	updateStatus(data) {
 		console.debug("Got Portstatus: " + JSON.stringify(data));
 		this.status = data;
 		this.render();
-	};
+	}
 
 	render() {
 		if (this.status && this.status.ports) {
@@ -128,7 +147,7 @@ class PortstatusElement extends HTMLElement {
 				grid.appendChild(card);
 			});
 		}
-	};
-};
+	}
+}
 
 customElements.define('custom-portstatus', PortstatusElement);

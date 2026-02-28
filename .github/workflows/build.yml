@@ -19,6 +19,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
       - name: Prepare configuration

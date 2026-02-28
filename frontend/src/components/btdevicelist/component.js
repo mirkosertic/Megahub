@@ -1,5 +1,7 @@
 import template from './component.html?raw';
 import styleSheet from './style.css?raw';
+import { subscribe } from '../../app/state.js';
+import { APP_EVENT_BT_DISCOVER, APP_EVENT_BT_PAIR, APP_EVENT_BT_UNPAIR } from '../../app/events.js';
 
 /**
  * Bluetooth Device List Custom Element
@@ -10,6 +12,9 @@ class BTDeviceListElement extends HTMLElement {
 	devices = [];
 	discoveryActive = false;
 	isCollapsed = true;
+
+	/** @type {function(): void} Unsubscribe from deviceList state */
+	_unsubDeviceList = null;
 
 	connectedCallback() {
 		const shadow = this.attachShadow({ mode: 'open' });
@@ -26,8 +31,28 @@ class BTDeviceListElement extends HTMLElement {
 
 		this.shadowRoot.getElementById("startdiscovery").addEventListener("click", (e) => {
 			e.stopPropagation();
-			window.Application.startBluetoothDiscovery();
+			// Dispatch CustomEvent instead of calling window.Application directly
+			this.dispatchEvent(new CustomEvent(APP_EVENT_BT_DISCOVER, {
+				bubbles: true,
+				composed: true,
+				detail: {}
+			}));
 		});
+
+		// Subscribe to deviceList state — re-renders automatically when state changes
+		this._unsubDeviceList = subscribe('deviceList', data => {
+			if (data) {
+				this.updateDevices(data);
+			}
+		});
+	}
+
+	disconnectedCallback() {
+		// Clean up state subscription to avoid memory leaks
+		if (this._unsubDeviceList) {
+			this._unsubDeviceList();
+			this._unsubDeviceList = null;
+		}
 	}
 
 	/**
@@ -302,8 +327,12 @@ class BTDeviceListElement extends HTMLElement {
 	 */
 	handlePair(macAddress) {
 		console.log('Pair requested for device:', macAddress);
-
-		window.Application.requestPairing(macAddress);
+		// Dispatch CustomEvent instead of calling window.Application directly
+		this.dispatchEvent(new CustomEvent(APP_EVENT_BT_PAIR, {
+			bubbles: true,
+			composed: true,
+			detail: { mac: macAddress }
+		}));
 	}
 
 	/**
@@ -312,9 +341,13 @@ class BTDeviceListElement extends HTMLElement {
 	 */
 	handleUnpair(macAddress) {
 		console.log('Unpair requested for device:', macAddress);
-
-		window.Application.requestRemovePairing(macAddress);
+		// Dispatch CustomEvent instead of calling window.Application directly
+		this.dispatchEvent(new CustomEvent(APP_EVENT_BT_UNPAIR, {
+			bubbles: true,
+			composed: true,
+			detail: { mac: macAddress }
+		}));
 	}
-};
+}
 
 customElements.define('custom-btdevicelist', BTDeviceListElement);

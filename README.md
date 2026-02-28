@@ -102,7 +102,7 @@ Default baud rate: **115200**.
 
 ### LEGO Device Ports
 
-Megahub provides **4 LEGO device ports**, numbered **0 to 3**. Each port uses the LEGO Powered Up UART protocol. The physical interface is an SC16IS752 I2C-to-UART bridge that translates between the ESP32 and the LEGO connector. All four ports are available from Blockly.
+Megahub provides **4 LEGO device ports**, numbered **1 to 4**. Each port uses the LEGO Powered Up UART protocol. The physical interface is an SC16IS752 I2C-to-UART bridge that translates between the ESP32 and the LEGO connector. All four ports are available from Blockly.
 
 Motor speed range: **-127** (full reverse) to **+127** (full forward). Zero stops the motor.
 
@@ -158,6 +158,29 @@ The Blockly workspace lets you build programs visually without writing code.
 5. Output and log messages from the running program appear in the **Logger** panel.
 
 For a visual reference of every available block, see [BLOCKS.md](BLOCKS.md).
+
+### Toolbox Category Guide
+
+The toolbox is divided into these categories:
+
+| Category | What it contains |
+|----------|-----------------|
+| **Control flow** | `Initialization` block, `Start thread`, `Wait`, `Stop thread` |
+| **Logic** | If/else, comparisons (=, ≠, <, >), AND/OR, NOT, boolean values |
+| **Loop** | Repeat N times, count-for loop, break/continue |
+| **Math** | Arithmetic, rounding, trigonometry, random numbers, constrain |
+| **Text** | String operations; **Print to Logger** |
+| **Lists** | Create, read, write, sort, and split lists |
+| **I/O** | **Set motor speed**, GPIO read/write, pin mode, port selector |
+| **LEGO©** | Select sensor mode on a port, read sensor dataset |
+| **Gamepad** | Button pressed, analog axis values, connection check |
+| **FastLED** | Initialize LED strip, set individual LED colour, show, clear |
+| **IMU** | Read yaw, pitch, roll, or acceleration from the on-board sensor |
+| **UI** | Display a labelled value in the IDE Logger panel |
+| **Algorithms** | PID controller |
+| **Debug** | Free heap memory, milliseconds since boot |
+
+> **Common gotcha:** The **Set motor speed** block is in the **I/O** category — not **LEGO©**. The **LEGO©** category only contains sensor blocks (selecting a measurement mode and reading the sensor dataset). If you want to drive a motor, open **I/O**.
 
 ### Running and Stopping Programs
 
@@ -291,6 +314,48 @@ The on-board MPU6050 provides 6-axis motion data, updated every 100 ms. Read it 
 
 Projects created in the IDE are saved to the SD card. The SD card connects over SPI (CLK=18, MOSI=23, MISO=19, CS=4). Use a standard microSD card formatted as FAT32. Configuration files (`config.json`, `autostart.json`) also live in the root of the SD card.
 
+**SD card is required.** If the SD card is absent or fails to mount at boot, the device halts immediately and cannot start.
+
+---
+
+## How Programs Run
+
+Understanding this sequence explains many "why isn't it working?" situations.
+
+### Boot sequence
+
+1. The SD card is mounted. **If mounting fails the device halts** — nothing else starts.
+2. `config.json` is read from the SD card root. WiFi and/or Bluetooth are started based on its content.
+3. All four LEGO ports initialise and begin device detection in the background.
+4. The device enters idle state. No program runs automatically at this point.
+
+> **Autostart does not run a program at boot.** The autostart setting only tells the IDE which project to navigate to when you connect. The device always starts with no program running — you must click **Execute** in the IDE to start a program.
+
+### When you click Execute
+
+1. Any currently running program and all its threads are **stopped immediately**.
+2. All four LEGO ports are **reinitialized** (motors stop, sensors reset).
+3. A fresh Lua environment is created and the program runs from the top:
+   - `hub.init()` — runs synchronously and completes before anything else.
+   - `hub.startthread()` — each call spawns a background task that loops independently.
+   - The main program body finishes. Background threads continue running.
+4. Each thread loops continuously with a 1 ms scheduler yield between iterations.
+
+### When a thread crashes
+
+If a Lua runtime error occurs inside a thread:
+
+- The thread exits and the error appears in the **Logger** panel.
+- All four LEGO ports are reinitialized (all motors stop).
+- Other threads continue running.
+
+### When you click Stop
+
+1. All threads receive a stop signal and exit.
+2. All four LEGO ports are reinitialized (all motors stop, all sensors reset).
+
+**Key point:** every time a program stops — by request, by crashing, or because a new Execute is sent — all motors stop and all ports reset. You never need to manually zero motors before stopping.
+
 ---
 
 ## Troubleshooting
@@ -312,7 +377,7 @@ Projects created in the IDE are saved to the SD card. The SD card connects over 
 ### LEGO Device Not Responding
 
 - Check that the LEGO device cable is fully seated in the port.
-- Confirm the port number in your Blockly program matches the physical port (0–3).
+- Confirm the port number in your Blockly program matches the physical port (1–4).
 - Some LEGO devices require a short delay between commands. Add a **wait** block between motor commands if the device ignores rapid successive commands.
 - Reboot the device. The port detection sequence runs on every startup.
 
@@ -331,5 +396,8 @@ The log (115200 baud) shows boot messages, port detection results, BLE connectio
 | Document | Description |
 |----------|-------------|
 | [BLOCKS.md](BLOCKS.md) | Complete visual reference for all Blockly blocks, auto-generated with screenshots |
+| [LUAAPI.md](LUAAPI.md) | Lua scripting API — all modules, functions, and constants available in Megahub programs |
+| [BLEPROTOCOL.md](BLEPROTOCOL.md) | BLE protocol reference — GATT profile, framing, request/response and event formats |
 | [HUBAPI.md](HUBAPI.md) | REST API and Server-Sent Events reference for WiFi mode |
 | [LUMP.md](LUMP.md) | LEGO Powered Up UART protocol technical specification |
+| [MEGAHUBIDE.md](MEGAHUBIDE.md) | Frontend IDE architecture — module structure, state, events, components, testing |

@@ -39,7 +39,31 @@ export default defineConfig(({mode}) => {
 		],
 		define: {
 			'import.meta.env.VITE_BUILD_MODE': JSON.stringify(mode)
-		}
+		},
+
+		// ─── Vitest configuration ─────────────────────────────────────────────
+		test: {
+			// Use happy-dom instead of jsdom — it has proper Shadow DOM support
+			// which is needed for testing Web Components with shadowRoot
+			environment: 'happy-dom',
+
+			// Make describe/it/expect/vi available without importing them
+			globals: true,
+
+			// Test files co-located with source or in a dedicated test/ folder
+			include: ['src/**/*.test.js', 'test/**/*.test.js'],
+
+			// Run setup before each test file (resets shared state)
+			setupFiles: ['./test/setup.js'],
+
+			// Coverage via V8 (built into Node) — no extra binary needed
+			coverage: {
+				provider: 'v8',
+				include: ['src/app/**', 'src/components/**'],
+				// Blockly block definitions are generated/external-owned
+				exclude: ['src/components/blockly/**'],
+			},
+		},
 	}
 });
 // clang-format on

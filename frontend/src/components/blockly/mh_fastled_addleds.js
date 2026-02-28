@@ -1,4 +1,5 @@
 import {colorFastLED} from './colors.js'
+import {PINS_FASTLED} from './constants.js'
 
 // clang-format off
 export const definition = {
@@ -18,16 +19,7 @@ export const definition = {
 			{
 				"type" : "field_dropdown",
 				"name" : "PIN",
-				"options" : [
-					[ "GPIO13", "GPIO13" ],
-					[ "GPIO16", "GPIO16" ],
-					[ "GPIO17", "GPIO17" ],
-					[ "GPIO25", "GPIO25" ],
-					[ "GPIO26", "GPIO26" ],
-					[ "GPIO27", "GPIO27" ],
-					[ "GPIO32", "GPIO32" ],
-					[ "GPIO33", "GPIO33" ],
-				]
+				"options" : PINS_FASTLED
 			},
 			{
 				"type" : "input_value",

@@ -44,7 +44,8 @@ From an electronics perspective, LUMP runs over a **half-duplex single-wire UART
 | LEGO BOOST | Color & Distance Sensor, Interactive Motor |
 | LEGO SPIKE Prime | Color, Ultrasonic, Force sensors; Small/Medium/Large motors |
 | LEGO Technic | XL Motor, Medium Motor, Color Light Matrix, Angular Motors |
-| LEGO MINDSTORMS EV3 | Color, Ultrasonic, Gyro, Infrared sensors |
+
+> **Note:** LEGO MINDSTORMS EV3 sensors (Color, Ultrasonic, Gyro, Infrared) carry LUMP device type IDs (29–33) and can enumerate on LUMP-capable hubs when connected via an adapter. The EV3 hub itself, however, uses the LPF1 protocol — a separate, incompatible communication system.
 
 ---
 

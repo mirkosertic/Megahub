@@ -1,11 +1,24 @@
 import template from './component.html?raw';
 import styleSheet from './style.css?raw';
+import { subscribe, getState } from '../../app/state.js';
+import {
+    APP_EVENT_PROJECT_OPEN,
+    APP_EVENT_PROJECT_CREATE,
+    APP_EVENT_PROJECT_DELETE,
+    APP_EVENT_AUTOSTART_SET,
+} from '../../app/events.js';
 
 class FilesHTMLElement extends HTMLElement {
 
 	projectData = [];
 	selectedProject = undefined;
 	autostartProject = undefined;
+
+	/** @type {function(): void} Unsubscribe from projects state */
+	_unsubProjects = null;
+
+	/** @type {function(): void} Unsubscribe from autostartProject state */
+	_unsubAutostart = null;
 
 	/**
 	 * Validates project name and returns error message or empty string if valid.
@@ -60,7 +73,31 @@ class FilesHTMLElement extends HTMLElement {
 		shadow.adoptedStyleSheets = [ sheet ]
 
 		shadow.innerHTML = template
-	};
+
+		// Subscribe to projects state — re-renders automatically when state changes
+		this._unsubProjects = subscribe('projects', projects => {
+			if (projects) {
+				this.initProjectListWith(projects);
+			}
+		});
+
+		// Subscribe to autostartProject state — updates highlight automatically
+		this._unsubAutostart = subscribe('autostartProject', autostart => {
+			this.setAutoStartProject(autostart);
+		});
+	}
+
+	disconnectedCallback() {
+		// Clean up state subscriptions to avoid memory leaks
+		if (this._unsubProjects) {
+			this._unsubProjects();
+			this._unsubProjects = null;
+		}
+		if (this._unsubAutostart) {
+			this._unsubAutostart();
+			this._unsubAutostart = null;
+		}
+	}
 
 	initProjectListWith(data) {
 		this.projectData = data;
@@ -99,7 +136,7 @@ class FilesHTMLElement extends HTMLElement {
 			autostartBtn.dataset.project = project.name;
 
 			autostartBtn.addEventListener("click", (event) => {
-				this.setAutoStartProject(project.name);
+				this._setAutoStartProjectAndNotify(project.name);
 			});
 
 			deleteBtn.addEventListener("click", (e) => {
@@ -134,38 +171,82 @@ class FilesHTMLElement extends HTMLElement {
 		});
 
 		this.setAutoStartProject(this.autostartProject);
-	};
+	}
 
 	deleteProject(projectName) {
-		window.Application.deleteProject(projectName);
+		// Dispatch CustomEvent instead of calling window.Application directly
+		this.dispatchEvent(new CustomEvent(APP_EVENT_PROJECT_DELETE, {
+			bubbles: true,
+			composed: true,
+			detail: { id: projectName }
+		}));
 	}
 
 	openProject(projectName) {
-		window.Application.openProject(projectName);
+		// Dispatch CustomEvent instead of calling window.Application directly
+		this.dispatchEvent(new CustomEvent(APP_EVENT_PROJECT_OPEN, {
+			bubbles: true,
+			composed: true,
+			detail: { id: projectName }
+		}));
 	}
 
 	createProject(projectName) {
-		window.Application.createProject(projectName);
+		// Dispatch CustomEvent instead of calling window.Application directly
+		this.dispatchEvent(new CustomEvent(APP_EVENT_PROJECT_CREATE, {
+			bubbles: true,
+			composed: true,
+			detail: { id: projectName }
+		}));
 	}
 
+	/**
+	 * Update the autostart highlight in the UI only (no backend call).
+	 * Called from the state subscription when autostartProject state changes.
+	 * @param {string|null} project
+	 */
 	setAutoStartProject(project) {
 		this.autostartProject = project;
+		this._renderAutostartHighlight(project);
+	}
 
+	/**
+	 * Update the autostart highlight AND notify the backend.
+	 * Called only on explicit user interaction (star button click).
+	 * @param {string} project
+	 */
+	_setAutoStartProjectAndNotify(project) {
+		this.autostartProject = project;
+		this._renderAutostartHighlight(project);
+
+		if (project) {
+			// Dispatch CustomEvent instead of calling window.Application directly
+			this.dispatchEvent(new CustomEvent(APP_EVENT_AUTOSTART_SET, {
+				bubbles: true,
+				composed: true,
+				detail: { project }
+			}));
+		}
+	}
+
+	/**
+	 * Update the star button highlights to reflect the current autostart project.
+	 * @param {string|null} project
+	 */
+	_renderAutostartHighlight(project) {
 		this.shadowRoot.querySelectorAll('.autostart-button').forEach(function(item) {
 			item.classList.remove('autostart-active');
 			item.textContent = "☆";
 			item.title = "Set as autostart";
 		});
 
-		if (this.autostartProject && this.projectData.length > 0) {
+		if (project && this.projectData.length > 0) {
 			const btn = this.shadowRoot.querySelector(".autostart-button[data-project='" + project + "']");
 			if (btn) {
 				btn.classList.add("autostart-active");
 				btn.textContent = '★';
 				btn.title = 'Autostart enabled';
 			}
-
-			window.Application.setAutostartProject(project);
 		}
 	}
 
@@ -176,12 +257,12 @@ class FilesHTMLElement extends HTMLElement {
 
 		this.selectedProject = item;
 		element.classList.add('selected');
-	};
+	}
 
 	initialize(projectList, autostartProject) {
 		this.initProjectListWith(projectList);
 		this.setAutoStartProject(autostartProject);
-	};
-};
+	}
+}
 
 customElements.define('custom-files', FilesHTMLElement);

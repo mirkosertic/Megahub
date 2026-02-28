@@ -9,15 +9,21 @@
     "build:web": "vite build --mode web",
     "build:all": "npm run build:bt && npm run build:web",
     "build:renderer": "vite build --config scripts/vite.config.js",
-    "generate-docs": "node scripts/generate-block-docs-simple.js"
+    "generate-docs": "node scripts/generate-block-docs-simple.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "validate-constants": "node scripts/validate-constants.js"
   },
   "devDependencies": {
     "browserlist": "^1.0.2",
+    "happy-dom": "^14.0.0",
     "jsdom": "^24.1.3",
     "lightningcss": "^1.30.2",
     "puppeteer": "^24.15.0",
     "vite": "^5.0.0",
-    "vite-plugin-compression": "^0.5.1"
+    "vite-plugin-compression": "^0.5.1",
+    "vitest": "^2.0.0"
   },
   "dependencies": {
     "@blockly/field-colour": "^6.0.8",

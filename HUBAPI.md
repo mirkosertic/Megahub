@@ -1,12 +1,12 @@
-# Hub Web Server API Documentation
+# Megahub Web Server API
 
-This document describes the REST API endpoints and Server-Sent Events (SSE) for the Megahub Web Server.
+This document describes the HTTP REST endpoints and Server-Sent Events (SSE) provided by the Megahub web server. The web server is active only in **WiFi mode**. For BLE communication, see [BLEPROTOCOL.md](BLEPROTOCOL.md).
 
 ## Base URL
 
-The server runs on port 80 and is accessible via:
+The server listens on port 80 and is reachable at:
 - `http://<device-ip>/`
-- `http://<device-uid>.local/` (via mDNS)
+- `http://<device-uid>.local/` (via mDNS — works on macOS, Linux, and Windows 10+)
 
 ## Table of Contents
 
@@ -16,34 +16,37 @@ The server runs on port 80 and is accessible via:
 - [Configuration](#configuration)
 - [Device Discovery](#device-discovery)
 - [Server-Sent Events (SSE)](#server-sent-events-sse)
+- [Error Handling](#error-handling)
 
 ---
 
 ## Static Resources
+
+All static assets are served gzip-compressed from firmware flash.
 
 ### GET /
 
 Serves the main application HTML page.
 
 **Response:**
-- Content-Type: `text/html`
-- Content-Encoding: `gzip`
+- `Content-Type: text/html`
+- `Content-Encoding: gzip`
 
 ### GET /index.js
 
-Serves the main application JavaScript file.
+Serves the main application JavaScript bundle.
 
 **Response:**
-- Content-Type: `text/javascript`
-- Content-Encoding: `gzip`
+- `Content-Type: text/javascript`
+- `Content-Encoding: gzip`
 
 ### GET /style.css
 
 Serves the application stylesheet.
 
 **Response:**
-- Content-Type: `text/css`
-- Content-Encoding: `gzip`
+- `Content-Type: text/css`
+- `Content-Encoding: gzip`
 
 ---
 
@@ -51,81 +54,57 @@ Serves the application stylesheet.
 
 ### GET /projects
 
-Retrieves a list of all available projects.
+List all projects stored on the SD card.
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body:**
+**Response body:**
 ```json
 {
   "projects": [
-    {
-      "name": "project1"
-    },
-    {
-      "name": "project2"
-    }
+    { "name": "MyProject" },
+    { "name": "TestScript" }
   ]
 }
 ```
 
-### GET /project/{projectId}
-
-Serves the project HTML page.
-
-**URL Parameters:**
-- `projectId` - URL-encoded project identifier
-
-**Response:**
-- Status: `200 OK`
-- Content-Type: `text/html`
-- Content-Encoding: `gzip`
-- Cache-Control: `no-cache, must-revalidate`
-
-### GET /project/{projectId}/model.xml
-
-Downloads the `model.xml` file for a specific project.
-
-**URL Parameters:**
-- `projectId` - URL-encoded project identifier
-
-**Response:**
-- Status: `200 OK`
-- Content-Type: `application/octet-stream`
-- Cache-Control: `no-cache, must-revalidate`
+---
 
 ### PUT /project/{projectId}/{filename}
 
-Uploads a file to a project using the body of the PUT operation.
+Upload a file to a project. Creates the project directory if it does not exist. Overwrites any existing file with the same name.
 
-**URL Parameters:**
-- `projectId` - URL-encoded project identifier
-- `filename` - Name of the file to upload
+**URL parameters:**
+- `projectId` — URL-encoded project name
+- `filename` — file name (e.g. `model.xml`)
 
-**Request:**
-- Body: the content of the file
+**Request body:** raw file content (any content type)
 
 **Response:**
 - Status: `201 Created`
-- Content-Length: `0`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Length: 0`
+- `Cache-Control: no-cache, must-revalidate`
+
+**Note:** This is the only file transfer direction supported over HTTP. Reading project files back from the device is not available via HTTP — use BLE (`GET_PROJECT_FILE`, request type `0x02`) instead.
+
+---
 
 ### DELETE /project/{projectId}
 
-Deletes a project and all its associated files.
+Remove a project from the device configuration. The project's files on the SD card are **not** deleted — only the configuration entry is removed.
 
-**URL Parameters:**
-- `projectId` - URL-encoded project identifier
+**URL parameters:**
+- `projectId` — URL-encoded project name
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body:**
+**Response body:**
 ```json
 {}
 ```
@@ -134,69 +113,73 @@ Deletes a project and all its associated files.
 
 ## Code Execution
 
-### PUT /stop
-
-Stops the currently running Lua code.
-
-**Response:**
-- Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
-
-**Response Body:**
-```json
-{
-  "success": true
-}
-```
-
 ### PUT /syntaxcheck
 
-Checks the syntax of uploaded Lua code without executing it.
+Check the syntax of a Lua program without executing it. The code is written to a temporary file (`/~syntaxcheck.lua`) on the SD card, then parsed.
 
-**Request:**
-- Body: Lua code to check
+**Request body:** Lua source code (plain text)
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body (Success):**
+**Response body (success):**
 ```json
 {
   "success": true,
-  "parseTime": 123,
+  "parseTime": 42,
   "errorMessage": ""
 }
 ```
 
-**Response Body (Failure):**
+**Response body (failure):**
 ```json
 {
   "success": false,
   "parseTime": 0,
-  "errorMessage": "syntax error description"
+  "errorMessage": "[string]:2: '=' expected near 'end'"
 }
 ```
 
+`parseTime` is in milliseconds.
+
+---
+
 ### PUT /execute
 
-Uloadeds and executes Lua code on the device.
+Upload and execute a Lua program. The code is written to a temporary file (`/~execute.lua`) on the SD card before execution. Any currently running program is stopped first.
 
-**Request:**
-- Body: Lua code to execute
+**Request body:** Lua source code (plain text)
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body:**
+**Response body:**
 ```json
-{
-  "success": true
-}
+{ "success": true }
+```
+
+`success` is `false` if the temporary file could not be written to the SD card.
+
+---
+
+### PUT /stop
+
+Stop the currently running Lua program and all its threads. LEGO device ports are reinitialized.
+
+**Request body:** (empty)
+
+**Response:**
+- Status: `200 OK`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
+
+**Response body:**
+```json
+{ "success": true }
 ```
 
 ---
@@ -205,40 +188,42 @@ Uloadeds and executes Lua code on the device.
 
 ### GET /autostart
 
-Retrieves the project configured to start automatically on device boot.
+Get the project currently configured as autostart.
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/json`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/json`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body:**
+**Response body (project set):**
 ```json
-{
-  "project": "project_name"
-}
+{ "project": "MyProject" }
 ```
 
-**Note:** If no autostart project is configured, the `project` field will be omitted.
+**Response body (no autostart configured):**
+```json
+{}
+```
+
+---
 
 ### PUT /autostart
 
-Sets the project to start automatically on device boot.
+Set the autostart project. The name is persisted to `/autostart.json` on the SD card.
 
 **Request:**
-- Content-Type: `application/json`
+- `Content-Type: application/json`
 
-**Request Body:**
+**Request body:**
 ```json
-{
-  "project": "project_name"
-}
+{ "project": "MyProject" }
 ```
 
 **Response:**
-- Status: `201 Created` (success) or `501 Not Implemented` (failure)
-- Content-Length: `0`
-- Cache-Control: `no-cache, must-revalidate`
+- Status: `201 Created` — saved successfully
+- Status: `501 Not Implemented` — save failed (e.g. SD card error)
+- `Content-Length: 0`
+- `Cache-Control: no-cache, must-revalidate`
 
 ---
 
@@ -246,30 +231,27 @@ Sets the project to start automatically on device boot.
 
 ### GET /description.xml
 
-Returns the SSDP (Simple Service Discovery Protocol) device description XML.
+Returns the SSDP/UPnP device description. Advertised via SSDP multicast every 5 seconds so that network tools can discover the device automatically.
 
 **Response:**
 - Status: `200 OK`
-- Content-Type: `application/xml`
-- Cache-Control: `no-cache, must-revalidate`
+- `Content-Type: application/xml`
+- `Cache-Control: no-cache, must-revalidate`
 
-**Response Body:**
+**Response body:**
 ```xml
 <?xml version='1.0'?>
 <root xmlns='urn:schemas-upnp-org:device-1-0'>
-  <specVersion>
-    <major>1</major>
-    <minor>0</minor>
-  </specVersion>
+  <specVersion><major>1</major><minor>0</minor></specVersion>
   <device>
     <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
-    <friendlyName>Device Name</friendlyName>
-    <manufacturer>Manufacturer Name</manufacturer>
-    <modelName>Model Name</modelName>
-    <modelNumber>Version</modelNumber>
-    <serialNumber>Serial Number</serialNumber>
-    <UDN>uuid:device-uid</UDN>
-    <presentationURL>http://device-uid.local:80/index.html</presentationURL>
+    <friendlyName>Megahub</friendlyName>
+    <manufacturer>Megahub Project</manufacturer>
+    <modelName>Megahub</modelName>
+    <modelNumber>1.0</modelNumber>
+    <serialNumber>AABBCCDDEEFF</serialNumber>
+    <UDN>uuid:aabbccddeeff</UDN>
+    <presentationURL>http://aabbccddeeff.local:80/index.html</presentationURL>
   </device>
 </root>
 ```
@@ -280,55 +262,68 @@ Returns the SSDP (Simple Service Discovery Protocol) device description XML.
 
 ### GET /events
 
-Establishes a Server-Sent Events connection for real-time updates.
+Opens a persistent Server-Sent Events connection. The server pushes log messages, UI commands, and port status updates in real time. Keep this connection open while the IDE is active.
 
 **Response:**
-- Content-Type: `text/event-stream`
-- Connection: `keep-alive`
+- `Content-Type: text/event-stream`
+- `Connection: keep-alive`
 
-### Event Types
+Each event has a named `event` field and a `data` field containing a JSON object.
 
-#### `log`
+---
 
-Emitted when a log message is generated by the device.
+### Event: `log`
 
-**Event Data:**
+A log or print message from the device. Generated by Lua `print()` or by firmware log macros (INFO, WARN, DEBUG).
+
+**Data:**
 ```json
-{
-  "message": "Log message text"
-}
+{ "message": "Motor speed set to 80" }
 ```
 
-#### `command`
+---
 
-Commands are issued by the Hub and sent to the Client to perform certain tasks like UI / Debug output etc.
+### Event: `command`
 
-**Event Data:**
+A UI command from the running program. Two sub-types exist, identified by the `type` field.
+
+**`show_value`** — from Lua `ui.showvalue()`:
 ```json
 {
   "type": "show_value",
-  "label": "The label to be shown before the value",
-  "format": "FORMAT_SIMPLE",  
-  "value": "The value to be show"
+  "label": "Sensor reading",
+  "format": "simple",
+  "value": 42
 }
 ```
 
-#### `portstatus`
+`value` may be a number, boolean, or string. `format` is `"simple"` when `FORMAT_SIMPLE` is used in Lua.
 
-Emitted when the status of a device port changes.
+**`thread_statistics`** — sent every 10 s when a thread runs with profiling enabled:
+```json
+{
+  "type": "thread_statistics",
+  "blockid": "block_motor_loop",
+  "min": 1240,
+  "avg": 1850.4,
+  "max": 3100
+}
+```
 
-**Event Data:**
+All timing values are in microseconds.
+
+---
+
+### Event: `portstatus`
+
+Sent whenever the LEGO port connection state changes. Contains the current status of all four ports.
+
+**Data:**
 ```json
 {
   "ports": [
-    {
-      "id": 1,
-      "connected": false
-    },
-    {
-      "id": 2,
-      "connected": false
-    },
+    { "id": 1, "connected": false },
+    { "id": 2, "connected": false },
     {
       "id": 3,
       "connected": true,
@@ -336,106 +331,37 @@ Emitted when the status of a device port changes.
         "type": "BOOST Color and Distance Sensor",
         "icon": "⚙️",
         "modes": [
-            {
-                "id": 0,
-                "name": "COLOR",
-                "units": "IDX",
-                "datasets": 1,
-                "figures": 3,
-                "decimals": 0,
-                "type": "DATA8"
-            },
-            {
-                "id": 1,
-                "name": "PROX",
-                "units": "DIS",
-                "datasets": 1,
-                "figures": 3,
-                "decimals": 0,
-                "type": "DATA8"
-            },
-            {
-                "id": 2,
-                "name": "COUNT",
-                "units": "CNT",
-                "datasets": 1,
-                "figures": 4,
-                "decimals": 0,
-                "type": "DATA32"
-            },
-            {
-                "id": 3,
-                "name": "REFLT",
-                "units": "PCT",
-                "datasets": 1,
-                "figures": 3,
-                "decimals": 0,
-                "type": "DATA8"
-            },
-            {
-                "id": 4,
-                "name": "AMBI",
-                "units": "PCT",
-                "datasets": 1,
-                "figures": 3,
-                "decimals": 0,
-                "type": "DATA8"
-            },
-            {
-                "id": 5,
-                "name": "COL O",
-                "units": "IDX",
-                "datasets": 1,
-                "figures": 3,
-                "decimals": 0,
-                "type": "DATA8"
-            },
-            {
-                "id": 6,
-                "name": "RGB I",
-                "units": "RAW",
-                "datasets": 3,
-                "figures": 5,
-                "decimals": 0,
-                "type": "DATA16"
-            },
-            {
-                "id": 7,
-                "name": "IR Tx",
-                "units": "N/A",
-                "datasets": 1,
-                "figures": 5,
-                "decimals": 0,
-                "type": "DATA16"
-            }
-          ]
-        }
+          { "id": 0, "name": "COLOR", "units": "IDX", "datasets": 1, "figures": 3, "decimals": 0, "type": "DATA8" },
+          { "id": 1, "name": "PROX",  "units": "DIS", "datasets": 1, "figures": 3, "decimals": 0, "type": "DATA8" },
+          { "id": 6, "name": "RGB I", "units": "RAW", "datasets": 3, "figures": 5, "decimals": 0, "type": "DATA16" }
+        ]
+      }
     },
-    {
-      "id": 4,
-      "connected": false
-    }
+    { "id": 4, "connected": false }
   ]
 }
 ```
+
+When `connected` is `false`, no `device` field is present. `datasets` is the number of separate values returned by `lego.getmodedataset()` for that mode.
 
 ---
 
 ## Error Handling
 
-All API endpoints use standard HTTP status codes:
+| Status | Meaning |
+|--------|---------|
+| `200 OK` | Request succeeded |
+| `201 Created` | Resource created or updated successfully |
+| `501 Not Implemented` | Operation failed (typically an SD card write error) |
 
-- `200 OK` - Request succeeded
-- `201 Created` - Resource created successfully
-- `501 Not Implemented` - Operation failed
-
-Most endpoints include a `Cache-Control: no-cache, must-revalidate` header to prevent caching of dynamic content.
+All dynamic endpoints include `Cache-Control: no-cache, must-revalidate` to prevent stale responses being served from browser caches.
 
 ---
 
 ## Notes
 
-- All project identifiers in URLs should be URL-encoded
-- The server supports SSDP discovery for automatic device detection on the network
-- mDNS is enabled for accessing the device via `<device-uid>.local` hostname
-- SSE connections remain open for real-time updates and should be handled appropriately by clients
+- Project names in URLs must be URL-encoded (spaces as `%20`, etc.)
+- The server uses mDNS (`<device-uid>.local`) for zero-configuration discovery on the local network
+- SSDP/UPnP discovery is broadcast every 5 seconds so tools like Windows Network Explorer can find the device
+- The `/syntaxcheck` and `/execute` endpoints write code to temporary files on the SD card before processing — a working SD card is required
+- The SSE `/events` endpoint should remain open for the duration of an active session

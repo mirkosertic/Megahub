@@ -1,3 +1,4 @@
+// ─── Component registration (side effects only) ───────────────────────────────
 import './components/files/component.js';
 import './components/logger/component.js';
 import './components/sidebar-toggle/component.js';
@@ -7,42 +8,34 @@ import './components/blockly/component.js';
 import './components/luapreview/component.js';
 import './components/btdevicelist/component.js';
 
+// ─── App modules ──────────────────────────────────────────────────────────────
+import * as App from './app/app.js';
+import { initBLEConnection, Progress } from './app/connection.js';
+import { setState, subscribe, getState } from './app/state.js';
+import {
+    setSaveFunction,
+    enable as enableAutosave,
+    disable as disableAutosave,
+    isEnabled as isAutosaveEnabled,
+} from './app/autosave.js';
+import {
+    APP_EVENT_PROJECT_OPEN,
+    APP_EVENT_PROJECT_CREATE,
+    APP_EVENT_PROJECT_DELETE,
+    APP_EVENT_AUTOSTART_SET,
+    APP_EVENT_BT_DISCOVER,
+    APP_EVENT_BT_PAIR,
+    APP_EVENT_BT_UNPAIR,
+} from './app/events.js';
+
+// Note: APP_EVENT_TYPE_COMMAND is handled by the web EventSource 'command' event name string directly
+
 const mode = import.meta.env.VITE_MODE;
 
-import {
-	APP_EVENT_TYPE_COMMAND,
-	APP_EVENT_TYPE_LOG,
-	APP_EVENT_TYPE_PORTSTATUS,
-	APP_REQUEST_TYPE_GET_AUTOSTART,
-	APP_REQUEST_TYPE_GET_PROJECTS,
-	APP_REQUEST_TYPE_GET_PROJECT_FILE,
-	APP_REQUEST_TYPE_READY_FOR_EVENTS,
-	APP_REQUEST_TYPE_STOP_PROGRAM,
-	APP_REQUEST_TYPE_PUT_AUTOSTART,
-	APP_REQUEST_TYPE_SYNTAX_CHECK,
-	APP_REQUEST_TYPE_RUN_PROGRAM,
-	APP_REQUEST_TYPE_DELETE_PROJECT,
-	APP_EVENT_TYPE_BTCLASSICDEVICES,
-	APP_REQUEST_TYPE_REQUEST_PAIRING,
-	APP_REQUEST_TYPE_REMOVE_PAIRING,
-	APP_REQUEST_TYPE_START_DISCOVERY,
-	BLEClient
-} from './bleclient.js'
-
-const bleClient = new BLEClient();
-
-var blocklyEditor = null;
-var luaPreview = null;
-var uiComponents = null;
-var portstatus = null
-var btdevicelist = null
-var autoSaveEnabled = false;
-var autoSaveIntervalId = null;
-var isReconnecting = false;
-var reconnectAttempts = 0;
-var maxReconnectAttempts = 10;
-var disconnectHandlerRegistered = false; // Prevents duplicate disconnect handler registration
-var connectionLostNotification = null; // Reference to "Connection Lost" notification for dismissal
+// ─── Component references (set in DOMContentLoaded) ──────────────────────────
+let blocklyEditor = null;
+let luaPreview = null;
+let uiComponents = null;
 
 // ===== Notification System =====
 
@@ -51,19 +44,6 @@ const NotificationIcons = {
 	error : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
 	warning : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
 	info : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
-};
-
-// ===== Top Progress Bar =====
-
-const Progress = {
-	show() {
-		const bar = document.getElementById('progressBar');
-		if (bar) bar.classList.add('active');
-	},
-	hide() {
-		const bar = document.getElementById('progressBar');
-		if (bar) bar.classList.remove('active');
-	}
 };
 
 /**
@@ -196,123 +176,9 @@ function initConfirmDialog() {
 	});
 }
 
-// Make notification function globally available
+// Make notification and confirm dialog functions globally available
 window.showNotification = showNotification;
 window.showConfirmDialog = showConfirmDialog;
-
-// ===== BLE Connection Modal =====
-
-const ConnectionStepDefs = [
-	{ id: 'requesting',    label: 'Requesting device...' },
-	{ id: 'connecting',    label: 'Connecting to GATT server...' },
-	{ id: 'services',      label: 'Discovering services...' },
-	{ id: 'notifications', label: 'Enabling notifications...' },
-	{ id: 'mtu',           label: 'Negotiating MTU...' },
-	{ id: 'ready',         label: 'Connection established!' },
-];
-
-const ConnectionModal = {
-	_rendered: false,
-
-	_render() {
-		if (this._rendered) return;
-		this._rendered = true;
-		const stepsEl = document.getElementById('connectionSteps');
-		if (!stepsEl) return;
-		stepsEl.innerHTML = ConnectionStepDefs.map(s => `
-      <div class="connection-step pending" id="cstep-${s.id}">
-        <div class="connection-step-indicator">
-          <div class="connection-step-spinner"></div>
-          <svg class="connection-step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <svg class="connection-step-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </div>
-        <span class="connection-step-label">${s.label}</span>
-      </div>
-    `).join('');
-	},
-
-	show() {
-		this._render();
-		// Reset all steps
-		ConnectionStepDefs.forEach(s => {
-			const el = document.getElementById('cstep-' + s.id);
-			if (el) el.className = 'connection-step pending';
-		});
-		const errEl = document.getElementById('connectionModalError');
-		if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
-		const overlay = document.getElementById('connectionModal');
-		if (overlay) overlay.setAttribute('aria-hidden', 'false');
-	},
-
-	hide() {
-		const overlay = document.getElementById('connectionModal');
-		if (overlay) overlay.setAttribute('aria-hidden', 'true');
-	},
-
-	setStep(stepId) {
-		// Mark all previous steps as done, current as active, rest as pending
-		let found = false;
-		ConnectionStepDefs.forEach(s => {
-			const el = document.getElementById('cstep-' + s.id);
-			if (!el) return;
-			if (s.id === stepId) {
-				el.className = 'connection-step active';
-				found = true;
-			} else if (!found) {
-				el.className = 'connection-step done';
-			} else {
-				el.className = 'connection-step pending';
-			}
-		});
-	},
-
-	setAllDone() {
-		ConnectionStepDefs.forEach(s => {
-			const el = document.getElementById('cstep-' + s.id);
-			if (el) el.className = 'connection-step done';
-		});
-	},
-
-	setError(stepId, message) {
-		// Mark current step as error
-		const el = document.getElementById('cstep-' + stepId);
-		if (el) el.className = 'connection-step error';
-		const errEl = document.getElementById('connectionModalError');
-		if (errEl) { errEl.textContent = message; errEl.classList.add('visible'); }
-	}
-};
-
-// ===== VS Code Status Bar =====
-
-const StatusBar = {
-	setConnecting() {
-		const dot = document.getElementById('statusbarDot');
-		const label = document.getElementById('statusbarConnectionLabel');
-		if (dot) { dot.className = 'statusbar-dot connecting'; }
-		if (label) label.textContent = 'Connecting...';
-	},
-	setConnected(deviceName) {
-		const dot = document.getElementById('statusbarDot');
-		const label = document.getElementById('statusbarConnectionLabel');
-		if (dot) { dot.className = 'statusbar-dot connected'; }
-		if (label) label.textContent = deviceName ? `Connected to ${deviceName}` : 'Connected';
-	},
-	setDisconnected() {
-		const dot = document.getElementById('statusbarDot');
-		const label = document.getElementById('statusbarConnectionLabel');
-		if (dot) { dot.className = 'statusbar-dot disconnected'; }
-		if (label) label.textContent = 'Not connected';
-		this.clearMessage();
-	},
-	setMessage(text) {
-		const el = document.getElementById('statusbarMessage');
-		if (el) el.textContent = text;
-	},
-	clearMessage() {
-		const el = document.getElementById('statusbarMessage');
-		if (el) el.textContent = '';
-	}
-};
 
 // ===== Bluetooth Compatibility Check =====
 
@@ -359,41 +225,89 @@ function showBluetoothUnsupportedMessage() {
 	`;
 }
 
-// Functions
+// ─── Editor helpers ───────────────────────────────────────────────────────────
 
+/**
+ * Generate Lua code from the current Blockly workspace and update the preview.
+ * @returns {string} Generated Lua code
+ */
 function generateCode() {
 	const code = blocklyEditor.generateLUAPreview();
-
 	luaPreview.highlightCode(code);
 	return code;
-};
-
-function syntaxCheck() {
-	const luaCode = generateCode();
-
-	window.Application.syntaxCheck(luaCode);
-};
-
-function executeCode() {
-	const luaCode = generateCode();
-
-	window.Application.executeCode(luaCode);
-};
-
-function stopCode() {
-	window.Application.stop();
 }
 
-const STRORAGE_KEY = 'blockly_robot_workspace';
+/**
+ * Run a syntax check on the current Blockly workspace code.
+ */
+async function syntaxCheck() {
+	const luaCode = generateCode();
+	if (mode === 'dev') {
+		showNotification('info', 'Syntax Check', 'Running in dev mode - no backend available');
+		return;
+	}
+	try {
+		const result = await App.syntaxCheck(luaCode);
+		if (result.success) {
+			showNotification('success', 'Syntax Check Passed', `Parse time: ${result.parseTime}ms`);
+		} else {
+			showNotification('error', 'Syntax Check Failed', result.errorMessage || 'Unknown error');
+		}
+	} catch (error) {
+		showNotification('error', 'Syntax Check Error', error.message);
+	}
+}
 
-// Save workspace as XML
+/**
+ * Execute the current Blockly workspace code on the device.
+ */
+async function executeCode() {
+	const luaCode = generateCode();
+	if (mode === 'dev') {
+		showNotification('info', 'Execute', 'Running in dev mode - no backend available');
+		return;
+	}
+	try {
+		const success = await App.executeCode(luaCode);
+		uiComponents.clear();
+		if (success) {
+			showNotification('success', 'Program Started', 'Code is now running on the device');
+		} else {
+			showNotification('error', 'Execution Failed', 'Could not start program');
+		}
+	} catch (error) {
+		showNotification('error', 'Execution Error', error.message);
+	}
+}
+
+/**
+ * Stop the currently running program on the device.
+ */
+async function stopCode() {
+	if (mode === 'dev') {
+		showNotification('info', 'Stop', 'Running in dev mode - no backend available');
+		return;
+	}
+	try {
+		await App.stop();
+		showNotification('success', 'Program Stopped', 'Execution has been halted');
+	} catch (error) {
+		showNotification('error', 'Stop Error', error.message);
+	}
+	blocklyEditor.removeAllProfilingOverlays();
+}
+
+/**
+ * Save the current workspace (XML and Lua) to the device.
+ * @returns {Promise<boolean>} True if save was successful
+ */
 async function saveWorkspace() {
 	try {
 		Progress.show();
 		const xmlText = blocklyEditor.generateXML();
-		await window.Application.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
+		await App.saveProjectFile("model.xml", "application/xml; charset=UTF-8", xmlText);
 		const luaCode = generateCode();
-		await window.Application.saveProjectFile("program.lua", "text/x-lua; charset=UTF-8", luaCode);
+		await App.saveProjectFile("program.lua", "text/x-lua; charset=UTF-8", luaCode);
 		console.log("Workspace saved!");
 		return true;
 	} catch (error) {
@@ -402,491 +316,11 @@ async function saveWorkspace() {
 	} finally {
 		Progress.hide();
 	}
-};
-
-window.Application = {
-
-	activeProject : null,
-
-	setInitState : function() {
-		Application.setMode('btconnect');
-	},
-
-	setMode : function(mode) {
-		document.body.dataset.mode = mode;
-		const items = document.querySelectorAll(".dynamicvisibility");
-		for (const item of items) {
-			item.style.display = 'none';
-			item.style.visibility = 'hidden';
-			if (item.classList.contains('visible-' + mode)) {
-				item.style.display = 'block';
-				item.style.visibility = "visible";
-			}
-		}
-	},
-
-	jumpToFilesView : function() {
-		window.Application.setMode('management');
-		Progress.show();
-		window.Application.requestProjectsAndAutostartConfig((projectList, autostartProject) => {
-			Progress.hide();
-			document.getElementById("files").initialize(projectList, autostartProject);
-		});
-	},
-
-	createProject : function(projectId) {
-		console.log("Creating new empty project")
-		window.Application.setMode('editor');
-
-		window.Application.activeProject = projectId;
-		const nameEl = document.getElementById('headerProjectName');
-		if (nameEl) nameEl.textContent = projectId;
-	},
-
-	openProject : function(projectId) {
-		console.log("Opening project " + projectId);
-		window.Application.setMode('editor');
-
-		window.Application.activeProject = projectId;
-		const nameEl = document.getElementById('headerProjectName');
-		if (nameEl) nameEl.textContent = projectId;
-
-		Progress.show();
-		window.Application.requestProjectFile(projectId, 'model.xml', function(projectId, filename, content) {
-			Progress.hide();
-			if (!blocklyEditor.loadXML(content)) {
-				console.log("Error loading workspace! Blockly failed to parse?");
-			}
-		});
-	},
-
-	deleteProject : async function(project) {
-		// clang-format off
-		if (mode === 'bt') {
-			console.log("Deleting project " + project);
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_DELETE_PROJECT, JSON.stringify({ "project": project }));
-			
-			window.Application.jumpToFilesView();
-		} else if (mode === 'web') {
-			fetch("/project/" + encodeURIComponent(project), {
-				method : "DELETE"
-			})
-			.then((response) => {
-				console.log("Got response from backend : " + JSON.stringify(response));
-
-				window.Application.jumpToFilesView();
-			})
-			.catch((error) => {
-				console.error('Error deleting project:', error);
-			});
-		}
-		// clang-format on
-	},
-
-	setAutostartProject : async function(project) {
-		// clang-format off
-		if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_PUT_AUTOSTART, JSON.stringify({"project" : project}));
-		} else if (mode === 'web') {
-			fetch("/autostart", {
-				method : "PUT",
-				body : JSON.stringify({"project" : project}),
-				headers : {
-							"Content-type" : "application/json; charset=UTF-8",
-						  },
-			}).then((response) => {
-				console.log("Got response from backend : " + JSON.stringify(response));
-			})
-			.catch((error) => {
-				console.error('Error deleting project:', error);
-			});
-		}
-		// clang-format off
-	},
-
-	requestProjectFile : async function(projectId, filename, callback) {
-		console.log("Requesting file " + filename + " of project " + projectId);
-
-		if (mode === 'dev') {
-			if (filename === 'model.xml') {
-
-				const xmlText = localStorage.getItem(STRORAGE_KEY);
-				if (!xmlText) {
-					console.log('No data found in localStorage');
-					return false;
-				}
-
-				callback(projectId, filename, xmlText);
-				return;
-			}
-
-			callback(projectId, filename, '');
-		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_PROJECT_FILE, JSON.stringify({"project" : projectId, "filename" : filename}));
-			const contentResponse = new TextDecoder().decode(response);
-
-			callback(projectId, filename, contentResponse);
-		} else if (mode === 'web') {
-			const response = await fetch("/project/" + encodeURIComponent(projectId) + "/" + filename);
-			const responseText = await response.text();
-			callback(projectId, filename, responseText);
-		}
-	},
-
-	saveProjectFile: async function (filename, contentType, content) {
-		var projectId = window.Application.activeProject;
-		// clang-format off
-		if (mode === 'dev') {
-			// Dev-specific logic
-			if (filename === 'model.xml') {
-				localStorage.setItem(STRORAGE_KEY, content);
-			}
-		} else if (mode === 'bt') {
-			try {
-				// Use streaming protocol for memory-efficient uploads
-				await bleClient.uploadFileStreaming(projectId, filename, content);
-			} catch (error) {
-				console.error("Upload failed:", error.message);
-				showNotification('error', 'Upload Failed', `Could not save ${filename}: ${error.message}`);
-				throw error; // Re-throw to let caller handle it
-			}
-		} else if (mode === 'web') {
-			fetch("/project/" + encodeURIComponent(projectId) + "/" + filename, {
-				method : "PUT",
-				body : content,
-				headers : {
-						   "Content-type" : contentType,
-						   },
-			})
-			.then((response) => {
-				console.log("Got response from backend : " + JSON.stringify(response));
-			});
-		}
-		// clang-format on
-	},
-
-	syntaxCheck : async function(luaCode) {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Syntax Check', 'Running in dev mode - no backend available');
-		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_SYNTAX_CHECK, JSON.stringify({ "luaScript": luaCode }));
-			const contentResponse = new TextDecoder().decode(response);
-			const responsejson = JSON.parse(contentResponse);
-			if (responsejson.result) {
-				showNotification('success', 'Syntax Check Passed', `Parse time: ${responsejson.parseTime}ms`);
-			} else {
-				showNotification('error', 'Syntax Check Failed', responsejson.errorMessage || 'Unknown error');
-			}
-		} else if (mode === 'web') {
-			fetch("/syntaxcheck", {
-				method : "PUT",
-				body : luaCode,
-				headers : {
-						   "Content-type" : "text/x-lua; charset=UTF-8",
-						   },
-			})
-			.then((response) => response.json())
-			.then((response) => {
-				if (response.success) {
-					showNotification('success', 'Syntax Check Passed', `Parse time: ${response.parseTime}ms`);
-				} else {
-					showNotification('error', 'Syntax Check Failed', response.errorMessage || 'Unknown error');
-				}
-			});
-		}
-		// clang-format on
-	},
-
-	executeCode : async function(luaCode) {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Execute', 'Running in dev mode - no backend available');
-		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_RUN_PROGRAM, JSON.stringify({ "luaScript": luaCode }));
-			const contentResponse = new TextDecoder().decode(response);
-			const responsejson = JSON.parse(contentResponse);
-			uiComponents.clear();
-			if (responsejson.result) {
-				showNotification('success', 'Program Started', 'Code is now running on the device');
-			} else {
-				showNotification('error', 'Execution Failed', 'Could not start program');
-			}
-		} else if (mode === 'web') {
-			fetch("/execute", {
-				method : "PUT",
-				body : luaCode,
-				headers : {
-						   "Content-type" : "text/x-lua; charset=UTF-8",
-						   },
-			})
-			.then((response) => response.json())
-			.then((response) => {
-				uiComponents.clear();
-				showNotification('success', 'Program Started', 'Code is now running on the device');
-			});
-		}
-		// clang-format on
-	},
-
-	stop : async function() {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Stop', 'Running in dev mode - no backend available');
-		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_STOP_PROGRAM, JSON.stringify({}));
-			showNotification('success', 'Program Stopped', 'Execution has been halted');
-		} else if (mode === 'web') {
-			fetch("/stop", {
-				method : "PUT",
-				body : '',
-				headers : {
-						   "Content-type" : "text/x-lua; charset=UTF-8",
-						   },
-			})
-			.then((response) => response.json())
-			.then((response) => {
-				console.log("Stop command sent, response: " + JSON.stringify(response));
-				showNotification('success', 'Program Stopped', 'Execution has been halted');
-			});
-		}
-		blocklyEditor.removeAllProfilingOverlays();
-		// clang-format on
-	},
-
-	requestPairing : async function(mac) {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Pairing', `Dev mode - simulating pairing with ${mac}`);
-		} else if (mode === 'bt') {
-			showNotification('info', 'Pairing', `Initiating pairing with ${mac}...`);
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REQUEST_PAIRING, JSON.stringify({"mac" : mac}));
-			showNotification('success', 'Pairing Initiated', 'Check your device for pairing confirmation');
-		} else if (mode === 'web') {
-			// TODO
-		}
-		// clang-format on
-	},
-
-	requestRemovePairing : async function(mac) {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Remove Pairing', `Dev mode - simulating unpairing ${mac}`);
-		} else if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_REMOVE_PAIRING, JSON.stringify({"mac" : mac}));
-			showNotification('success', 'Pairing Removed', `Device ${mac} has been unpaired`);
-		} else if (mode === 'web') {
-			// TODO
-		}
-		// clang-format on
-	},
-
-	startBluetoothDiscovery : async function() {
-		// clang-format off
-		if (mode === 'dev') {
-			showNotification('info', 'Bluetooth Scan', 'Dev mode - no actual scan');
-		} else if (mode === 'bt') {
-			showNotification('info', 'Scanning', 'Searching for Bluetooth devices...');
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_START_DISCOVERY, JSON.stringify({}));
-		} else if (mode === 'web') {
-			// TODO
-		}
-		// clang-format on
-	},
-
-	requestProjectsAndAutostartConfig : async function(callback) {
-		var projects = [
-			{name : 'dummy'},
-			{name : 'testproject'},
-		];
-
-		if (mode === 'bt') {
-			console.log("Requesting Projects...");
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_PROJECTS, JSON.stringify({}));
-			const responseText = new TextDecoder().decode(response);
-			console.log("Got Response : (" + responseText + ")");
-			const responseJson = JSON.parse(responseText);
-			console.log("JSON Response was " + JSON.stringify(responseJson));
-			projects = responseJson.projects;
-		} else if (mode === 'web') {
-			const response = await fetch("/projects");
-			const responseJson = await response.json();
-			projects = responseJson.projects;
-		}
-
-		var autostart = "testproject";
-
-		if (mode === 'bt') {
-			const response = await bleClient.sendRequest(APP_REQUEST_TYPE_GET_AUTOSTART, JSON.stringify({}));
-			const responseJson = JSON.parse(new TextDecoder().decode(response));
-			autostart = responseJson.project;
-		} else if (mode === 'web') {
-			const response = await fetch("/autostart");
-			const responseJson = await response.json();
-			autostart = responseJson.project;
-		}
-
-		callback(projects, autostart);
-	},
 }
-
-function setupEventListeners() {
-	const logger = document.getElementById('logger');
-
-	// Remove any existing listeners to prevent duplicates
-	bleClient.removeAllEventListeners();
-
-	bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
-		const message = new TextDecoder().decode(data);
-		logger.addToLog(message);
-	});
-
-	bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {
-		const portstatustext = new TextDecoder().decode(data);
-		console.log("Got Portstatus : " + portstatustext);
-		const status = JSON.parse(portstatustext);
-		portstatus.updateStatus(status);
-	});
-
-	bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
-		const command = JSON.parse(new TextDecoder().decode(data));
-		if (command.type === "thread_statistics") {
-			blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
-		} else {
-			uiComponents.processUIEvent(command);
-		}
-	});
-
-	bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
-		const devices = JSON.parse(new TextDecoder().decode(data));
-		btdevicelist.updateDevices(devices);
-	});
-}
-
-async function handleDisconnect() {
-	console.log('Connection terminated!');
-	StatusBar.setDisconnected();
-	// Store notification reference so it can be dismissed on successful reconnection
-	connectionLostNotification = showNotification('warning', 'Connection Lost', 'Attempting to reconnect...', 0);
-
-	// Start reconnection attempts
-	attemptReconnection();
-}
-
-async function attemptReconnection() {
-	if (isReconnecting) {
-		return; // Already attempting to reconnect
-	}
-
-	isReconnecting = true;
-	reconnectAttempts = 0;
-
-	while (reconnectAttempts < maxReconnectAttempts) {
-		reconnectAttempts++;
-
-		// Calculate delay with exponential backoff, starting at 2 seconds
-		// Attempts: 1=2s, 2=4s, 3=8s, 4=16s, 5=30s, 6+=30s (capped)
-		const delayMs = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
-
-		console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs / 1000}s...`);
-		// Notification duration proportional to delay time (90% of delay)
-		showNotification('info', 'Reconnecting', `Attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delayMs / 1000}s...`, Math.floor(delayMs * 0.9));
-
-		await new Promise(resolve => setTimeout(resolve, delayMs));
-
-		try {
-			await initBLEConnection(true); // Pass true to indicate this is a reconnection
-			// Success! Dismiss the "Connection Lost" notification
-			if (connectionLostNotification) {
-				const closeBtn = connectionLostNotification.querySelector('.notification-close');
-				if (closeBtn) {
-					closeBtn.click();
-				}
-				connectionLostNotification = null;
-			}
-			showNotification('success', 'Reconnected', 'Connection restored successfully');
-			isReconnecting = false;
-			reconnectAttempts = 0;
-			return;
-		} catch (error) {
-			console.warn(`Reconnection attempt ${reconnectAttempts} failed:`, error.message);
-		}
-	}
-
-	// All attempts failed
-	isReconnecting = false;
-	showNotification('error', 'Reconnection Failed', 'Could not reconnect. Please refresh and connect manually.', 0);
-	window.Application.setInitState();
-}
-
-async function initBLEConnection(reconnecting = false) {
-	try {
-		if (!reconnecting) {
-			ConnectionModal.show();
-			ConnectionModal.setStep('requesting');
-			StatusBar.setConnecting();
-		}
-
-		// Use reconnect() for automatic reconnection, connect() for initial user-initiated connection
-		if (reconnecting) {
-			await bleClient.reconnect();
-		} else {
-			await bleClient.connect((stepId, label) => {
-				ConnectionModal.setStep(stepId);
-			});
-		}
-
-		if (!reconnecting) {
-			ConnectionModal.setAllDone();
-			// Brief pause so user sees the completed state, then close
-			setTimeout(() => ConnectionModal.hide(), 600);
-		}
-
-		StatusBar.setConnected(bleClient.device?.name);
-		console.log('Connected!');
-
-		portstatus.initialize();
-		btdevicelist.initialize();
-
-		// Set up event listeners
-		setupEventListeners();
-
-		// Activate Eventing
-		console.log("Notifying, I am ready!");
-		await bleClient.sendRequest(APP_REQUEST_TYPE_READY_FOR_EVENTS, JSON.stringify({}));
-
-		console.log("Now I should get log messages");
-
-		// Register disconnect handler only once to prevent duplicates during reconnections
-		if (!disconnectHandlerRegistered) {
-			bleClient.onDisconnect(() => {
-				handleDisconnect();
-			});
-			disconnectHandlerRegistered = true;
-		}
-
-		// Only jump to files view if this is the initial connection (not a reconnection)
-		if (!isReconnecting) {
-			window.Application.jumpToFilesView();
-		}
-
-	} catch (error) {
-		console.error('Error:', error);
-		if (!reconnecting) {
-			// Find which step was active and mark it as error
-			const activeStep = document.querySelector('.connection-step.active');
-			const stepId = activeStep ? activeStep.id.replace('cstep-', '') : 'connecting';
-			ConnectionModal.setError(stepId, error.message || 'Connection failed');
-			// Auto-close error modal after 4 seconds
-			setTimeout(() => ConnectionModal.hide(), 4000);
-		}
-		throw error; // Re-throw to allow reconnection logic to handle it
-	}
-};
 
 /**
- * Initialize sidebar accordion behavior
- * Only one panel can be expanded at a time
+ * Initialize sidebar accordion behavior.
+ * Only one panel can be expanded at a time.
  */
 function initSidebarAccordion() {
 	const accordion = document.getElementById('sidebarAccordion');
@@ -897,7 +331,7 @@ function initSidebarAccordion() {
 
 	// Listen for panel expand events
 	panels.forEach(panel => {
-		panel.addEventListener('accordion-expand', (e) => {
+		panel.addEventListener('accordion-expand', () => {
 			// Collapse all other panels
 			panels.forEach(otherPanel => {
 				if (otherPanel !== panel && otherPanel.collapse) {
@@ -910,11 +344,79 @@ function initSidebarAccordion() {
 			panel.classList.add('accordion-expanded');
 		});
 
-		panel.addEventListener('accordion-collapse', (e) => {
+		panel.addEventListener('accordion-collapse', () => {
 			panel.classList.remove('accordion-expanded');
 		});
 	});
 }
+
+// ─── Application-level CustomEvent routing ────────────────────────────────────
+// Components dispatch these events (bubbles: true, composed: true) when they
+// need the app to take action. We route them here to App functions.
+
+document.addEventListener(APP_EVENT_PROJECT_OPEN, async (e) => {
+	const projectId = e.detail.id;
+	try {
+		Progress.show();
+		const xmlContent = await App.openProject(projectId);
+		if (xmlContent && !blocklyEditor.loadXML(xmlContent)) {
+			console.log('Error loading workspace! Blockly failed to parse?');
+		}
+	} catch (error) {
+		showNotification('error', 'Open Failed', error.message);
+	} finally {
+		Progress.hide();
+	}
+});
+
+document.addEventListener(APP_EVENT_PROJECT_CREATE, (e) => {
+	App.createProject(e.detail.id);
+});
+
+document.addEventListener(APP_EVENT_PROJECT_DELETE, async (e) => {
+	try {
+		Progress.show();
+		await App.deleteProject(e.detail.id);
+	} catch (error) {
+		showNotification('error', 'Delete Failed', error.message);
+	} finally {
+		Progress.hide();
+	}
+});
+
+document.addEventListener(APP_EVENT_AUTOSTART_SET, async (e) => {
+	try {
+		await App.setAutostartProject(e.detail.project);
+	} catch (error) {
+		showNotification('error', 'Autostart Error', error.message);
+	}
+});
+
+document.addEventListener(APP_EVENT_BT_DISCOVER, async () => {
+	try {
+		await App.startBluetoothDiscovery();
+	} catch (error) {
+		showNotification('error', 'Discovery Error', error.message);
+	}
+});
+
+document.addEventListener(APP_EVENT_BT_PAIR, async (e) => {
+	try {
+		await App.requestPairing(e.detail.mac);
+	} catch (error) {
+		showNotification('error', 'Pairing Error', error.message);
+	}
+});
+
+document.addEventListener(APP_EVENT_BT_UNPAIR, async (e) => {
+	try {
+		await App.requestRemovePairing(e.detail.mac);
+	} catch (error) {
+		showNotification('error', 'Unpair Error', error.message);
+	}
+});
+
+// ─── DOMContentLoaded ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
 	blocklyEditor = document.getElementById('blockly');
@@ -923,8 +425,15 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 	luaPreview = document.getElementById('luapreview');
 	uiComponents = document.getElementById('uicomponents');
-	portstatus = document.getElementById("portstatus");
-	btdevicelist = document.getElementById("btdevicelist");
+
+	// Wire up the save function to the autosave module
+	setSaveFunction(saveWorkspace);
+
+	// Subscribe to activeProject state to update the header breadcrumb label
+	subscribe('activeProject', projectId => {
+		const nameEl = document.getElementById('headerProjectName');
+		if (nameEl) nameEl.textContent = projectId || '';
+	});
 
 	// Initialize accordion behavior
 	initSidebarAccordion();
@@ -1002,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 
 	if (mode === 'bt') {
-		window.Application.setInitState();
+		App.setInitState();
 
 		// Check for Web Bluetooth API support
 		if (!navigator.bluetooth) {
@@ -1013,16 +522,22 @@ document.addEventListener('DOMContentLoaded', () => {
 			// Show the Bluetooth unsupported view
 			showBluetoothUnsupportedMessage();
 		} else {
-			document.getElementById("btconnect").addEventListener("click", (ev) => {
-				initBLEConnection();
+			document.getElementById("btconnect").addEventListener("click", () => {
+				const logger = document.getElementById('logger');
+				const uiEl = document.getElementById('uicomponents');
+				const blocklyEl = document.getElementById('blockly');
+				initBLEConnection({ logger, uiComponents: uiEl, blocklyEditor: blocklyEl });
 			});
 		}
 
 	} else {
-		window.Application.jumpToFilesView();
+		// web / dev modes: jump directly to project management
+		Progress.show();
+		App.jumpToFilesView().finally(() => Progress.hide());
 	}
 
 	if (mode == "web") {
+		const logger = document.getElementById('logger');
 		const eventSource = new EventSource('/events');
 
 		eventSource.onerror = (event) => {
@@ -1035,61 +550,66 @@ document.addEventListener('DOMContentLoaded', () => {
 			uiComponents.processUIEvent(JSON.parse(event.data));
 		});
 		eventSource.addEventListener("portstatus", (event) => {
-			portstatus.updateStatus(JSON.parse(event.data));
+			// Update via state so portstatus component re-renders automatically
+			const data = JSON.parse(event.data);
+			setState({ portStatuses: data.ports !== undefined ? data.ports : data });
 		});
 	}
 
 	if (mode == "dev") {
-		// Initialize BT Device List with dummy data
-		btdevicelist.updateDevices({
-			"devices" : [
-				{
-					"mac" : "AA:BB:CC:11:22:33",
-					"name" : "8BitDo M30 gamepad",
-					"type" : 0x09, // GAMEPAD
-					"paired" : true,
-					"rssi" : -45,
-					"cod" : 0x002508
-				},
-				{
-					"mac" : "DD:EE:FF:44:55:66",
-					"name" : "Logitech MX Master 3",
-					"type" : 0x0B, // MOUSE
-					"paired" : false,
-					"rssi" : -67,
-					"cod" : 0x002580
-				},
-				{
-					"mac" : "11:22:33:AA:BB:CC",
-					"name" : "Apple Magic Keyboard",
-					"type" : 0x0A, // KEYBOARD
-					"paired" : true,
-					"rssi" : -52,
-					"cod" : 0x002540
-				},
-				{
-					"mac" : "77:88:99:DD:EE:FF",
-					"name" : "Unknown Device",
-					"type" : 0x00, // UNKNOWN
-					"paired" : false,
-					"rssi" : -78,
-					"cod" : 0x000000
-				},
-				{
-					"mac" : "44:55:66:11:22:33",
-					"name" : "Sony WH-1000XM4",
-					"type" : 0x03, // AUDIO
-					"paired" : true,
-					"rssi" : -58,
-					"cod" : 0x240404
-				}
-			],
-			"count" : 5,
-			"discoveryActive" : true
+		// Initialize BT Device List with dummy data via state
+		setState({
+			deviceList: {
+				"devices" : [
+					{
+						"mac" : "AA:BB:CC:11:22:33",
+						"name" : "8BitDo M30 gamepad",
+						"type" : 0x09, // GAMEPAD
+						"paired" : true,
+						"rssi" : -45,
+						"cod" : 0x002508
+					},
+					{
+						"mac" : "DD:EE:FF:44:55:66",
+						"name" : "Logitech MX Master 3",
+						"type" : 0x0B, // MOUSE
+						"paired" : false,
+						"rssi" : -67,
+						"cod" : 0x002580
+					},
+					{
+						"mac" : "11:22:33:AA:BB:CC",
+						"name" : "Apple Magic Keyboard",
+						"type" : 0x0A, // KEYBOARD
+						"paired" : true,
+						"rssi" : -52,
+						"cod" : 0x002540
+					},
+					{
+						"mac" : "77:88:99:DD:EE:FF",
+						"name" : "Unknown Device",
+						"type" : 0x00, // UNKNOWN
+						"paired" : false,
+						"rssi" : -78,
+						"cod" : 0x000000
+					},
+					{
+						"mac" : "44:55:66:11:22:33",
+						"name" : "Sony WH-1000XM4",
+						"type" : 0x03, // AUDIO
+						"paired" : true,
+						"rssi" : -58,
+						"cod" : 0x240404
+					}
+				],
+				"count" : 5,
+				"discoveryActive" : true
+			}
 		});
 
-		portstatus.updateStatus({
-			"ports" : [
+		// Initialize port status with dummy data via state
+		setState({
+			portStatuses: [
 				{
 					 "id" : 1,
 					 "connected" : false
@@ -1124,7 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	initConfirmDialog();
 
 	document.getElementById("backToProjects").addEventListener("click", () => {
-		window.Application.jumpToFilesView();
+		Progress.show();
+		App.jumpToFilesView().finally(() => Progress.hide());
 	});
 
 	document.getElementById("reset").addEventListener("click", async () => {
@@ -1152,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Manual save button
 	document.getElementById("save").addEventListener("click", async () => {
-		if (window.Application.activeProject) {
+		if (getState('activeProject')) {
 			const btn = document.getElementById("save");
 			btn.disabled = true;
 			btn.classList.add('btn-loading');
@@ -1217,25 +738,16 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Auto-save toggle button
 	const autosaveBtn = document.getElementById("autosave");
 	autosaveBtn.addEventListener("click", () => {
-		autoSaveEnabled = !autoSaveEnabled;
-		autosaveBtn.setAttribute("aria-pressed", autoSaveEnabled ? "true" : "false");
-		autosaveBtn.setAttribute("title", autoSaveEnabled ? "Auto-save (on)" : "Auto-save (off)");
-
-		if (autoSaveEnabled) {
-			// Start auto-save interval
-			autoSaveIntervalId = setInterval(() => {
-				if (window.Application.activeProject) {
-					saveWorkspace();
-				}
-			}, 10000);
-			showNotification('success', 'Auto-save Enabled', 'Workspace will be saved every 10 seconds');
-		} else {
-			// Stop auto-save interval
-			if (autoSaveIntervalId) {
-				clearInterval(autoSaveIntervalId);
-				autoSaveIntervalId = null;
-			}
+		if (isAutosaveEnabled()) {
+			disableAutosave();
+			autosaveBtn.setAttribute("aria-pressed", "false");
+			autosaveBtn.setAttribute("title", "Auto-save (off)");
 			showNotification('info', 'Auto-save Disabled', 'Automatic saving has been turned off');
+		} else {
+			enableAutosave();
+			autosaveBtn.setAttribute("aria-pressed", "true");
+			autosaveBtn.setAttribute("title", "Auto-save (on)");
+			showNotification('success', 'Auto-save Enabled', 'Workspace will be saved every 10 seconds');
 		}
 	});
 });

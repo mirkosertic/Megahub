@@ -1,4 +1,5 @@
 import {colorIO} from './colors.js'
+import {PINS_READWRITE} from './constants.js'
 
 // clang-format off
 export const definition = {
@@ -11,24 +12,7 @@ export const definition = {
 			{
 				"type" : "field_dropdown",
 				"name" : "PIN",
-				"options" : [
-					[ "GPIO13", "GPIO13" ],
-					[ "GPIO16", "GPIO16" ],
-					[ "GPIO17", "GPIO17" ],
-					[ "GPIO25", "GPIO25" ],
-					[ "GPIO26", "GPIO26" ],
-					[ "GPIO27", "GPIO27" ],
-					[ "GPIO32", "GPIO32" ],
-					[ "GPIO33", "GPIO33" ],
-					[ "UART1_GP4", "UART1_GP4" ],
-					[ "UART1_GP5", "UART1_GP5" ],
-					[ "UART1_GP6", "UART1_GP6" ],
-					[ "UART1_GP7", "UART1_GP7" ],
-					[ "UART2_GP4", "UART2_GP4" ],
-					[ "UART2_GP5", "UART2_GP5" ],
-					[ "UART2_GP6", "UART2_GP6" ],
-					[ "UART2_GP7", "UART2_GP7" ]
-				]
+				"options" : PINS_READWRITE
 			},
 			{
 				"type" : "field_dropdown",
