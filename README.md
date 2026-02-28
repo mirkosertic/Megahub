@@ -102,7 +102,7 @@ Default baud rate: **115200**.
 
 ### LEGO Device Ports
 
-Megahub provides **4 LEGO device ports**, numbered **1 to 4**. Each port uses the LEGO Powered Up UART protocol. The physical interface is an SC16IS752 I2C-to-UART bridge that translates between the ESP32 and the LEGO connector. All four ports are available from Blockly.
+Megahub provides **4 LEGO device ports**, numbered **1 to 4**. Each port uses the LEGO Powered Up UART protocol. Two SC16IS752 I2C-to-UART bridge chips translate between the ESP32 and the LEGO connectors: **bridge chip 1** (UART1) drives ports 1 and 2, **bridge chip 2** (UART2) drives ports 3 and 4. Each chip also exposes four additional GPIO pins (GP4–GP7) that can be used for custom sensors or buttons — see `UART1_GP4`–`UART2_GP7` in [LUAAPI.md](LUAAPI.md). All four ports are available from Blockly.
 
 Motor speed range: **-127** (full reverse) to **+127** (full forward). Zero stops the motor.
 

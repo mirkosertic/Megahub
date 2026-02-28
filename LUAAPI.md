@@ -118,20 +118,25 @@ These pins are hardware input-only on the ESP32 (no output buffer). They can onl
 
 ### UART expansion pin constants
 
-GPIO pins exposed via the LEGO WeDo hardware connected to LEGO ports. `UART1_GP*` pins are on the device connected to port 1; `UART2_GP*` pins are on the device connected to port 3.
+The Megahub board uses two SC16IS752 I2C-to-UART bridge chips to interface with the four LEGO ports:
+
+- **UART1** (bridge chip 1) — drives **ports 1 and 2**. Its extra GPIO pins GP4–GP7 are exposed as `UART1_GP4`–`UART1_GP7`.
+- **UART2** (bridge chip 2) — drives **ports 3 and 4**. Its extra GPIO pins GP4–GP7 are exposed as `UART2_GP4`–`UART2_GP7`.
+
+These GPIO pins belong to the bridge chip, not to the LEGO device plugged in. GP0–GP3 on each chip are used internally for the LEGO port hardware; GP4–GP7 are free for user programs.
 
 These pins support `hub.pinMode()`, `hub.digitalRead()`, and `hub.digitalWrite()`, but **not** `fastled.addleds()`.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `UART1_GP4` | `10000` | Port 1 hardware GPIO 4 |
-| `UART1_GP5` | `10001` | Port 1 hardware GPIO 5 |
-| `UART1_GP6` | `10002` | Port 1 hardware GPIO 6 |
-| `UART1_GP7` | `10003` | Port 1 hardware GPIO 7 |
-| `UART2_GP4` | `10004` | Port 3 hardware GPIO 4 |
-| `UART2_GP5` | `10005` | Port 3 hardware GPIO 5 |
-| `UART2_GP6` | `10006` | Port 3 hardware GPIO 6 |
-| `UART2_GP7` | `10007` | Port 3 hardware GPIO 7 |
+| `UART1_GP4` | `10000` | GPIO 4 on bridge chip 1 (serves ports 1 & 2) |
+| `UART1_GP5` | `10001` | GPIO 5 on bridge chip 1 (serves ports 1 & 2) |
+| `UART1_GP6` | `10002` | GPIO 6 on bridge chip 1 (serves ports 1 & 2) |
+| `UART1_GP7` | `10003` | GPIO 7 on bridge chip 1 (serves ports 1 & 2) |
+| `UART2_GP4` | `10004` | GPIO 4 on bridge chip 2 (serves ports 3 & 4) |
+| `UART2_GP5` | `10005` | GPIO 5 on bridge chip 2 (serves ports 3 & 4) |
+| `UART2_GP6` | `10006` | GPIO 6 on bridge chip 2 (serves ports 3 & 4) |
+| `UART2_GP7` | `10007` | GPIO 7 on bridge chip 2 (serves ports 3 & 4) |
 
 ### FastLED strip type
 
