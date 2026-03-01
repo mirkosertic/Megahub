@@ -22,6 +22,7 @@ Programs are generated automatically by the Blockly editor (see [BLOCKS.md](BLOC
 - [Module: `deb` — Debug Utilities](#module-deb--debug-utilities)
 - [Threading Model](#threading-model)
 - [Debugging](#debugging)
+- [Standard Lua 5.4 Libraries](#standard-lua-54-libraries)
 
 ---
 
@@ -834,3 +835,22 @@ The IDE displays a `thread_statistics` event with `min`, `avg`, and `max` iterat
 | Device crashes / reboots | Thread stack too small; try increasing `stackSize` (minimum ~4096 bytes) |
 | Motor doesn't stop after program ends | Not expected — motors always stop on Execute, Stop, or crash |
 | `hub.init()` changes have no effect | `hub.init()` must be called **before** `hub.startthread()` — it runs synchronously |
+
+---
+
+## Standard Lua 5.4 Libraries
+
+All standard Lua 5.4 libraries are loaded automatically at program start. The table below lists each library, its global name, and any caveats relevant to the embedded ESP32 environment. For the full API reference, see the [Lua 5.4 manual](https://www.lua.org/manual/5.4/).
+
+| Library | Global name | Notes |
+|---------|-------------|-------|
+| Base | *(global scope)* | `assert`, `error`, `ipairs`, `pairs`, `pcall`, `print`, `rawget`, `rawset`, `select`, `setmetatable`, `tostring`, `tonumber`, `type`, `xpcall`, `next`, `unpack`, and others. Fully available. **Note:** `print()` on Megahub is overridden to send output to the IDE Logger panel instead of stdout. |
+| String | `string` | Full Lua 5.4 string library. Pattern matching, `string.format`, `string.sub`, `string.find`, `string.gmatch`, `string.gsub`, etc. Fully available. |
+| Math | `math` | Full Lua 5.4 math library. `math.floor`, `math.ceil`, `math.abs`, `math.sin`, `math.cos`, `math.sqrt`, `math.random`, `math.huge`, `math.pi`, etc. Fully available. |
+| Table | `table` | `table.insert`, `table.remove`, `table.sort`, `table.concat`, `table.move`, `table.unpack`. Fully available. |
+| Coroutine | `coroutine` | `coroutine.create`, `coroutine.resume`, `coroutine.yield`, `coroutine.status`, `coroutine.wrap`. Fully available. Used internally by `hub.startthread()`. |
+| UTF-8 | `utf8` | `utf8.char`, `utf8.codepoint`, `utf8.codes`, `utf8.len`, `utf8.offset`. Fully available. |
+| Package | `package` | `require` for loading Lua modules. Useful only if you have Lua module files on the device filesystem. `package.loadlib` (C dynamic loading) is not available on ESP32. |
+| IO | `io` | File I/O functions (`io.open`, `io.lines`, etc.). **Limited on ESP32:** the device filesystem is not accessible to Lua scripts; file operations will fail. Standard streams `io.stdin`, `io.stdout`, and `io.stderr` map to the UART serial console. |
+| OS | `os` | **Partially available.** `os.clock()`, `os.time()`, and `os.difftime()` work normally. `os.execute()`, `os.exit()`, `os.getenv()`, `os.remove()`, `os.rename()`, and `os.tmpname()` are not meaningful on the ESP32 and should not be used. |
+| Debug | `debug` | `debug.traceback()`, `debug.getinfo()`, `debug.sethook()`, and related functions. Useful for advanced debugging. `debug.traceback()` is particularly helpful inside `pcall` error handlers to get a full stack trace. |
