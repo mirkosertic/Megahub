@@ -219,6 +219,36 @@ input[type="text"]::placeholder {
   }
 }
 
+.project-list-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--spacing-md);
+  color: var(--vscode-text-secondary);
+  font-size: 13px;
+}
+
+.project-list-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vscode-bg-input);
+  border-top-color: var(--vscode-accent-blue);
+  border-radius: 50%;
+  animation: list-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes list-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-list-spinner {
+    animation: none;
+    border-color: var(--vscode-accent-blue);
+  }
+}
+
 .project-item {
   display: flex;
   align-items: center;

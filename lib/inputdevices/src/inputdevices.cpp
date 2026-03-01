@@ -4,6 +4,9 @@
 
 InputDevices::InputDevices() {
 	gamepadStatesMutex_ = xSemaphoreCreateMutex();
+	if (!gamepadStatesMutex_) {
+		ERROR("Failed to create gamepad states mutex");
+	}
 }
 
 bool InputDevices::getGamepadState(const char *macAddress, GamepadState &state) {

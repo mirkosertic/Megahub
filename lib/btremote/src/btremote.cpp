@@ -356,6 +356,18 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 	g_btremote_instance = this;
 }
 
+BTRemote::~BTRemote() {
+	if (hidEventTaskHandle_)       { vTaskDelete(hidEventTaskHandle_);       hidEventTaskHandle_ = nullptr; }
+	if (responseSenderTaskHandle_) { vTaskDelete(responseSenderTaskHandle_); responseSenderTaskHandle_ = nullptr; }
+	if (fragmentBuffersMutex_)       { vSemaphoreDelete(fragmentBuffersMutex_);       fragmentBuffersMutex_ = nullptr; }
+	if (responseQueue_)              { vQueueDelete(responseQueue_);                   responseQueue_ = nullptr; }
+	if (indicationConfirmSemaphore_) { vSemaphoreDelete(indicationConfirmSemaphore_);  indicationConfirmSemaphore_ = nullptr; }
+	if (discoveredDevicesMutex_)     { vSemaphoreDelete(discoveredDevicesMutex_);      discoveredDevicesMutex_ = nullptr; }
+	if (hidDevicesMutex_)            { vSemaphoreDelete(hidDevicesMutex_);             hidDevicesMutex_ = nullptr; }
+	if (hidEventQueue_)              { vQueueDelete(hidEventQueue_);                   hidEventQueue_ = nullptr; }
+	if (streamsMutex_)               { vSemaphoreDelete(streamsMutex_);                streamsMutex_ = nullptr; }
+}
+
 void BTRemote::begin(const char *deviceName) {
 	esp_err_t ret;
 

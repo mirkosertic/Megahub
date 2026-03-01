@@ -1095,6 +1095,55 @@ custom-blockly.drag-over {
 }
 
 
+/* ===== Blockly Loading Overlay ===== */
+
+custom-blockly {
+  position: relative;
+}
+
+.blockly-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.blockly-loading-overlay.active {
+  display: flex;
+}
+
+.blockly-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--vscode-input-border, #3c3c3c);
+  border-top-color: var(--vscode-accent-blue, #007acc);
+  border-radius: 50%;
+  animation: blockly-spin 0.8s linear infinite;
+}
+
+@keyframes blockly-spin {
+  to { transform: rotate(360deg); }
+}
+
+.blockly-loading-label {
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground, #858585);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blockly-loading-spinner {
+    animation: none;
+    border-top-color: var(--vscode-accent-blue, #007acc);
+  }
+}
+
+
 /* ===== Top Progress Bar ===== */
 
 .progress-bar {

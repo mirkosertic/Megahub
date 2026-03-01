@@ -6,7 +6,9 @@
 #include "dataset.h"
 #include "format.h"
 
+#include <memory>
 #include <string>
+#include <vector>
 
 class Mode {
 public:
@@ -27,7 +29,7 @@ public:
 	void setUnits(const std::string &units);
 	void setPctMinMax(float min, float max);
 	void setSiMinMax(float min, float max);
-	void setFormat(Format *format);
+	void setFormat(std::unique_ptr<Format> format);
 
 	std::string getName();
 	std::string getUnits();
@@ -49,10 +51,10 @@ private:
 	float pctMax_;
 	float siMin_;
 	float siMax_;
-	Format *format_;
+	std::unique_ptr<Format> format_;
 	bool inputTypes_[5];
 	bool outputTypes_[5];
-	Dataset *datasets_;
+	std::vector<Dataset> datasets_;
 };
 
 #endif // MODE_H

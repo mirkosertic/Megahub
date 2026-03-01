@@ -52,6 +52,15 @@ int fastled_addleds(lua_State *luaState) {
 	int numleds = lua_tointeger(luaState, 3);
 
 	if (type == NEOPIXEL_TYPE) {
+		// Free any existing LED array before re-allocating
+		lua_getfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
+		void **existingUserdata = (void **) lua_touserdata(luaState, -1);
+		lua_pop(luaState, 1);
+		if (existingUserdata && *existingUserdata) {
+			delete[] static_cast<CRGB *>(*existingUserdata);
+			*existingUserdata = nullptr;
+		}
+
 		CRGB *leds = new CRGB[numleds];
 		switch (pin) {
 			case GPIO_NUM_13:

@@ -9,6 +9,7 @@
 #include "portstatus.h"
 
 #include <ArduinoJson.h>
+#include <esp_heap_caps.h>
 #include <esp_mac.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -16,7 +17,7 @@
 #define MEGAHUBREF_NAME		 "MEGAHUBTHISREF"
 #define INPUTDEVICESREF_NAME "MEGAHUBINPUTDEVICESREF"
 
-SemaphoreHandle_t lua_global_mutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t lua_global_mutex = nullptr;
 
 TaskHandle_t statusReporterTaskHandle = NULL;
 
@@ -178,12 +179,14 @@ void status_reporter_task(void *parameters) {
 			deviceSnapshotToJson(snapshot.ports[i], i + 1, ports);
 		}
 
-		String strContent;
-		serializeJson(status, strContent);
+		// Serialize directly to char[] — avoids one heap allocation vs. String target.
+		// Static to avoid stack overflow (task stack is 4096 bytes; buffer is 6144 bytes).
+		static char strContent[6144];
+		serializeJson(status, strContent, sizeof(strContent));
 
-		DEBUG("Port state JSON has length %d and is %s", strContent.length(), strContent.c_str());
+		DEBUG("Port state JSON has length %d and is %s", strlen(strContent), strContent);
 
-		Portstatus::instance()->queue(strContent);
+		Portstatus::instance()->queue(String(strContent));
 
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
@@ -212,7 +215,16 @@ int global_wait(lua_State *luaState) {
 
 	DEBUG("Waiting for %d milliseconds", delay);
 
-	vTaskDelay(pdMS_TO_TICKS(delay));
+	const int SLICE_MS = 10;
+	int remaining = delay;
+	while (remaining > 0) {
+		int slice = (remaining < SLICE_MS) ? remaining : SLICE_MS;
+		// Check for cancellation via task notification
+		if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(slice)) > 0) {
+			break; // Cancelled
+		}
+		remaining -= slice;
+	}
 
 	return 0;
 }
@@ -237,9 +249,32 @@ int global_millis(lua_State *luaState) {
 	return 1;
 }
 
+#ifdef BOARD_HAS_PSRAM
+static void* psram_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize) {
+	(void)ud; (void)osize;
+	if (nsize == 0) {
+		heap_caps_free(ptr);
+		return nullptr;
+	}
+	return heap_caps_realloc(ptr, nsize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
+#endif
+
 lua_State *Megahub::newLuaState() {
 	INFO("Creating new Lua state");
-	lua_State *ls = luaL_newstate();
+	lua_State *ls;
+#ifdef BOARD_HAS_PSRAM
+	if (ESP.getPsramSize() > 0) {
+		ls = lua_newstate(psram_lua_alloc, nullptr);
+		INFO("Lua state using PSRAM allocator (%d bytes PSRAM available)", ESP.getPsramSize());
+	} else {
+		ls = luaL_newstate();
+		INFO("Lua state using default allocator (PSRAM configured but not detected)");
+	}
+#else
+	ls = luaL_newstate();
+	INFO("Lua state using default allocator");
+#endif
 
 	INFO("Opening standard Lua libraries");
 	luaL_openlibs(ls);
@@ -422,11 +457,38 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 	, device4_(device4)
 	, imu_(imu) {
 
+	// Initialize lua_global_mutex (global, created once per application lifetime)
+	lua_global_mutex = xSemaphoreCreateMutex();
+	if (!lua_global_mutex) {
+		ESP_LOGE("Megahub", "Failed to create lua_global_mutex");
+		// Cannot safely proceed without mutex
+		abort();
+	}
+
 	globalLuaState_ = newLuaState();
 
-	reinitializeDevices();
-
 	currentprogramstate_ = nullptr;
+
+	runningThreadsMutex_ = xSemaphoreCreateMutex();
+	if (!runningThreadsMutex_) {
+		ESP_LOGE("Megahub", "Failed to create runningThreadsMutex_");
+		abort();
+	}
+
+	runningThreads_.reserve(4);
+
+	// Cache device UID so we don't re-read the MAC on every call
+	uint8_t chipId[6];
+	esp_read_mac(chipId, ESP_MAC_WIFI_STA);
+	uint32_t serialNumber = 0;
+	for (int i = 0; i < 6; i++) {
+		serialNumber += (chipId[i] << (8 * i));
+	}
+	char serialStr[13];
+	snprintf(serialStr, sizeof(serialStr), "%012X", serialNumber);
+	deviceUid_ = String(serialStr);
+
+	reinitializeDevices();
 
 	// Create the task
 	xTaskCreate(
@@ -439,7 +501,15 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 }
 
 Megahub::~Megahub() {
+	if (statusReporterTaskHandle) {
+		vTaskDelete(statusReporterTaskHandle);
+		statusReporterTaskHandle = nullptr;
+	}
 	lua_close(globalLuaState_);
+	if (runningThreadsMutex_) {
+		vSemaphoreDelete(runningThreadsMutex_);
+		runningThreadsMutex_ = nullptr;
+	}
 }
 
 void Megahub::loop() {
@@ -474,18 +544,7 @@ IMU *Megahub::imu() {
 }
 
 String Megahub::deviceUid() {
-	uint8_t chipId[6];
-	esp_read_mac(chipId, ESP_MAC_WIFI_STA);
-
-	uint32_t serialNumber = 0;
-	for (int i = 0; i < 6; i++) {
-		serialNumber += (chipId[i] << (8 * i));
-	}
-
-	char serialStr[13];
-	snprintf(serialStr, sizeof(serialStr), "%012X", serialNumber);
-
-	return String(serialStr);
+	return deviceUid_;
 }
 
 String Megahub::name() {
@@ -699,25 +758,32 @@ void Megahub::setPinMode(int pin, int mode) {
 }
 
 void Megahub::registerThread(TaskHandle_t handle) {
+	xSemaphoreTake(runningThreadsMutex_, portMAX_DELAY);
 	runningThreads_.push_back(handle);
+	xSemaphoreGive(runningThreadsMutex_);
 }
 
 void Megahub::stopRunningThreads() {
-	for (int i = 0; i < runningThreads_.size(); i++) {
-		TaskHandle_t handle = runningThreads_[i];
-
+	xSemaphoreTake(runningThreadsMutex_, portMAX_DELAY);
+	for (int i = 0; i < (int)runningThreads_.size(); i++) {
 		INFO("Stopping thread #%d", i);
-		xTaskNotify(handle, 1, eSetValueWithOverwrite);
+		xTaskNotify(runningThreads_[i], 1, eSetValueWithOverwrite);
+	}
+	bool hadThreads = !runningThreads_.empty();
+	runningThreads_.clear();
+	xSemaphoreGive(runningThreadsMutex_);
+
+	if (hadThreads) {
 		vTaskDelay(pdMS_TO_TICKS(100));
 	}
-
-	runningThreads_.clear();
 }
 
 void Megahub::stopThread(TaskHandle_t handle) {
 	xTaskNotify(handle, 1, eSetValueWithOverwrite);
 	vTaskDelay(pdMS_TO_TICKS(100));
+	xSemaphoreTake(runningThreadsMutex_, portMAX_DELAY);
 	runningThreads_.erase(std::remove(runningThreads_.begin(), runningThreads_.end(), handle), runningThreads_.end());
+	xSemaphoreGive(runningThreadsMutex_);
 }
 
 void Megahub::reinitializeDevices() {
@@ -730,5 +796,8 @@ void Megahub::reinitializeDevices() {
 
 void Megahub::notifyThreadExitedAbnormally() {
 	INFO("Lua thread exited abnormally, reinitializing LEGO devices");
+	xSemaphoreTake(runningThreadsMutex_, portMAX_DELAY);
+	runningThreads_.clear();
+	xSemaphoreGive(runningThreadsMutex_);
 	reinitializeDevices();
 }

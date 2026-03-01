@@ -5,6 +5,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <memory>
 
 class LoggingOutput {
 public:
@@ -33,9 +34,9 @@ public:
 
 class Logging {
 private:
-	LoggingOutput *output_;
+	std::unique_ptr<LoggingOutput> output_;
 
-	Logging(LoggingOutput *output);
+	Logging(std::unique_ptr<LoggingOutput> output);
 
 public:
 	static Logging *instance();

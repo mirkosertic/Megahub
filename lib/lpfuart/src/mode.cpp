@@ -6,9 +6,7 @@ Mode::Mode()
 	: pctMin_(0.0f)
 	, pctMax_(100.0f)
 	, siMin_(0.0f)
-	, siMax_(1023.0f)
-	, format_(nullptr)
-	, datasets_(nullptr) {
+	, siMax_(1023.0f) {
 	name_ = "";
 	units_ = "";
 	for (int i = 0; i < 5; i++) {
@@ -18,29 +16,16 @@ Mode::Mode()
 }
 
 Mode::~Mode() {
-	if (datasets_ != nullptr) {
-		delete[] datasets_;
-	}
-	if (format_ != nullptr) {
-		delete format_;
-	}
 }
 
 void Mode::reset() {
-
-	if (datasets_ != nullptr) {
-		delete[] datasets_;
-	}
-	if (format_ != nullptr) {
-		delete format_;
-	}
+	format_.reset();
+	datasets_.clear();
 
 	pctMin_ = 0.0f;
 	pctMax_ = 100.0;
 	siMin_ = 0.0f;
 	siMax_ = 1023.0f;
-	format_ = nullptr;
-	datasets_ = nullptr;
 	name_ = "";
 	units_ = "";
 	for (int i = 0; i < 5; i++) {
@@ -75,16 +60,9 @@ void Mode::setSiMinMax(float min, float max) {
 	siMax_ = max;
 }
 
-void Mode::setFormat(Format *format) {
-	if (this->format_ != nullptr) {
-		delete this->format_;
-	}
-	this->format_ = format;
-
-	if (datasets_ != nullptr) {
-		delete[] datasets_;
-	}
-	datasets_ = new Dataset[format->getDatasets()];
+void Mode::setFormat(std::unique_ptr<Format> format) {
+	format_ = std::move(format);
+	datasets_.assign(format_->getDatasets(), Dataset{});
 }
 
 std::string Mode::getName() {
@@ -175,5 +153,5 @@ Dataset *Mode::getDataset(int index) {
 }
 
 Format *Mode::getFormat() {
-	return format_;
+	return format_.get();
 }

@@ -5,6 +5,7 @@
 
 #include <cctype>
 #include <cstring>
+#include <memory>
 
 // ---------------------------------------------------------------------------
 // LUMP protocol constants (kept local — replaces protocolstate.h)
@@ -664,8 +665,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t *payload, int paylo
                 INFO("Mode %d format: datasets=%d, format=%d, figures=%d, decimals=%d",
                      mode, datasets, fmtType, figures, decimals);
 
-                Format *fmt = new Format(datasets, Format::forId(fmtType), figures, decimals);
-                modeObj->setFormat(fmt);
+                modeObj->setFormat(std::make_unique<Format>(datasets, Format::forId(fmtType), figures, decimals));
                 break;
             }
 

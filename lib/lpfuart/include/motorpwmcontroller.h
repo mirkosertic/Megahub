@@ -2,6 +2,7 @@
 #define MOTORPWMCONTROLLER_H
 
 #include <Arduino.h>
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -100,10 +101,10 @@ private:
 			, enabled(false) {}
 	};
 
-	DeviceState devices_[4];     // State for all 4 device slots
-	uint8_t cycleCounter_;       // PWM cycle counter (0-99)
-	TaskHandle_t taskHandle_;    // FreeRTOS task handle
-	bool running_;               // Task running flag
+	DeviceState devices_[4];          // State for all 4 device slots
+	uint8_t cycleCounter_;            // PWM cycle counter (0-99)
+	TaskHandle_t taskHandle_;         // FreeRTOS task handle
+	std::atomic<bool> running_;       // Task running flag (atomic for cross-task access)
 
 	/**
 	 * FreeRTOS task function for PWM generation.

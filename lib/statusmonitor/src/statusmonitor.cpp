@@ -44,6 +44,7 @@ void statusMonitorTask(void *parameter) {
 }
 
 Statusmonitor::Statusmonitor() {
+	taskHandle_ = nullptr;
 	status_ = BOOTING;
 
 	xTaskCreate(
@@ -54,6 +55,13 @@ Statusmonitor::Statusmonitor() {
 		1,
 		&taskHandle_ // Store task handle for cancellation
 	);
+}
+
+Statusmonitor::~Statusmonitor() {
+	if (taskHandle_) {
+		vTaskDelete(taskHandle_);
+		taskHandle_ = nullptr;
+	}
 }
 
 Statusmonitor *Statusmonitor::instance() {

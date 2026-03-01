@@ -2,6 +2,7 @@
 #define STATUSMONITOR_H
 
 #include <Arduino.h>
+#include <atomic>
 
 enum StatusmonitorStatus {
 	BOOTING,
@@ -13,11 +14,12 @@ enum StatusmonitorStatus {
 class Statusmonitor {
 private:
 	Statusmonitor();
-	StatusmonitorStatus status_;
+	std::atomic<StatusmonitorStatus> status_;
 	TaskHandle_t taskHandle_;
 
 public:
 	static Statusmonitor *instance();
+	~Statusmonitor();
 
 	void setStatus(StatusmonitorStatus status);
 	StatusmonitorStatus status();

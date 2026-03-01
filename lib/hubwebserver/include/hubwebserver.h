@@ -7,18 +7,19 @@
 #include <FS.h>
 #include <PsychicHttp.h>
 #include <WiFiUdp.h>
+#include <memory>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
 class HubWebServer {
 private:
-	PsychicHttpServer *server_;
+	std::unique_ptr<PsychicHttpServer> server_;
 	PsychicEventSource eventSource_;
 	SerialLoggingOutput *loggingOutput_;
 	TaskHandle_t logforwarderTaskHandle_;
 	Configuration *configuration_;
 
-	WiFiUDP *udp_;
+	std::unique_ptr<WiFiUDP> udp_;
 	long lastSSDPNotify_;
 	int wsport_;
 	bool started_;

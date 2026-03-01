@@ -25,20 +25,20 @@ void logForwarderTask(void *param) {
 
 HubWebServer::HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration) {
 	configuration_ = configuration;
-	server_ = new PsychicHttpServer();
+	server_ = std::make_unique<PsychicHttpServer>();
 	loggingOutput_ = loggingOutput;
 	lastSSDPNotify_ = millis();
 	wsport_ = wsport;
 	started_ = false;
 	fs_ = fs;
 	hub_ = hub;
-	udp_ = nullptr;
+	logforwarderTaskHandle_ = nullptr;
 }
 
 HubWebServer::~HubWebServer() {
-	delete server_;
-	if (udp_) {
-		delete udp_;
+	if (logforwarderTaskHandle_) {
+		vTaskDelete(logforwarderTaskHandle_);
+		logforwarderTaskHandle_ = nullptr;
 	}
 }
 
@@ -57,7 +57,7 @@ void HubWebServer::announceSSDP() {
 	const IPAddress SSDP_MULTICAST_ADDR(239, 255, 255, 250);
 	const uint16_t SSDP_PORT = 1900;
 
-	udp_ = new WiFiUDP();
+	udp_ = std::make_unique<WiFiUDP>();
 
 	// Join multicast group for SSDP
 	if (udp_->beginMulticast(SSDP_MULTICAST_ADDR, SSDP_PORT)) {

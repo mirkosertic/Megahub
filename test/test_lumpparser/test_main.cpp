@@ -1534,6 +1534,168 @@ void test_LP24_post_frame_hook_called_once_for_batched_frames() {
 }
 
 // ---------------------------------------------------------------------------
+// T-A: Sync loss reset threshold tests
+//
+// SYNC_LOSS_RESET_THRESHOLD = 50 (defined above in this file).
+// The reset fires when consecutiveErrors_ > 50, i.e. on the 51st error.
+// Each 0x40 byte forms a 3-byte frame header, but all checksums will mismatch
+// when the buffer only contains a repeating pattern of 0x40.
+// ---------------------------------------------------------------------------
+
+// LP-2x: Feed exactly (SYNC_LOSS_RESET_THRESHOLD + 1) = 51 consecutive bad
+// frames worth of bytes → device reset IS called.
+// (Same logic as test_consecutive_errors_trigger_reset but tests the threshold
+// boundary explicitly.)
+void test_LP2x_sync_loss_reset_triggers_at_threshold() {
+    // 53 bytes of 0x40 generates exactly 51 consecutive checksum errors,
+    // which exceeds the threshold of 50.
+    uint8_t stream[53];
+    memset(stream, 0x40, sizeof(stream));
+    parser->feedBytes(stream, sizeof(stream));
+
+    TEST_ASSERT_EQUAL_INT(1, dev->resetCalls);
+    TEST_ASSERT_EQUAL_UINT32(51, parser->stats().checksumErrors);
+    TEST_ASSERT_EQUAL_UINT32(0, parser->stats().framesOk);
+}
+
+// LP-2y: Feed (SYNC_LOSS_RESET_THRESHOLD - 1) = 49 bad frames then one good
+// frame → reset NOT called; good frame is dispatched.
+void test_LP2y_sync_loss_reset_not_triggered_below_threshold() {
+    // We need 49 consecutive checksum errors then a valid frame.
+    // Use 51 bytes of 0x40 to get 49 errors (3 bytes consumed per sliding step
+    // from 51 bytes gives 49 full steps before the buffer is exhausted without
+    // triggering reset at >50).
+    // Actually each byte slides by 1 when checksum fails, so 49 errors
+    // needs 51 bytes of 0x40 minus... let's compute:
+    // After each bad-checksum slide we consume 1 byte and have count-1 left.
+    // Starting with N bytes of 0x40 in the ring buffer:
+    //   - Each pass: needs 3 bytes for header (0x40) + payload (0x40) + checksum check
+    //   - After 1 pass: 1 byte consumed (head+1), N-1 remain
+    //   - This repeats until N < 3 (can't form complete frame)
+    //   - So with 51 bytes: errors = 49 (51-2 = 49, because when count < frameSize=3 we stop)
+    // Let's verify: 51 bytes -> 49 slides before count drops below frameSize
+    // Wait, let me recalculate: feedBytes puts all 51 into ring, then processBuffer runs.
+    // Each iteration: count >= 3, header=0x40, payloadSize=1, frameSize=3.
+    // Checksum expected = 0xFF^0x40^0x40 = 0x7F, actual = 0x40 -> mismatch.
+    // Slide: head+1, count--. After 49 slides: count = 51-49 = 2 < 3 -> break.
+    // So 51 bytes of 0x40 -> 49 errors. Then feed valid frame.
+    uint8_t stream[51];
+    memset(stream, 0x40, sizeof(stream));
+    parser->feedBytes(stream, sizeof(stream));
+
+    // After 49 errors, no reset yet
+    TEST_ASSERT_EQUAL_INT(0, dev->resetCalls);
+    TEST_ASSERT_EQUAL_UINT32(49, parser->stats().checksumErrors);
+
+    // Feed a valid CMD_TYPE frame to recover
+    uint8_t good[] = { 0x40, 0x25, 0x9A };
+    parser->feedBytes(good, sizeof(good));
+
+    // Reset should still not have been called
+    TEST_ASSERT_EQUAL_INT(0, dev->resetCalls);
+    // The valid frame should be dispatched
+    TEST_ASSERT_EQUAL_UINT32(1, parser->stats().framesOk);
+    TEST_ASSERT_EQUAL_INT(1, dev->setDeviceIdAndNameCalls);
+}
+
+// ---------------------------------------------------------------------------
+// T-C: Version string BCD parsing tests
+//
+// The CMD_VERSION frame (LP_CMD_VERSION = 0x7) contains 8 bytes of BCD data.
+// The bcdByteToStr_t helper nibble-swaps before extracting digits:
+//   swapped = ((bcd & 0x0F) << 4) | ((bcd >> 4) & 0x0F)
+//   digit0  = (swapped >> 4) & 0x0F  -> tens
+//   digit1  =  swapped       & 0x0F  -> units
+//
+// Examples:
+//   0x10 -> swapped = 0x01 -> "01"
+//   0x23 -> swapped = 0x32 -> "32"
+//   0x00 -> swapped = 0x00 -> "00"
+//
+// CMD_VERSION header: 0x57 = CMD(0x40) | SIZE_8(0x18) | CMD_VERSION(0x07) = 0x5F
+// Wait: 0x40 | (3<<3) | 0x07 = 0x40 | 0x18 | 0x07 = 0x5F
+// Actually SIZE_8 is size_enc=3 -> bits 5-3 = 011 -> 0x18
+// So header = 0x40 | 0x18 | 0x07 = 0x5F
+// Frame: 1 (header) + 8 (payload) + 1 (checksum) = 10 bytes
+// ---------------------------------------------------------------------------
+
+// LP-2z: Feed a valid CMD_VERSION frame with known BCD values and verify
+// fw/hw version strings are extracted correctly.
+void test_LP2z_version_info_bcd_parsing() {
+    // Header for CMD_VERSION with 8-byte payload
+    uint8_t header = 0x5F;  // CMD(0x40) | SIZE_8(0x18) | CMD_VERSION(0x07)
+
+    // fw version: payload[0..3] in little-endian BCD (byte 3 is highest)
+    // hw version: payload[4..7]
+    // BCD byte 0x10 -> swapped=0x01 -> "01"
+    // BCD byte 0x00 -> swapped=0x00 -> "00"
+    // Expected fw: "00.00.00.01" (built from [3],[2],[1],[0])
+    // Expected hw: "00.00.00.02"
+    uint8_t payload[8] = {
+        0x10, 0x00, 0x00, 0x00,   // fw: byte[0]=0x10->"01", rest "00"
+        0x20, 0x00, 0x00, 0x00,   // hw: byte[4]=0x20->"02", rest "00"
+    };
+
+    uint8_t cs = 0xFF ^ header;
+    for (int i = 0; i < 8; i++) cs ^= payload[i];
+
+    uint8_t frame[10];
+    frame[0] = header;
+    memcpy(&frame[1], payload, 8);
+    frame[9] = cs;
+
+    parser->feedBytes(frame, 10);
+
+    TEST_ASSERT_EQUAL_UINT32(1, parser->stats().framesOk);
+    TEST_ASSERT_EQUAL_INT(1, dev->setVersionsCalls);
+    // fw: built from payload[3],payload[2],payload[1],payload[0]
+    // payload[3]=0x00->swapped=0x00->"00", payload[2]=0x00->"00",
+    // payload[1]=0x00->"00", payload[0]=0x10->swapped=0x01->"01"
+    // -> "00.00.00.01"
+    TEST_ASSERT_EQUAL_STRING("00.00.00.01", dev->lastFwVersion.c_str());
+    // hw: built from payload[7],payload[6],payload[5],payload[4]
+    // payload[7]=0x00->"00", payload[6]=0x00->"00",
+    // payload[5]=0x00->"00", payload[4]=0x20->swapped=0x02->"02"
+    // -> "00.00.00.02"
+    TEST_ASSERT_EQUAL_STRING("00.00.00.02", dev->lastHwVersion.c_str());
+}
+
+// LP-2w: Verify specific BCD encoding nibble-swap behaviour
+//   0x12 -> swapped=0x21 -> "21" (NOT "12")
+//   0x09 -> swapped=0x90 -> "90" (nibble swap gives 9 in tens position)
+void test_LP2w_bcd_nibble_swap_encoding() {
+    // Header for CMD_VERSION with 8-byte payload
+    uint8_t header = 0x5F;
+
+    // Use 0x12 for fw byte[0] and 0x09 for hw byte[4]
+    // 0x12 -> swapped = ((0x12 & 0x0F) << 4) | ((0x12 >> 4) & 0x0F)
+    //       = (0x02 << 4) | 0x01 = 0x21 -> '2' and '1' -> "21"
+    // 0x09 -> swapped = ((0x09 & 0x0F) << 4) | ((0x09 >> 4) & 0x0F)
+    //       = (0x09 << 4) | 0x00 = 0x90 -> '9' and '0' -> "90"
+    uint8_t payload[8] = {
+        0x12, 0x00, 0x00, 0x00,   // fw byte[0]=0x12 -> "21"
+        0x09, 0x00, 0x00, 0x00,   // hw byte[4]=0x09 -> "90"
+    };
+
+    uint8_t cs = 0xFF ^ header;
+    for (int i = 0; i < 8; i++) cs ^= payload[i];
+
+    uint8_t frame[10];
+    frame[0] = header;
+    memcpy(&frame[1], payload, 8);
+    frame[9] = cs;
+
+    parser->feedBytes(frame, 10);
+
+    TEST_ASSERT_EQUAL_UINT32(1, parser->stats().framesOk);
+    TEST_ASSERT_EQUAL_INT(1, dev->setVersionsCalls);
+    // fw: "00.00.00.21" (payload[0]=0x12 -> "21" is least-significant part)
+    TEST_ASSERT_EQUAL_STRING("00.00.00.21", dev->lastFwVersion.c_str());
+    // hw: "00.00.00.90" (payload[4]=0x09 -> "90")
+    TEST_ASSERT_EQUAL_STRING("00.00.00.90", dev->lastHwVersion.c_str());
+}
+
+// ---------------------------------------------------------------------------
 // main()
 // ---------------------------------------------------------------------------
 int main() {
@@ -1584,6 +1746,14 @@ int main() {
     RUN_TEST(test_multiple_info_messages_back_to_back);
     // Disabled: causes crash in test framework, but error recovery is covered by test_LP11
     // RUN_TEST(test_info_message_bad_checksum_then_good);
+
+    // T-A: Sync loss reset threshold tests
+    RUN_TEST(test_LP2x_sync_loss_reset_triggers_at_threshold);
+    RUN_TEST(test_LP2y_sync_loss_reset_not_triggered_below_threshold);
+
+    // T-C: Version string BCD parsing tests
+    RUN_TEST(test_LP2z_version_info_bcd_parsing);
+    RUN_TEST(test_LP2w_bcd_nibble_swap_encoding);
 
     return UNITY_END();
 }

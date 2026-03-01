@@ -2,7 +2,7 @@
 
 #include "logging.h"
 
-#define STATUS_MESSAGE_SIZE 4096
+#define STATUS_MESSAGE_SIZE 6144
 #define STATUS_QUEUE_LENGTH 2
 
 Portstatus::Portstatus() {
@@ -15,14 +15,18 @@ Portstatus::Portstatus() {
 }
 
 void Portstatus::queue(String command) {
-	const char *buffer = command.c_str();
-
-	if (buffer == nullptr) {
-		WARN("Portstatus is NULL!");
+	if (command.length() == 0) {
+		WARN("Portstatus: empty message, dropping");
 		return;
 	}
-
-	if (xQueueSend(statusQueue_, buffer, 0) != pdTRUE) {
+	static char buf[STATUS_MESSAGE_SIZE];
+	size_t len = command.length();
+	if (len >= STATUS_MESSAGE_SIZE) {
+		len = STATUS_MESSAGE_SIZE - 1;
+	}
+	memcpy(buf, command.c_str(), len);
+	memset(buf + len, 0, STATUS_MESSAGE_SIZE - len);
+	if (xQueueSend(statusQueue_, buf, 0) != pdTRUE) {
 		// Queue full, message dropped
 	}
 }

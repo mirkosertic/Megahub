@@ -393,6 +393,20 @@ class BlocklyHTMLElement extends HTMLElement {
 			},
 			trashcan : true
 		});
+
+		// Loading overlay — shown while a project file is being fetched
+		this._loadingOverlay = document.createElement('div');
+		this._loadingOverlay.className = 'blockly-loading-overlay';
+		this._loadingOverlay.innerHTML =
+			'<div class="blockly-loading-spinner"></div>' +
+			'<span class="blockly-loading-label">Loading project\u2026</span>';
+		this.appendChild(this._loadingOverlay);
+	};
+
+	setLoading(visible) {
+		if (this._loadingOverlay) {
+			this._loadingOverlay.classList.toggle('active', visible);
+		}
 	};
 
 	addChangeListener(listener) {

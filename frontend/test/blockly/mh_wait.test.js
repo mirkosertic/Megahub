@@ -4,7 +4,7 @@
  * The generator is a pure function: (block, generatorHelper) => Lua code string.
  * We mock only the minimal Blockly API surface it uses, so no Blockly import needed.
  */
-import { definition } from './mh_wait.js';
+import { definition } from '../../src/components/blockly/mh_wait.js';
 
 /**
  * Create a minimal mock Blockly block with the given field values.

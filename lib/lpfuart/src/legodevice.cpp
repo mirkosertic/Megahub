@@ -22,10 +22,6 @@ LegoDevice::LegoDevice(SerialIO *serialIO, uint8_t deviceIndex)
 	, deviceIndex_(deviceIndex)
 	, pwmController_(nullptr) {
 
-	modes_ = new Mode *[16];
-	for (int i = 0; i < 16; i++) {
-		modes_[i] = new Mode();
-	}
 }
 
 void LegoDevice::reset() {
@@ -48,7 +44,7 @@ void LegoDevice::reset() {
 	parser_.reset();
 
 	for (int i = 0; i < 16; i++) {
-		modes_[i]->reset();
+		modes_[i].reset();
 	}
 
 	serialSpeed_ = 2400;
@@ -62,12 +58,6 @@ void LegoDevice::reset() {
 }
 
 LegoDevice::~LegoDevice() {
-	if (modes_ != nullptr) {
-		for (int i = 0; i < 16; i++) {
-			delete modes_[i];
-		}
-		delete[] modes_;
-	}
 }
 
 bool LegoDevice::fullyInitialized() {
@@ -122,7 +112,7 @@ Mode *LegoDevice::getMode(int index) {
 	if (index < 0 || index >= 16) {
 		return nullptr;
 	}
-	return modes_[index];
+	return &modes_[index];
 }
 
 void LegoDevice::finishHandshake() {

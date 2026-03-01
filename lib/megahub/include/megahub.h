@@ -115,6 +115,8 @@ private:
 	lua_State *newLuaState();
 
 	std::vector<TaskHandle_t> runningThreads_;
+	SemaphoreHandle_t runningThreadsMutex_{nullptr};
+	String deviceUid_;
 };
 
 #endif // MEGAHUB_H

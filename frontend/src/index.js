@@ -358,6 +358,7 @@ document.addEventListener(APP_EVENT_PROJECT_OPEN, async (e) => {
 	const projectId = e.detail.id;
 	try {
 		Progress.show();
+		blocklyEditor.setLoading(true);
 		const xmlContent = await App.openProject(projectId);
 		if (xmlContent && !blocklyEditor.loadXML(xmlContent)) {
 			console.log('Error loading workspace! Blockly failed to parse?');
@@ -365,6 +366,7 @@ document.addEventListener(APP_EVENT_PROJECT_OPEN, async (e) => {
 	} catch (error) {
 		showNotification('error', 'Open Failed', error.message);
 	} finally {
+		blocklyEditor.setLoading(false);
 		Progress.hide();
 	}
 });

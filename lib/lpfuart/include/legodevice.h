@@ -7,6 +7,7 @@
 #include "mode.h"
 #include "serialio.h"
 
+#include <array>
 #include <memory>
 #include <string>
 
@@ -94,7 +95,7 @@ private:
 	void logParserStats();
 
 	long serialSpeed_;
-	Mode **modes_;
+	std::array<Mode, 16> modes_;
 	int numModes_;
 	std::string name_;
 	int deviceId_;

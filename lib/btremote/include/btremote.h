@@ -277,6 +277,7 @@ private:
 
 public:
 	BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
+	~BTRemote();
 
 	void begin(const char *deviceName);
 

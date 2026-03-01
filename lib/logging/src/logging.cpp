@@ -18,6 +18,7 @@ SerialLoggingOutput::SerialLoggingOutput(Print *serial) {
 }
 
 SerialLoggingOutput::~SerialLoggingOutput() {
+	vQueueDelete(logQueue_);
 }
 
 void SerialLoggingOutput::log(const char *msg, va_list args) {
@@ -41,12 +42,12 @@ String SerialLoggingOutput::waitForLogMessage(TickType_t ticksToWait) {
 }
 
 Logging *Logging::instance() {
-	static Logging instance(new NoopLoggingOutput());
+	static Logging instance(std::make_unique<NoopLoggingOutput>());
 	return &instance;
 }
 
-Logging::Logging(LoggingOutput *output) {
-	output_ = output;
+Logging::Logging(std::unique_ptr<LoggingOutput> output) {
+	output_ = std::move(output);
 }
 
 void Logging::genericLog(const char *msg, ...) {
@@ -57,8 +58,5 @@ void Logging::genericLog(const char *msg, ...) {
 }
 
 void Logging::routeLoggingTo(LoggingOutput *output) {
-	if (output_ != nullptr) {
-		delete this->output_;
-	}
-	output_ = output;
+	output_.reset(output);
 }
