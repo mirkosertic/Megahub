@@ -1,20 +1,17 @@
 #include "motorpwmcontroller.h"
+
+#include "i2csync.h"
 #include "legodevice.h"
 #include "logging.h"
-#include "i2csync.h"
 
 // PWM configuration constants
-static const uint32_t PWM_FREQUENCY_HZ = 200;           // 200 Hz PWM frequency
-static const uint32_t PWM_PERIOD_MS = 1000 / PWM_FREQUENCY_HZ;  // 5 ms
-static const uint8_t PWM_RESOLUTION_STEPS = 100;        // 100 steps (1% resolution)
-static const uint32_t TASK_STACK_SIZE = 2048;           // 2KB stack for PWM task
-static const UBaseType_t TASK_PRIORITY = 2;             // Lower than comms, higher than idle
+static const uint32_t PWM_FREQUENCY_HZ = 200;                  // 200 Hz PWM frequency
+static const uint32_t PWM_PERIOD_MS = 1000 / PWM_FREQUENCY_HZ; // 5 ms
+static const uint8_t PWM_RESOLUTION_STEPS = 100;               // 100 steps (1% resolution)
+static const uint32_t TASK_STACK_SIZE = 2048;                  // 2KB stack for PWM task
+static const UBaseType_t TASK_PRIORITY = 2;                    // Lower than comms, higher than idle
 
-MotorPWMController::MotorPWMController()
-	: cycleCounter_(0)
-	, taskHandle_(nullptr)
-	, running_(false) {
-}
+MotorPWMController::MotorPWMController() : cycleCounter_(0), taskHandle_(nullptr), running_(false) {}
 
 MotorPWMController::~MotorPWMController() {
 	stop();
@@ -29,14 +26,7 @@ void MotorPWMController::start() {
 	INFO("Starting motor PWM controller at %lu Hz", PWM_FREQUENCY_HZ);
 
 	// Create FreeRTOS task
-	BaseType_t result = xTaskCreate(
-		pwmTask,
-		"MotorPWM",
-		TASK_STACK_SIZE,
-		this,
-		TASK_PRIORITY,
-		&taskHandle_
-	);
+	BaseType_t result = xTaskCreate(pwmTask, "MotorPWM", TASK_STACK_SIZE, this, TASK_PRIORITY, &taskHandle_);
 
 	if (result != pdPASS) {
 		ERROR("Failed to create PWM task");
@@ -123,8 +113,12 @@ void MotorPWMController::setSpeed(uint8_t deviceIndex, int8_t speed) {
 	}
 
 	// Clamp speed to valid range
-	if (speed < -127) speed = -127;
-	if (speed > 127) speed = 127;
+	if (speed < -127) {
+		speed = -127;
+	}
+	if (speed > 127) {
+		speed = 127;
+	}
 
 	devices_[deviceIndex].targetSpeed = speed;
 }

@@ -183,7 +183,10 @@ export async function syntaxCheck(luaCode) {
     if (mode === 'dev') {
         return { success: true, parseTime: 0 };
     } else if (mode === 'bt') {
-        const response = await bleClient.sendRequest(APP_REQUEST_TYPE_SYNTAX_CHECK, JSON.stringify({ luaScript: luaCode }));
+        const response = await bleClient.sendRequest(
+            APP_REQUEST_TYPE_SYNTAX_CHECK,
+            JSON.stringify({ luaScript: luaCode })
+        );
         return JSON.parse(new TextDecoder().decode(response));
     } else if (mode === 'web') {
         const response = await fetch('/syntaxcheck', {
@@ -205,7 +208,10 @@ export async function executeCode(luaCode) {
     if (mode === 'dev') {
         return true;
     } else if (mode === 'bt') {
-        const response = await bleClient.sendRequest(APP_REQUEST_TYPE_RUN_PROGRAM, JSON.stringify({ luaScript: luaCode }));
+        const response = await bleClient.sendRequest(
+            APP_REQUEST_TYPE_RUN_PROGRAM,
+            JSON.stringify({ luaScript: luaCode })
+        );
         return JSON.parse(new TextDecoder().decode(response)).result;
     } else if (mode === 'web') {
         await fetch('/execute', {

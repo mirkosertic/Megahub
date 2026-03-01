@@ -4,9 +4,9 @@
 
 #define FASTLEDREF_NAME "FASTLEDREF"
 
-extern Megahub *getMegaHubRef(lua_State *L);
+extern Megahub* getMegaHubRef(lua_State* L);
 
-int fastled_show(lua_State *luaState) {
+int fastled_show(lua_State* luaState) {
 	DEBUG("FastLED show");
 
 	FastLED.show();
@@ -14,7 +14,7 @@ int fastled_show(lua_State *luaState) {
 	return 0;
 }
 
-int fastled_clear(lua_State *luaState) {
+int fastled_clear(lua_State* luaState) {
 	DEBUG("FastLED clear");
 
 	FastLED.clear();
@@ -22,7 +22,7 @@ int fastled_clear(lua_State *luaState) {
 	return 0;
 }
 
-int fastled_set(lua_State *luaState) {
+int fastled_set(lua_State* luaState) {
 	DEBUG("FastLED set");
 
 	int index = lua_tointeger(luaState, 1);
@@ -31,10 +31,10 @@ int fastled_set(lua_State *luaState) {
 	int b = lua_tointeger(luaState, 4);
 
 	lua_getfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
-	void **userdata = (void **) lua_touserdata(luaState, -1);
+	void** userdata = (void**) lua_touserdata(luaState, -1);
 	lua_pop(luaState, 1);
 
-	CRGB *leds = (CRGB *) (userdata ? *userdata : nullptr);
+	CRGB* leds = (CRGB*) (userdata ? *userdata : nullptr);
 	if (leds != nullptr) {
 		leds[index] = CRGB(r, g, b);
 	} else {
@@ -44,7 +44,7 @@ int fastled_set(lua_State *luaState) {
 	return 0;
 }
 
-int fastled_addleds(lua_State *luaState) {
+int fastled_addleds(lua_State* luaState) {
 	DEBUG("FastLED addleds");
 
 	int type = lua_tointeger(luaState, 1);
@@ -54,14 +54,14 @@ int fastled_addleds(lua_State *luaState) {
 	if (type == NEOPIXEL_TYPE) {
 		// Free any existing LED array before re-allocating
 		lua_getfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
-		void **existingUserdata = (void **) lua_touserdata(luaState, -1);
+		void** existingUserdata = (void**) lua_touserdata(luaState, -1);
 		lua_pop(luaState, 1);
 		if (existingUserdata && *existingUserdata) {
-			delete[] static_cast<CRGB *>(*existingUserdata);
+			delete[] static_cast<CRGB*>(*existingUserdata);
 			*existingUserdata = nullptr;
 		}
 
-		CRGB *leds = new CRGB[numleds];
+		CRGB* leds = new CRGB[numleds];
 		switch (pin) {
 			case GPIO_NUM_13:
 				FastLED.addLeds<NEOPIXEL, GPIO_NUM_13>(leds, numleds);
@@ -93,7 +93,7 @@ int fastled_addleds(lua_State *luaState) {
 				return 0;
 		}
 
-		void **userdata = (void **) lua_newuserdata(luaState, sizeof(void *));
+		void** userdata = (void**) lua_newuserdata(luaState, sizeof(void*));
 		*userdata = leds;
 		lua_setfield(luaState, LUA_REGISTRYINDEX, FASTLEDREF_NAME);
 
@@ -105,14 +105,14 @@ int fastled_addleds(lua_State *luaState) {
 	return 0;
 }
 
-int fastled_library(lua_State *luaState) {
+int fastled_library(lua_State* luaState) {
 	const luaL_Reg hubfunctions[] = {
-		{	 "show",	 fastled_show},
-		{	 "clear",	  fastled_clear},
-		{"addleds", fastled_addleds},
-		{	 "set",		fastled_set},
-		{	 NULL,			   NULL}
-	};
+	    {   "show",    fastled_show},
+	    {  "clear",   fastled_clear},
+	    {"addleds", fastled_addleds},
+	    {    "set",     fastled_set},
+	    {     NULL,            NULL}
+    };
 	luaL_newlib(luaState, hubfunctions);
 	return 1;
 }

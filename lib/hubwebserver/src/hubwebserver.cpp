@@ -14,8 +14,8 @@
 // #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "public, max-age=300, must-revalidate"
 #define CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS "no-cache, no-store, must-revalidate"
 
-void logForwarderTask(void *param) {
-	HubWebServer *server = (HubWebServer *) param;
+void logForwarderTask(void* param) {
+	HubWebServer* server = (HubWebServer*) param;
 	while (true) {
 		server->publishLogMessages();
 		server->publishCommands();
@@ -23,7 +23,8 @@ void logForwarderTask(void *param) {
 	}
 }
 
-HubWebServer::HubWebServer(int wsport, FS *fs, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration) {
+HubWebServer::HubWebServer(int wsport, FS* fs, Megahub* hub, SerialLoggingOutput* loggingOutput,
+                           Configuration* configuration) {
 	configuration_ = configuration;
 	server_ = std::make_unique<PsychicHttpServer>();
 	loggingOutput_ = loggingOutput;
@@ -102,369 +103,372 @@ void HubWebServer::start() {
 	server_->setPort(80);
 	server_->start();
 
-	server_->on("/", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - Rendering / page");
 
-		  INFO("webserver() - Rendering / page");
+		// Chunked response to optimize RAM usage
+		size_t content_length = index_html_gz_len;
 
-		  // Chunked response to optimize RAM usage
-		  size_t content_length = index_html_gz_len;
+		DEBUG("webserver() - Size of response is %d", content_length);
+		PsychicStreamResponse response(resp, "text/html");
 
-		  DEBUG("webserver() - Size of response is %d", content_length);
-		  PsychicStreamResponse response(resp, "text/html");
+		response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
+		response.addHeader("Content-Encoding", "gzip");
+		response.setContentLength(content_length);
 
-		  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
-		  response.addHeader("Content-Encoding", "gzip");
-		  response.setContentLength(content_length);
+		response.beginSend();
+		response.write(index_html_gz, index_html_gz_len);
+		return response.endSend();
+	});
 
-		  response.beginSend();
-		  response.write(index_html_gz, index_html_gz_len);
-		  return response.endSend(); });
+	server_->on("/index.js", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - Rendering /index.js resource");
 
-	server_->on("/index.js", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+		// Chunked response to optimize RAM usage
+		size_t content_length = index_js_gz_len;
 
-		  INFO("webserver() - Rendering /index.js resource");
+		DEBUG("webserver() - Size of response is %d", content_length);
+		PsychicStreamResponse response(resp, "text/javascript");
 
-		  // Chunked response to optimize RAM usage
-		  size_t content_length = index_js_gz_len;
+		response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
+		response.addHeader("Content-Encoding", "gzip");
+		response.setContentLength(content_length);
 
-		  DEBUG("webserver() - Size of response is %d", content_length);
-		  PsychicStreamResponse response(resp, "text/javascript");
+		response.beginSend();
+		response.write(index_js_gz, index_js_gz_len);
+		return response.endSend();
+	});
 
-		  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
-		  response.addHeader("Content-Encoding", "gzip");
-		  response.setContentLength(content_length);
+	server_->on("/style.css", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - Rendering /style.css resource");
 
-		  response.beginSend();
-		  response.write(index_js_gz, index_js_gz_len);
-		  return response.endSend(); });
+		// Chunked response to optimize RAM usage
+		size_t content_length = style_css_gz_len;
 
-	server_->on("/style.css", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+		DEBUG("webserver() - Size of response is %d", content_length);
+		PsychicStreamResponse response(resp, "text/css");
 
-		  INFO("webserver() - Rendering /style.css resource");
+		response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
+		response.addHeader("Content-Encoding", "gzip");
+		response.setContentLength(content_length);
 
-		  // Chunked response to optimize RAM usage
-		  size_t content_length = style_css_gz_len;
+		response.beginSend();
+		response.write(style_css_gz, style_css_gz_len);
+		return response.endSend();
+	});
 
-		  DEBUG("webserver() - Size of response is %d", content_length);
-		  PsychicStreamResponse response(resp, "text/css");
+	server_->on("/stop", HTTP_PUT, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /stop received");
 
-		  response.addHeader("Cache-Control", CACHE_CONTROL_HEADER_VALUE_FOR_STATIC_ASSETS);
-		  response.addHeader("Content-Encoding", "gzip");
-		  response.setContentLength(content_length);
+		PsychicStreamResponse response(resp, "application/json");
 
-		  response.beginSend();
-		  response.write(style_css_gz, style_css_gz_len);
-		  return response.endSend(); });
+		JsonDocument root;
+		root["success"] = hub_->stopLUACode();
 
-	server_->on("/stop", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp) {
+		String strContent;
+		serializeJson(root, strContent);
 
-			INFO("webserver() - /stop received");
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 
-			PsychicStreamResponse response(resp, "application/json");
+	server_->on("/description.xml", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /description.xml received");
 
-			JsonDocument root;
-			root["success"] = hub_->stopLUACode();
+		String data = this->getSSDPDescription();
 
-			String strContent;
-			serializeJson(root, strContent);
+		PsychicStreamResponse response(resp, "application/xml");
+		// This must not be cached by clients!
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.setContentLength(data.length());
 
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		response.beginSend();
+		response.print(data);
+		return response.endSend();
+	});
 
-	server_->on("/description.xml", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
-						INFO("webserver() - /description.xml received");
+	PsychicUploadHandler* projectPutHandler = new PsychicUploadHandler();
+	projectPutHandler->onUpload([this](PsychicRequest* request, const String& filename, uint64_t position,
+	                                   uint8_t* data, size_t length, bool final) {
+		INFO("webserver() - got data chunk with position %llu and length %u", position, length);
 
-						String data = this->getSSDPDescription();
+		String uri = request->uri().substring(9);
+		int p = uri.indexOf('/');
+		String projectId = this->urlDecode(uri.substring(0, p));
+		String fname = uri.substring(p + 1);
 
-						PsychicStreamResponse response(resp, "application/xml");
-						// This must not be cached by clients!
-						response.addHeader("Cache-Control", "no-cache, must-revalidate");
-						response.setContentLength(data.length());
+		if (!configuration_->writeFileChunkToProject(projectId, fname, position, data, length)) {
+			return ESP_FAIL;
+		}
 
-						response.beginSend();
-						response.print(data);
-						return response.endSend(); });
+		return ESP_OK;
+	});
 
-	PsychicUploadHandler *projectPutHandler = new PsychicUploadHandler();
-	projectPutHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	projectPutHandler->onRequest([this](PsychicRequest* request, PsychicResponse* resp) {
+		PsychicStreamResponse response(resp, "application/xml");
 
-			INFO("webserver() - got data chunk with position %llu and length %u", position, length);
+		String uri = request->uri().substring(9);
+		int p = uri.indexOf('/');
+		String projectId = this->urlDecode(uri.substring(0, p));
+		String fname = uri.substring(p + 1);
 
-			String uri = request->uri().substring(9);
-			int p = uri.indexOf('/');
-			String projectId = this->urlDecode(uri.substring(0, p));
-			String fname = uri.substring(p + 1);
+		INFO("webserver() - /project/%s/%s PUT received", projectId.c_str(), fname.c_str());
 
-			if (!configuration_->writeFileChunkToProject(projectId, fname, position, data, length)) {
-				return ESP_FAIL;
-			}
+		response.setCode(201);
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.setContentLength(0);
 
-			return ESP_OK; });
-
-	projectPutHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
-			PsychicStreamResponse response(resp, "application/xml");
-
-			String uri = request->uri().substring(9);
-			int p = uri.indexOf('/');
-			String projectId = this->urlDecode(uri.substring(0, p));
-			String fname = uri.substring(p + 1);
-
-			INFO("webserver() - /project/%s/%s PUT received", projectId.c_str(), fname.c_str());
-
-			response.setCode(201);
-			response.addHeader("Cache-Control","no-cache, must-revalidate");
-			response.setContentLength(0);
-
-			return response.send(); });
+		return response.send();
+	});
 	server_->on("/project/*", HTTP_PUT, projectPutHandler);
 
-	server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest *request, PsychicResponse *resp) {
-			INFO("webserver() - /project DELETE");
+	server_->on("/project/*", HTTP_DELETE, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /project DELETE");
 
-			PsychicStreamResponse response(resp, "application/json");
+		PsychicStreamResponse response(resp, "application/json");
 
-			String projectName = this->urlDecode(request->uri().substring(9));
+		String projectName = this->urlDecode(request->uri().substring(9));
 
-			configuration_->deleteProject(projectName);
+		configuration_->deleteProject(projectName);
 
-			// TODO: Delete directory from filesystem
-			JsonDocument root;
+		// TODO: Delete directory from filesystem
+		JsonDocument root;
 
-			String strContent;
-			serializeJson(root, strContent);
+		String strContent;
+		serializeJson(root, strContent);
 
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 
-	PsychicUploadHandler *projectSyntaxCheckHandler = new PsychicUploadHandler();
-	projectSyntaxCheckHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	PsychicUploadHandler* projectSyntaxCheckHandler = new PsychicUploadHandler();
+	projectSyntaxCheckHandler->onUpload([this](PsychicRequest* request, const String& filename, uint64_t position,
+	                                           uint8_t* data, size_t length, bool final) {
+		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
-			DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
+		String file = "/~syntaxcheck.lua";
+		File content;
 
-			String file = "/~syntaxcheck.lua";
-			File content;
+		if (position == 0) {
+			DEBUG("webserver() - creating file %s", file.c_str());
+			content = fs_->open(file, FILE_WRITE, true);
+		} else {
+			DEBUG("webserver() - opening file %s for append", file.c_str());
+			content = fs_->open(file, FILE_APPEND);
+		}
 
-			if (position == 0) {
-				DEBUG("webserver() - creating file %s", file.c_str());
-				content = fs_->open(file, FILE_WRITE, true);
-			} else {
-				DEBUG("webserver() - opening file %s for append", file.c_str());
-				content = fs_->open(file, FILE_APPEND);
-			}
+		if (!content) {
+			WARN("webserver() - failed to access file");
+			return ESP_FAIL;
+		}
 
-			if (!content) {
-				WARN("webserver() - failed to access file");
-				return ESP_FAIL;
-			}
+		if (!content.write(data, length)) {
+			WARN("webserver() - Failed wo write data");
+			return ESP_FAIL;
+		}
 
-			if (!content.write(data, length)) {
-				WARN("webserver() - Failed wo write data");
-				return ESP_FAIL;
-			}
+		content.close();
 
+		return ESP_OK;
+	});
+
+	projectSyntaxCheckHandler->onRequest([this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /syntaxcheck PUT received");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		JsonDocument root;
+
+		String file = "/~syntaxcheck.lua";
+		File content = fs_->open(file, FILE_READ);
+		if (content) {
+			String code = content.readString();
 			content.close();
 
-			return ESP_OK; });
+			LuaCheckResult result = hub_->checkLUACode(code);
+			root["success"] = result.success;
+			root["parseTime"] = result.parseTime;
+			root["errorMessage"] = String(result.errorMessage.c_str());
 
-	projectSyntaxCheckHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
-			INFO("webserver() - /syntaxcheck PUT received");
+		} else {
+			WARN("webserver() - failed to access file");
+			root["success"] = false;
+			root["errorMessage"] = "Could not access uploaded code file";
+		}
 
-			PsychicStreamResponse response(resp, "application/json");
+		String strContent;
+		serializeJson(root, strContent);
 
-			JsonDocument root;
-
-			String file = "/~syntaxcheck.lua";
-			File content = fs_->open(file, FILE_READ);
-			if (content) {
-				String code = content.readString();
-				content.close();
-
-				LuaCheckResult result = hub_->checkLUACode(code);
-				root["success"] = result.success;
-				root["parseTime"] = result.parseTime;
-				root["errorMessage"] = String(result.errorMessage.c_str());
-
-			} else {
-				WARN("webserver() - failed to access file");
-				root["success"] = false;
-				root["errorMessage"] = "Could not access uploaded code file";
-			}
-
-			String strContent;
-			serializeJson(root, strContent);
-
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 	server_->on("/syntaxcheck", HTTP_PUT, projectSyntaxCheckHandler);
 
-	PsychicUploadHandler *executeHandler = new PsychicUploadHandler();
-	executeHandler->onUpload([this](PsychicRequest *request, const String &filename, uint64_t position, uint8_t *data, size_t length, bool final) {
+	PsychicUploadHandler* executeHandler = new PsychicUploadHandler();
+	executeHandler->onUpload([this](PsychicRequest* request, const String& filename, uint64_t position, uint8_t* data,
+	                                size_t length, bool final) {
+		DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
 
-			DEBUG("webserver() - got data chunk with position %llu and length %u", position, length);
+		String file = "/~execute.lua";
+		File content;
 
-			String file = "/~execute.lua";
-			File content;
+		if (position == 0) {
+			DEBUG("webserver() - creating file %s", file.c_str());
+			content = fs_->open(file, FILE_WRITE, true);
+		} else {
+			DEBUG("webserver() - opening file %s for append", file.c_str());
+			content = fs_->open(file, FILE_APPEND);
+		}
 
-			if (position == 0) {
-				DEBUG("webserver() - creating file %s", file.c_str());
-				content = fs_->open(file, FILE_WRITE, true);
-			} else {
-				DEBUG("webserver() - opening file %s for append", file.c_str());
-				content = fs_->open(file, FILE_APPEND);
-			}
+		if (!content) {
+			WARN("webserver() - failed to access file");
+			return ESP_FAIL;
+		}
 
-			if (!content) {
-				WARN("webserver() - failed to access file");
-				return ESP_FAIL;
-			}
+		if (!content.write(data, length)) {
+			WARN("webserver() - Failed wo write data");
+			return ESP_FAIL;
+		}
 
-			if (!content.write(data, length)) {
-				WARN("webserver() - Failed wo write data");
-				return ESP_FAIL;
-			}
+		content.close();
 
+		return ESP_OK;
+	});
+
+	executeHandler->onRequest([this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /execute PUT received");
+
+		PsychicStreamResponse response(resp, "application/json");
+
+		JsonDocument root;
+
+		String file = "/~execute.lua";
+		File content = fs_->open(file, FILE_READ);
+		if (content) {
+			String code = content.readString();
 			content.close();
 
-			return ESP_OK; });
+			hub_->executeLUACode(code);
 
-	executeHandler->onRequest([this](PsychicRequest *request, PsychicResponse *resp) {
-			INFO("webserver() - /execute PUT received");
+			root["success"] = true;
 
-			PsychicStreamResponse response(resp, "application/json");
+		} else {
+			WARN("webserver() - failed to access file");
+			root["success"] = false;
+		}
 
-			JsonDocument root;
+		String strContent;
+		serializeJson(root, strContent);
 
-			String file = "/~execute.lua";
-			File content = fs_->open(file, FILE_READ);
-			if (content) {
-				String code = content.readString();
-				content.close();
-
-				hub_->executeLUACode(code);
-
-				root["success"] = true;
-
-			} else {
-				WARN("webserver() - failed to access file");
-				root["success"] = false;
-			}
-
-			String strContent;
-			serializeJson(root, strContent);
-
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 	server_->on("/execute", HTTP_PUT, executeHandler);
 
-	server_->on("/projects", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
+	server_->on("/projects", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /projects GET");
 
-			INFO("webserver() - /projects GET");
+		PsychicStreamResponse response(resp, "application/json");
 
-			PsychicStreamResponse response(resp, "application/json");
+		JsonDocument root;
+		JsonArray projectList = root["projects"].to<JsonArray>();
 
-			JsonDocument root;
-			JsonArray projectList = root["projects"].to<JsonArray>();
+		std::vector<String> foundProjects = configuration_->getProjects();
+		INFO("%d projects found", foundProjects.size());
+		for (int i = 0; i < foundProjects.size(); i++) {
+			JsonObject entry = projectList.add<JsonObject>();
+			entry["name"] = String(foundProjects[i]);
+		}
 
-			std::vector<String> foundProjects = configuration_->getProjects();
-			INFO("%d projects found", foundProjects.size());
-			for (int i = 0; i < foundProjects.size(); i++) {
-				JsonObject entry = projectList.add<JsonObject>();
-				entry["name"] = String(foundProjects[i]);
+		String strContent;
+		serializeJson(root, strContent);
 
-			}
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 
-			String strContent;
-			serializeJson(root, strContent);
+	server_->on("/autostart", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
+		INFO("webserver() - /autostart GET");
 
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		PsychicStreamResponse response(resp, "application/json");
 
-	server_->on("/autostart", HTTP_GET, [this](PsychicRequest *request, PsychicResponse *resp) {
-			INFO("webserver() - /autostart GET");
+		JsonDocument root;
+		JsonObject re = root.to<JsonObject>();
 
-			PsychicStreamResponse response(resp, "application/json");
+		String autostartProject = configuration_->getAutostartProject();
+		if (autostartProject.length() > 0) {
+			re["project"] = autostartProject;
+		} else {
+			WARN("No autostart project found");
+		}
 
-			JsonDocument root;
-			JsonObject re = root.to<JsonObject>();
+		String strContent;
+		serializeJson(root, strContent);
 
-			String autostartProject = configuration_->getAutostartProject();
-			if (autostartProject.length() > 0) {
-				re["project"] = autostartProject;
-			} else {
-				WARN("No autostart project found");
-			}
+		response.setCode(200);
+		response.setContentType("application/json");
+		response.setContentLength(strContent.length());
+		response.addHeader("Cache-Control", "no-cache, must-revalidate");
+		response.beginSend();
+		response.print(strContent);
+		return response.endSend();
+	});
 
-			String strContent;
-			serializeJson(root, strContent);
+	server_->on("/autostart", HTTP_PUT, [this](PsychicRequest* request, PsychicResponse* resp, JsonVariant& json) {
+		INFO("webserver() - /autostart PUT");
 
-			response.setCode(200);
-			response.setContentType("application/json");
-			response.setContentLength(strContent.length());
-			response.addHeader("Cache-Control", "no-cache, must-revalidate");
-			response.beginSend();
-			response.print(strContent);
-			return response.endSend(); });
+		JsonObject input = json.as<JsonObject>();
 
-	server_->on("/autostart", HTTP_PUT, [this](PsychicRequest *request, PsychicResponse *resp, JsonVariant &json) {
+		if (configuration_->setAutostartProject(json["project"].as<String>())) {
+			resp->setCode(201);
+		} else {
+			WARN("Could not set autostart project!");
 
-			INFO("webserver() - /autostart PUT");
+			resp->setCode(501);
+		}
 
-			JsonObject input = json.as<JsonObject>();
-
-			if (configuration_->setAutostartProject(json["project"].as<String>())) {
-				resp->setCode(201);
-			} else {
-				WARN("Could not set autostart project!");
-
-				resp->setCode(501);
-			}
-
-			resp->setContentLength(0);
-			resp->addHeader("Cache-Control", "no-cache, must-revalidate");
-			return resp->send(); });
+		resp->setContentLength(0);
+		resp->addHeader("Cache-Control", "no-cache, must-revalidate");
+		return resp->send();
+	});
 
 	// General Event handlng
-	eventSource_.onOpen([](PsychicEventSourceClient *client) {
-		INFO("[eventsource] connection #%u connected from %s\n", client->socket(), client->remoteIP().toString().c_str());
+	eventSource_.onOpen([](PsychicEventSourceClient* client) {
+		INFO("[eventsource] connection #%u connected from %s\n", client->socket(),
+		     client->remoteIP().toString().c_str());
 	});
-	eventSource_.onClose([](PsychicEventSourceClient *client) {
-		INFO("[eventsource] connection #%u closed\n", client->socket());
-	});
+	eventSource_.onClose(
+	    [](PsychicEventSourceClient* client) { INFO("[eventsource] connection #%u closed\n", client->socket()); });
 	server_->on("/events", &eventSource_);
 
 	// Logging forwarder task
-	xTaskCreate(
-		logForwarderTask,
-		"LogForwarderTask",
-		4096,
-		(void *) this,
-		1,
-		&logforwarderTaskHandle_ // Store task handle for cancellation
+	xTaskCreate(logForwarderTask, "LogForwarderTask", 4096, (void*) this, 1,
+	            &logforwarderTaskHandle_ // Store task handle for cancellation
 	);
 
 	started_ = true;
@@ -525,33 +529,27 @@ void HubWebServer::ssdpNotify() {
 	String deviceUid = hub_->deviceUid();
 
 	// Send NOTIFY for different device types
-	String deviceTypes[] = {
-		"upnp:rootdevice",
-		"urn:schemas-upnp-org:device:Basic:1",
-		String("uuid:") + deviceUid.c_str()};
+	String deviceTypes[] = {"upnp:rootdevice", "urn:schemas-upnp-org:device:Basic:1",
+	                        String("uuid:") + deviceUid.c_str()};
 
-	const char *SSDP_NOTIFY_TEMPLATE = "NOTIFY * HTTP/1.1\r\n"
-									   "HOST: 239.255.255.250:1900\r\n"
-									   "CACHE-CONTROL: max-age=1800\r\n"
-									   "LOCATION: http://%s:%d/description.xml\r\n"
-									   "SERVER: SSDPServer/1.0\r\n"
-									   "NT: %s\r\n"
-									   "USN: uuid:%s::%s\r\n"
-									   "NTS: ssdp:alive\r\n"
-									   "BOOTID.UPNP.ORG: 1\r\n"
-									   "CONFIGID.UPNP.ORG: 1\r\n"
-									   "\r\n";
+	const char* SSDP_NOTIFY_TEMPLATE = "NOTIFY * HTTP/1.1\r\n"
+	                                   "HOST: 239.255.255.250:1900\r\n"
+	                                   "CACHE-CONTROL: max-age=1800\r\n"
+	                                   "LOCATION: http://%s:%d/description.xml\r\n"
+	                                   "SERVER: SSDPServer/1.0\r\n"
+	                                   "NT: %s\r\n"
+	                                   "USN: uuid:%s::%s\r\n"
+	                                   "NTS: ssdp:alive\r\n"
+	                                   "BOOTID.UPNP.ORG: 1\r\n"
+	                                   "CONFIGID.UPNP.ORG: 1\r\n"
+	                                   "\r\n";
 
 	for (int i = 0; i < 3; i++) {
-		sprintf(notify, SSDP_NOTIFY_TEMPLATE,
-			WiFi.localIP().toString().c_str(),
-			wsport_,
-			deviceTypes[i].c_str(),
-			deviceUid.c_str(),
-			deviceTypes[i].c_str());
+		sprintf(notify, SSDP_NOTIFY_TEMPLATE, WiFi.localIP().toString().c_str(), wsport_, deviceTypes[i].c_str(),
+		        deviceUid.c_str(), deviceTypes[i].c_str());
 
 		udp_->beginPacket(SSDP_MULTICAST_ADDR, SSDP_PORT);
-		udp_->write((uint8_t *) notify, strlen(notify));
+		udp_->write((uint8_t*) notify, strlen(notify));
 		udp_->endPacket();
 	}
 }
@@ -578,7 +576,7 @@ void HubWebServer::loop() {
 				DEBUG("Received SSDP M-SEARCH request");
 
 				// Extract search target
-				char *stLine = strstr(packetBuffer, "ST:");
+				char* stLine = strstr(packetBuffer, "ST:");
 				String searchTarget = "upnp:rootdevice"; // Default
 
 				if (stLine) {
@@ -586,7 +584,7 @@ void HubWebServer::loop() {
 					while (*stLine == ' ') {
 						stLine++; // Skip spaces
 					}
-					char *end = strstr(stLine, "\r");
+					char* end = strstr(stLine, "\r");
 					if (end) {
 						*end = '\0';
 						searchTarget = String(stLine);
@@ -599,30 +597,25 @@ void HubWebServer::loop() {
 				// Simple date string (could be improved with real time)
 				sprintf(dateStr, "Mon, 01 Jan 1970 00:00:00 GMT");
 
-				const char *SSDP_RESPONSE_TEMPLATE = "HTTP/1.1 200 OK\r\n"
-													 "CACHE-CONTROL: max-age=1800\r\n"
-													 "DATE: %s\r\n"
-													 "EXT:\r\n"
-													 "LOCATION: http://%s:%d/description.xml\r\n"
-													 "SERVER: SSDPServer/1.0\r\n"
-													 "ST: %s\r\n"
-													 "USN: uuid:%s::%s\r\n"
-													 "BOOTID.UPNP.ORG: 1\r\n"
-													 "CONFIGID.UPNP.ORG: 1\r\n"
-													 "\r\n";
+				const char* SSDP_RESPONSE_TEMPLATE = "HTTP/1.1 200 OK\r\n"
+				                                     "CACHE-CONTROL: max-age=1800\r\n"
+				                                     "DATE: %s\r\n"
+				                                     "EXT:\r\n"
+				                                     "LOCATION: http://%s:%d/description.xml\r\n"
+				                                     "SERVER: SSDPServer/1.0\r\n"
+				                                     "ST: %s\r\n"
+				                                     "USN: uuid:%s::%s\r\n"
+				                                     "BOOTID.UPNP.ORG: 1\r\n"
+				                                     "CONFIGID.UPNP.ORG: 1\r\n"
+				                                     "\r\n";
 				String deviceUid = hub_->deviceUid();
 
-				sprintf(response, SSDP_RESPONSE_TEMPLATE,
-					dateStr,
-					WiFi.localIP().toString().c_str(),
-					wsport_,
-					searchTarget.c_str(),
-					deviceUid.c_str(),
-					searchTarget.c_str());
+				sprintf(response, SSDP_RESPONSE_TEMPLATE, dateStr, WiFi.localIP().toString().c_str(), wsport_,
+				        searchTarget.c_str(), deviceUid.c_str(), searchTarget.c_str());
 
 				// Send unicast response to requester
 				udp_->beginPacket(udp_->remoteIP(), udp_->remotePort());
-				udp_->write((uint8_t *) response, strlen(response));
+				udp_->write((uint8_t*) response, strlen(response));
 				udp_->endPacket();
 
 				DEBUG("SSDP response sent");
@@ -632,7 +625,7 @@ void HubWebServer::loop() {
 	// Server runs async...
 }
 
-String HubWebServer::urlDecode(const String &text) {
+String HubWebServer::urlDecode(const String& text) {
 	String decoded = "";
 	char temp[] = "0x00";
 	unsigned int len = text.length();

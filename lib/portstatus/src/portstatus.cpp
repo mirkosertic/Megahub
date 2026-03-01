@@ -40,7 +40,7 @@ String Portstatus::waitForStatus(TickType_t ticksToWait) {
 	return String();
 }
 
-Portstatus *Portstatus::instance() {
+Portstatus* Portstatus::instance() {
 	static Portstatus instance;
 	return &instance;
 }

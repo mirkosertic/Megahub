@@ -8,13 +8,13 @@ import { definition } from '../../src/components/blockly/mh_stopthread.js';
 
 function makeBlock(fields = {}) {
     return {
-        getFieldValue: key => fields[key] ?? null,
+        getFieldValue: (key) => fields[key] ?? null,
     };
 }
 
 function makeGenerator(values = {}) {
     return {
-        valueToCode: (_block, name, _order) => values[name] ?? '0',
+        valueToCode: (_block, name) => values[name] ?? '0',
     };
 }
 
@@ -41,7 +41,7 @@ describe('mh_stopthread block definition', () => {
 describe('mh_stopthread generator', () => {
     it('generates hub.stopthread(handle) call', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ HANDLE: 'myHandle' });
+        const gen = makeGenerator({ HANDLE: 'myHandle' });
 
         const code = definition.generator(block, gen);
 
@@ -51,7 +51,7 @@ describe('mh_stopthread generator', () => {
 
     it('produces a statement ending with newline', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ HANDLE: 'h' });
+        const gen = makeGenerator({ HANDLE: 'h' });
 
         const code = definition.generator(block, gen);
 
@@ -60,7 +60,7 @@ describe('mh_stopthread generator', () => {
 
     it('uses 0 as default handle when input is missing', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({});  // no HANDLE
+        const gen = makeGenerator({}); // no HANDLE
 
         const code = definition.generator(block, gen);
 
@@ -69,7 +69,7 @@ describe('mh_stopthread generator', () => {
 
     it('produces exactly hub.stopthread(handle)\\n', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ HANDLE: 'h' });
+        const gen = makeGenerator({ HANDLE: 'h' });
 
         const code = definition.generator(block, gen);
 

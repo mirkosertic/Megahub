@@ -4,226 +4,213 @@
  */
 
 :root {
-  /* ===== Color System ===== */
+    /* ===== Color System ===== */
 
-  /* Background colors - VS Code Dark Theme */
-  --vscode-bg-primary: #1e1e1e;      /* Main background */
-  --vscode-bg-secondary: #252526;    /* Panels, cards, sidebar */
-  --vscode-bg-tertiary: #272727;     /* Alternative dark background */
-  --vscode-bg-elevated: #2d2d30;     /* Hover states, elevated surfaces */
-  --vscode-bg-input: #3c3c3c;        /* Form inputs, interactive elements */
+    /* Background colors - VS Code Dark Theme */
+    --vscode-bg-primary: #1e1e1e; /* Main background */
+    --vscode-bg-secondary: #252526; /* Panels, cards, sidebar */
+    --vscode-bg-tertiary: #272727; /* Alternative dark background */
+    --vscode-bg-elevated: #2d2d30; /* Hover states, elevated surfaces */
+    --vscode-bg-input: #3c3c3c; /* Form inputs, interactive elements */
 
-  /* Text colors */
-  --vscode-text-primary: #cccccc;    /* Main text */
-  --vscode-text-secondary: #858585;  /* Muted text, placeholders */
-  --vscode-text-tertiary: #6a6a6a;   /* Very muted text */
-  --vscode-text-bright: #ffffff;     /* Headings, emphasized text */
-  --vscode-text-code: #d4d4d4;       /* Code/monospace text */
-  --vscode-text-link: #9cdcfe;       /* Links, badges, identifiers */
+    /* Text colors */
+    --vscode-text-primary: #cccccc; /* Main text */
+    --vscode-text-secondary: #858585; /* Muted text, placeholders */
+    --vscode-text-tertiary: #6a6a6a; /* Very muted text */
+    --vscode-text-bright: #ffffff; /* Headings, emphasized text */
+    --vscode-text-code: #d4d4d4; /* Code/monospace text */
+    --vscode-text-link: #9cdcfe; /* Links, badges, identifiers */
 
-  /* Accent colors - VS Code blue palette (refined) */
-  --vscode-accent-blue: #007acc;     /* Primary accent, focus borders */
-  --vscode-accent-blue-hover: #1177bb; /* Hover state for buttons */
-  --vscode-accent-blue-dark: #0078d4;  /* Primary buttons (VS Code standard) */
-  --vscode-accent-teal: #4ec9b0;     /* Success, connected status */
-  --vscode-accent-yellow: #dcdcaa;   /* Warning, highlight, keywords */
+    /* Accent colors - VS Code blue palette (refined) */
+    --vscode-accent-blue: #007acc; /* Primary accent, focus borders */
+    --vscode-accent-blue-hover: #1177bb; /* Hover state for buttons */
+    --vscode-accent-blue-dark: #0078d4; /* Primary buttons (VS Code standard) */
+    --vscode-accent-teal: #4ec9b0; /* Success, connected status */
+    --vscode-accent-yellow: #dcdcaa; /* Warning, highlight, keywords */
 
-  /* Border colors */
-  --vscode-border-light: #3c3c3c;
-  --vscode-border-medium: #3e3e42;
-  --vscode-border-dark: #2d2d2d;
+    /* Border colors */
+    --vscode-border-light: #3c3c3c;
+    --vscode-border-medium: #3e3e42;
+    --vscode-border-dark: #2d2d2d;
 
-  /* Semantic colors */
-  --color-success: #4ec9b0;          /* Success messages, active state */
-  --color-success-bg: #27ae60;       /* Success background (legacy) */
-  --color-error: #f48771;            /* Error text */
-  --color-error-bg: #5a1d1d;         /* Error background */
-  --color-error-bg-hover: #6e2626;   /* Error background hover */
-  --color-warning: #dcdcaa;          /* Warning state */
-  --color-info-bg: #34495e;          /* Info panels */
+    /* Semantic colors */
+    --color-success: #4ec9b0; /* Success messages, active state */
+    --color-success-bg: #27ae60; /* Success background (legacy) */
+    --color-error: #f48771; /* Error text */
+    --color-error-bg: #5a1d1d; /* Error background */
+    --color-error-bg-hover: #6e2626; /* Error background hover */
+    --color-warning: #dcdcaa; /* Warning state */
+    --color-info-bg: #34495e; /* Info panels */
 
-  /* Scrollbar colors */
-  --scrollbar-track: #1e1e1e;
-  --scrollbar-thumb: #424242;
-  --scrollbar-thumb-hover: #4e4e4e;
+    /* Scrollbar colors */
+    --scrollbar-track: #1e1e1e;
+    --scrollbar-thumb: #424242;
+    --scrollbar-thumb-hover: #4e4e4e;
 
-  /* Selection colors */
-  --selection-bg: #094771;           /* VS Code selection background */
+    /* Selection colors */
+    --selection-bg: #094771; /* VS Code selection background */
 
+    /* ===== Spacing Scale ===== */
+    --spacing-xs: 0.25rem; /* 4px */
+    --spacing-sm: 0.5rem; /* 8px */
+    --spacing-md: 0.75rem; /* 12px */
+    --spacing-lg: 1rem; /* 16px */
+    --spacing-xl: 1.25rem; /* 20px */
+    --spacing-2xl: 1.5rem; /* 24px */
 
-  /* ===== Spacing Scale ===== */
-  --spacing-xs: 0.25rem;   /* 4px */
-  --spacing-sm: 0.5rem;    /* 8px */
-  --spacing-md: 0.75rem;   /* 12px */
-  --spacing-lg: 1rem;      /* 16px */
-  --spacing-xl: 1.25rem;   /* 20px */
-  --spacing-2xl: 1.5rem;   /* 24px */
+    /* ===== Typography ===== */
 
+    /* Font families */
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-mono: 'Courier New', Consolas, Monaco, 'Lucida Console', monospace;
 
-  /* ===== Typography ===== */
+    /* Fluid typography using clamp() - scales smoothly between breakpoints */
+    --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem); /* 10-12px */
+    --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem); /* 12-13px */
+    --font-base: clamp(0.875rem, 0.8rem + 0.25vw, 1rem); /* 14-16px */
+    --font-lg: clamp(1rem, 0.9rem + 0.5vw, 1.25rem); /* 16-20px */
+    --font-xl: clamp(1.25rem, 1rem + 1vw, 2rem); /* 20-32px */
 
-  /* Font families */
-  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-family-mono: 'Courier New', Consolas, Monaco, 'Lucida Console', monospace;
+    /* Fixed font sizes (fallback for specific components) */
+    --font-fixed-10: 0.625rem; /* 10px */
+    --font-fixed-11: 0.688rem; /* 11px */
+    --font-fixed-12: 0.75rem; /* 12px */
+    --font-fixed-13: 0.813rem; /* 13px */
+    --font-fixed-14: 0.875rem; /* 14px */
 
-  /* Fluid typography using clamp() - scales smoothly between breakpoints */
-  --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);    /* 10-12px */
-  --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);   /* 12-13px */
-  --font-base: clamp(0.875rem, 0.8rem + 0.25vw, 1rem);    /* 14-16px */
-  --font-lg: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);        /* 16-20px */
-  --font-xl: clamp(1.25rem, 1rem + 1vw, 2rem);            /* 20-32px */
+    /* Line heights */
+    --line-height-tight: 1.3;
+    --line-height-base: 1.4;
+    --line-height-relaxed: 1.6;
 
-  /* Fixed font sizes (fallback for specific components) */
-  --font-fixed-10: 0.625rem;   /* 10px */
-  --font-fixed-11: 0.688rem;   /* 11px */
-  --font-fixed-12: 0.75rem;    /* 12px */
-  --font-fixed-13: 0.813rem;   /* 13px */
-  --font-fixed-14: 0.875rem;   /* 14px */
+    /* Font weights */
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
 
-  /* Line heights */
-  --line-height-tight: 1.3;
-  --line-height-base: 1.4;
-  --line-height-relaxed: 1.6;
+    /* ===== Border Radius ===== */
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --radius-lg: 5px;
+    --radius-xl: 6px;
 
-  /* Font weights */
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+    /* ===== Shadows ===== */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --shadow-sidebar: -4px 0 16px rgba(0, 0, 0, 0.5); /* For sidebar overlay */
 
+    /* ===== Transitions ===== */
+    --transition-fast: 0.15s ease;
+    --transition-medium: 0.3s ease;
+    --transition-slow: 0.5s ease;
 
-  /* ===== Border Radius ===== */
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 5px;
-  --radius-xl: 6px;
+    /* ===== Responsive Breakpoints (for reference in JS) ===== */
+    /* Mobile: < 768px (default/base styles) */
+    /* Tablet: 768px - 1023px */
+    /* Laptop: 1024px - 1511px */
+    /* Desktop: 1512px+ */
+    --breakpoint-tablet: 768px;
+    --breakpoint-laptop: 1024px;
+    --breakpoint-desktop: 1512px;
 
+    /* ===== Z-Index Scale ===== */
+    --z-base: 1;
+    --z-dropdown: 100;
+    --z-sidebar-overlay: 1000; /* Sidebar overlay on mobile */
+    --z-modal: 1100;
+    --z-tooltip: 2000;
 
-  /* ===== Shadows ===== */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-sidebar: -4px 0 16px rgba(0, 0, 0, 0.5);  /* For sidebar overlay */
+    /* ===== Component-Specific Tokens ===== */
 
+    /* Header */
+    --header-height: 3rem; /* 48px */
+    --header-bg: var(--vscode-bg-secondary);
+    --header-color: var(--vscode-text-bright);
 
-  /* ===== Transitions ===== */
-  --transition-fast: 0.15s ease;
-  --transition-medium: 0.3s ease;
-  --transition-slow: 0.5s ease;
+    /* Footer/Logger */
+    --footer-height-mobile: 8rem; /* 128px */
+    --footer-height-tablet: 10rem; /* 160px */
+    --footer-height-desktop: 12rem; /* 192px */
 
+    /* Buttons */
+    --button-height-mobile: 2.75rem; /* 44px - iOS touch target minimum */
+    --button-height-desktop: 2rem; /* 32px - Compact for desktop */
 
-  /* ===== Responsive Breakpoints (for reference in JS) ===== */
-  /* Mobile: < 768px (default/base styles) */
-  /* Tablet: 768px - 1023px */
-  /* Laptop: 1024px - 1511px */
-  /* Desktop: 1512px+ */
-  --breakpoint-tablet: 768px;
-  --breakpoint-laptop: 1024px;
-  --breakpoint-desktop: 1512px;
-
-
-  /* ===== Z-Index Scale ===== */
-  --z-base: 1;
-  --z-dropdown: 100;
-  --z-sidebar-overlay: 1000;  /* Sidebar overlay on mobile */
-  --z-modal: 1100;
-  --z-tooltip: 2000;
-
-
-  /* ===== Component-Specific Tokens ===== */
-
-  /* Header */
-  --header-height: 3rem;        /* 48px */
-  --header-bg: var(--vscode-bg-secondary);
-  --header-color: var(--vscode-text-bright);
-
-  /* Footer/Logger */
-  --footer-height-mobile: 8rem;    /* 128px */
-  --footer-height-tablet: 10rem;   /* 160px */
-  --footer-height-desktop: 12rem;  /* 192px */
-
-  /* Buttons */
-  --button-height-mobile: 2.75rem;  /* 44px - iOS touch target minimum */
-  --button-height-desktop: 2rem;    /* 32px - Compact for desktop */
-
-  /* Sidebar */
-  --sidebar-width-mobile: 85%;      /* Overlay width on mobile */
-  --sidebar-max-width-mobile: 400px;
-  --sidebar-width-desktop: 25%;     /* Grid column width on desktop */
+    /* Sidebar */
+    --sidebar-width-mobile: 85%; /* Overlay width on mobile */
+    --sidebar-max-width-mobile: 400px;
+    --sidebar-width-desktop: 25%; /* Grid column width on desktop */
 }
-
 
 /* ===== Global Resets & Base Styles ===== */
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  font-family: var(--font-family-base);
-  font-size: var(--font-base);
-  line-height: var(--line-height-base);
-  color: var(--vscode-text-primary);
-  background: var(--vscode-bg-primary);
+    font-family: var(--font-family-base);
+    font-size: var(--font-base);
+    line-height: var(--line-height-base);
+    color: var(--vscode-text-primary);
+    background: var(--vscode-bg-primary);
 }
-
 
 /* ===== Utility Classes ===== */
 
 /* Scrollbar styling (WebKit browsers) */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+    background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: var(--radius-md);
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-md);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+    background: var(--scrollbar-thumb-hover);
 }
-
 
 /* Text selection */
 ::selection {
-  background: var(--selection-bg);
-  color: var(--vscode-text-bright);
+    background: var(--selection-bg);
+    color: var(--vscode-text-bright);
 }
 
 ::-moz-selection {
-  background: var(--selection-bg);
-  color: var(--vscode-text-bright);
+    background: var(--selection-bg);
+    color: var(--vscode-text-bright);
 }
-
 
 /* Focus styles */
 :focus {
-  outline: 2px solid var(--vscode-accent-blue);
-  outline-offset: 2px;
+    outline: 2px solid var(--vscode-accent-blue);
+    outline-offset: 2px;
 }
 
 :focus:not(:focus-visible) {
-  outline: none;
+    outline: none;
 }
 
 :focus-visible {
-  outline: 2px solid var(--vscode-accent-blue);
-  outline-offset: 2px;
+    outline: 2px solid var(--vscode-accent-blue);
+    outline-offset: 2px;
 }
-
 
 /* ===== Collapsible Panel Pattern ===== */
 /*
@@ -234,75 +221,77 @@ body {
 
 /* Collapsible panel header styling reference */
 .collapsible-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm);
-  background: var(--vscode-bg-secondary);
-  border-bottom: 1px solid var(--vscode-border-light);
-  cursor: pointer;
-  user-select: none;
-  transition: background-color var(--transition-fast);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--vscode-bg-secondary);
+    border-bottom: 1px solid var(--vscode-border-light);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--transition-fast);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .collapsible-header:hover {
-  background: var(--vscode-bg-elevated);
+    background: var(--vscode-bg-elevated);
 }
 
 .collapsible-header-title {
-  margin: 0;
-  font-weight: 600;
-  color: var(--vscode-text-primary);
-  font-size: var(--font-fixed-11);
+    margin: 0;
+    font-weight: 600;
+    color: var(--vscode-text-primary);
+    font-size: var(--font-fixed-11);
 }
 
 @media (min-width: 768px) {
-  .collapsible-header-title {
-    font-size: var(--font-fixed-13);
-  }
+    .collapsible-header-title {
+        font-size: var(--font-fixed-13);
+    }
 }
 
 .collapsible-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--vscode-text-secondary);
-  cursor: pointer;
-  padding: var(--spacing-xs);
-  transition: all var(--transition-fast);
-  min-width: 24px;
-  min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: all var(--transition-fast);
+    min-width: 24px;
+    min-height: 24px;
 }
 
 .collapsible-toggle:hover {
-  color: var(--vscode-text-primary);
-  background: var(--vscode-bg-input);
-  border-radius: var(--radius-sm);
+    color: var(--vscode-text-primary);
+    background: var(--vscode-bg-input);
+    border-radius: var(--radius-sm);
 }
 
 .collapsible-icon {
-  font-size: 10px;
-  transition: transform var(--transition-fast);
-  display: inline-block;
+    font-size: 10px;
+    transition: transform var(--transition-fast);
+    display: inline-block;
 }
 
 .collapsed .collapsible-icon {
-  transform: rotate(-90deg);
+    transform: rotate(-90deg);
 }
 
 /* Content area with smooth transition */
 .collapsible-content {
-  overflow: hidden;
-  transition: max-height var(--transition-medium), opacity var(--transition-medium);
-  max-height: 2000px;
-  opacity: 1;
+    overflow: hidden;
+    transition:
+        max-height var(--transition-medium),
+        opacity var(--transition-medium);
+    max-height: 2000px;
+    opacity: 1;
 }
 
 .collapsed .collapsible-content {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
 }

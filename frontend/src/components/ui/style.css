@@ -4,209 +4,211 @@
  */
 
 :host {
-  /* Re-declare theme variables for Shadow DOM */
-  --vscode-bg-primary: #1e1e1e;
-  --vscode-bg-secondary: #252526;
-  --vscode-bg-elevated: #2d2d30;
-  --vscode-bg-input: #3c3c3c;
-  --vscode-text-primary: #cccccc;
-  --vscode-text-secondary: #858585;
-  --vscode-border-light: #3c3c3c;
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 0.75rem;
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --transition-fast: 0.15s ease;
-  --transition-medium: 0.3s ease;
-  --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
-  --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
-  --font-fixed-11: 0.688rem;
-  --font-fixed-13: 0.813rem;
-  --line-height-base: 1.4;
+    /* Re-declare theme variables for Shadow DOM */
+    --vscode-bg-primary: #1e1e1e;
+    --vscode-bg-secondary: #252526;
+    --vscode-bg-elevated: #2d2d30;
+    --vscode-bg-input: #3c3c3c;
+    --vscode-text-primary: #cccccc;
+    --vscode-text-secondary: #858585;
+    --vscode-border-light: #3c3c3c;
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 0.75rem;
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --transition-fast: 0.15s ease;
+    --transition-medium: 0.3s ease;
+    --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+    --font-sm: clamp(0.75rem, 0.7rem + 0.25vw, 0.813rem);
+    --font-fixed-11: 0.688rem;
+    --font-fixed-13: 0.813rem;
+    --line-height-base: 1.4;
 
-  display: block;
-  color: var(--vscode-text-primary);
-  line-height: var(--line-height-base);
-  background: var(--vscode-bg-primary);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+    display: block;
+    color: var(--vscode-text-primary);
+    line-height: var(--line-height-base);
+    background: var(--vscode-bg-primary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
 }
 
 /* Accordion expanded state - fill available space */
 :host(.accordion-expanded) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 :host(.accordion-expanded) .ui-container {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 :host(.accordion-expanded) .collapsible-content {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow-y: scroll;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: scroll;
 }
 
 /* Scrollbar styling for Shadow DOM */
 .collapsible-content::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 .collapsible-content::-webkit-scrollbar-track {
-  background: #1e1e1e;
+    background: #1e1e1e;
 }
 
 .collapsible-content::-webkit-scrollbar-thumb {
-  background: #424242;
-  border-radius: 4px;
+    background: #424242;
+    border-radius: 4px;
 }
 
 .collapsible-content::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+    background: #4e4e4e;
 }
 
 /* Container */
 .ui-container {
-  display: flex;
-  flex-direction: column;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Collapsible Header */
 .collapsible-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm);
-  background: var(--vscode-bg-secondary);
-  border-bottom: 1px solid var(--vscode-border-light);
-  cursor: pointer;
-  user-select: none;
-  transition: background-color var(--transition-fast);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--vscode-bg-secondary);
+    border-bottom: 1px solid var(--vscode-border-light);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--transition-fast);
 }
 
 .collapsible-header:hover {
-  background: var(--vscode-bg-elevated);
+    background: var(--vscode-bg-elevated);
 }
 
 .collapsible-header-title {
-  margin: 0;
-  font-weight: 600;
-  color: var(--vscode-text-primary);
-  font-size: var(--font-fixed-11);
+    margin: 0;
+    font-weight: 600;
+    color: var(--vscode-text-primary);
+    font-size: var(--font-fixed-11);
 }
 
 @media (min-width: 768px) {
-  .collapsible-header-title {
-    font-size: var(--font-fixed-13);
-  }
+    .collapsible-header-title {
+        font-size: var(--font-fixed-13);
+    }
 }
 
 .collapsible-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--vscode-text-secondary);
-  cursor: pointer;
-  padding: var(--spacing-xs);
-  transition: all var(--transition-fast);
-  min-width: 24px;
-  min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: all var(--transition-fast);
+    min-width: 24px;
+    min-height: 24px;
 }
 
 .collapsible-toggle:hover {
-  color: var(--vscode-text-primary);
-  background: var(--vscode-bg-input);
-  border-radius: var(--radius-sm);
+    color: var(--vscode-text-primary);
+    background: var(--vscode-bg-input);
+    border-radius: var(--radius-sm);
 }
 
 .collapsible-icon {
-  font-size: 10px;
-  transition: transform var(--transition-fast);
-  display: inline-block;
+    font-size: 10px;
+    transition: transform var(--transition-fast);
+    display: inline-block;
 }
 
 .ui-container.collapsed .collapsible-icon {
-  transform: rotate(-90deg);
+    transform: rotate(-90deg);
 }
 
 /* Collapsible Content */
 .collapsible-content {
-  overflow-y: scroll;
-  overflow-x: hidden;
-  transition: max-height var(--transition-medium), opacity var(--transition-medium);
-  max-height: 300px;
-  opacity: 1;
-  padding: var(--spacing-sm);
+    overflow-y: scroll;
+    overflow-x: hidden;
+    transition:
+        max-height var(--transition-medium),
+        opacity var(--transition-medium);
+    max-height: 300px;
+    opacity: 1;
+    padding: var(--spacing-sm);
 }
 
 @media (min-width: 768px) {
-  .collapsible-content {
-    padding: var(--spacing-md);
-    max-height: 400px;
-  }
+    .collapsible-content {
+        padding: var(--spacing-md);
+        max-height: 400px;
+    }
 }
 
 .ui-container.collapsed .collapsible-content {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  padding-top: 0;
-  padding-bottom: 0;
-  overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
 }
 
 /* UI Values List */
 .ui-values-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
 }
 
 @media (min-width: 768px) {
-  .ui-values-list {
-    gap: var(--spacing-sm);
-  }
+    .ui-values-list {
+        gap: var(--spacing-sm);
+    }
 }
 
 .ui-value-entry {
-  flex: 0 1 auto;
+    flex: 0 1 auto;
 
-  /* Mobile: Smaller font */
-  font-size: var(--font-xs);
+    /* Mobile: Smaller font */
+    font-size: var(--font-xs);
 }
 
 /* Desktop: Normal font */
 @media (min-width: 768px) {
-  .ui-value-entry {
-    font-size: var(--font-sm);
-  }
+    .ui-value-entry {
+        font-size: var(--font-sm);
+    }
 }
 
 .ui-value-entry::before {
-  content: attr(data-label) ": ";
-  font-weight: bold;
-  color: var(--vscode-text-primary);
+    content: attr(data-label) ': ';
+    font-weight: bold;
+    color: var(--vscode-text-primary);
 }
 
 /* Placeholder text when no values */
 .no-values-message {
-  color: var(--vscode-text-secondary);
-  font-style: italic;
-  text-align: center;
-  font-size: var(--font-fixed-11);
-  padding: var(--spacing-sm);
+    color: var(--vscode-text-secondary);
+    font-style: italic;
+    text-align: center;
+    font-size: var(--font-fixed-11);
+    padding: var(--spacing-sm);
 }
 
 .no-values-message.hidden {
-  display: none;
+    display: none;
 }

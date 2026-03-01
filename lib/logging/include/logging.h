@@ -8,54 +8,62 @@
 #include <memory>
 
 class LoggingOutput {
-public:
+  public:
 	virtual ~LoggingOutput();
-	virtual void log(const char *msg, va_list args) = 0;
+	virtual void log(const char* msg, va_list args) = 0;
 };
 
 class NoopLoggingOutput : public LoggingOutput {
-public:
+  public:
 	virtual ~NoopLoggingOutput() override;
-	virtual void log(const char *msg, va_list args) override;
+	virtual void log(const char* msg, va_list args) override;
 };
 
 class SerialLoggingOutput : public LoggingOutput {
-private:
-	Print *serial_;
+  private:
+	Print* serial_;
 	QueueHandle_t logQueue_;
 
-public:
-	SerialLoggingOutput(Print *serial);
+  public:
+	SerialLoggingOutput(Print* serial);
 	virtual ~SerialLoggingOutput() override;
 
-	virtual void log(const char *msg, va_list args) override;
+	virtual void log(const char* msg, va_list args) override;
 	String waitForLogMessage(TickType_t ticksToWait);
 };
 
 class Logging {
-private:
+  private:
 	std::unique_ptr<LoggingOutput> output_;
 
 	Logging(std::unique_ptr<LoggingOutput> output);
 
-public:
-	static Logging *instance();
+  public:
+	static Logging* instance();
 
-	void genericLog(const char *msg, ...);
+	void genericLog(const char* msg, ...);
 
-	void routeLoggingTo(LoggingOutput *output);
+	void routeLoggingTo(LoggingOutput* output);
 };
 
 #define LOGGING_ENABLED
 
 #ifdef LOGGING_ENABLED
-	#define INFO(msg, ...) Logging::instance()->genericLog("[INFO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
-	#define WARN(msg, ...) Logging::instance()->genericLog("[WARN] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
-	#define ERROR(msg, ...) Logging::instance()->genericLog("[ERRO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
+	#define INFO(msg, ...)                                                                                             \
+		Logging::instance()->genericLog("[INFO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__,       \
+		                                __LINE__, __func__, ##__VA_ARGS__);
+	#define WARN(msg, ...)                                                                                             \
+		Logging::instance()->genericLog("[WARN] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__,       \
+		                                __LINE__, __func__, ##__VA_ARGS__);
+	#define ERROR(msg, ...)                                                                                            \
+		Logging::instance()->genericLog("[ERRO] %lu %d %s#%d:%s() - " msg, millis(), xPortGetCoreID(), __FILE__,       \
+		                                __LINE__, __func__, ##__VA_ARGS__);
 #endif
 
 #ifdef DEBUG_LOGGING_ENABLED
-	#define DEBUG(msg, ...) Serial.printf("[DEBUG] %lu %d %s#%d:%s() - " msg "\n", millis(), xPortGetCoreID(), __FILE__, __LINE__, __func__, ##__VA_ARGS__);
+	#define DEBUG(msg, ...)                                                                                            \
+		Serial.printf("[DEBUG] %lu %d %s#%d:%s() - " msg "\n", millis(), xPortGetCoreID(), __FILE__, __LINE__,         \
+		              __func__, ##__VA_ARGS__);
 #endif
 
 #ifndef LOGGING_ENABLED

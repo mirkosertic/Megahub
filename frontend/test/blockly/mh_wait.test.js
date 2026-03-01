@@ -12,7 +12,7 @@ import { definition } from '../../src/components/blockly/mh_wait.js';
  */
 function makeBlock(fields = {}) {
     return {
-        getFieldValue: key => fields[key] ?? null,
+        getFieldValue: (key) => fields[key] ?? null,
     };
 }
 
@@ -23,7 +23,7 @@ function makeBlock(fields = {}) {
  */
 function makeGenerator(values = {}) {
     return {
-        valueToCode: (_block, name, _order) => values[name] ?? '0',
+        valueToCode: (_block, name) => values[name] ?? '0',
     };
 }
 

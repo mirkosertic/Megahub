@@ -1,13 +1,13 @@
 #include "megahub.h"
 
-extern Megahub *getMegaHubRef(lua_State *L);
+extern Megahub* getMegaHubRef(lua_State* L);
 
-int imu_value(lua_State *luaState) {
+int imu_value(lua_State* luaState) {
 
 	int value = lua_tointeger(luaState, 1);
 
-	Megahub *megahub = getMegaHubRef(luaState);
-	IMU *imu = megahub->imu();
+	Megahub* megahub = getMegaHubRef(luaState);
+	IMU* imu = megahub->imu();
 
 	DEBUG("Getting IMU value %d", value);
 	if (value == YAW) {
@@ -35,11 +35,11 @@ int imu_value(lua_State *luaState) {
 	return 1;
 }
 
-int imu_library(lua_State *luaState) {
+int imu_library(lua_State* luaState) {
 	const luaL_Reg hubfunctions[] = {
-		{"value", imu_value},
-		{	 NULL,	   NULL}
-	};
+	    {"value", imu_value},
+        {   NULL,      NULL}
+    };
 	luaL_newlib(luaState, hubfunctions);
 	return 1;
 }

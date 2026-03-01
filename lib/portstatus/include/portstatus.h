@@ -7,12 +7,12 @@
 #include <freertos/queue.h>
 
 class Portstatus {
-private:
+  private:
 	QueueHandle_t statusQueue_;
 	Portstatus();
 
-public:
-	static Portstatus *instance();
+  public:
+	static Portstatus* instance();
 
 	String waitForStatus(TickType_t ticksToWait);
 	void queue(String message);

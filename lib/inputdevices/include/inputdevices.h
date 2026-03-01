@@ -30,16 +30,16 @@ struct GamepadState {
 };
 
 class InputDevices {
-public:
+  public:
 	InputDevices();
 
 	// Gamepad API
 	void registerGamepadState(std::string macAddress, GamepadState state);
-	void updateGamepad(std::string macAddress, std::function<void(std::string &macAddress, GamepadState &)> callback);
-	bool getGamepadState(const char *macAddress, GamepadState &state);
+	void updateGamepad(std::string macAddress, std::function<void(std::string& macAddress, GamepadState&)> callback);
+	bool getGamepadState(const char* macAddress, GamepadState& state);
 	std::vector<GamepadState> getAllGamepadStates();
 
-private:
+  private:
 	std::map<std::string, GamepadState> gamepadStates_;
 	SemaphoreHandle_t gamepadStatesMutex_;
 };

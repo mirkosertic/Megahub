@@ -2,11 +2,11 @@
 #include "logging.h"
 #include "megahub.h"
 
-extern InputDevices *getInputDevicesRef(lua_State *L);
+extern InputDevices* getInputDevicesRef(lua_State* L);
 
-int gamepad_value(lua_State *luaState) {
+int gamepad_value(lua_State* luaState) {
 
-	InputDevices *inputDevices = getInputDevicesRef(luaState);
+	InputDevices* inputDevices = getInputDevicesRef(luaState);
 
 	int gamepadIndex = lua_tointeger(luaState, 1);
 	int value = lua_tointeger(luaState, 2);
@@ -49,9 +49,9 @@ int gamepad_value(lua_State *luaState) {
 	return 1;
 }
 
-int gamepad_connected(lua_State *luaState) {
+int gamepad_connected(lua_State* luaState) {
 
-	InputDevices *inputDevices = getInputDevicesRef(luaState);
+	InputDevices* inputDevices = getInputDevicesRef(luaState);
 
 	int gamepadIndex = lua_tointeger(luaState, 1);
 
@@ -72,9 +72,9 @@ int gamepad_connected(lua_State *luaState) {
 	return 1;
 }
 
-int gamepad_buttonpressed(lua_State *luaState) {
+int gamepad_buttonpressed(lua_State* luaState) {
 
-	InputDevices *inputDevices = getInputDevicesRef(luaState);
+	InputDevices* inputDevices = getInputDevicesRef(luaState);
 
 	int gamepadIndex = lua_tointeger(luaState, 1);
 	int button = lua_tointeger(luaState, 2);
@@ -162,9 +162,9 @@ int gamepad_buttonpressed(lua_State *luaState) {
 	return 1;
 }
 
-int gamepad_buttonraw(lua_State *luaState) {
+int gamepad_buttonraw(lua_State* luaState) {
 
-	InputDevices *inputDevices = getInputDevicesRef(luaState);
+	InputDevices* inputDevices = getInputDevicesRef(luaState);
 
 	int gamepadIndex = lua_tointeger(luaState, 1);
 
@@ -186,14 +186,14 @@ int gamepad_buttonraw(lua_State *luaState) {
 	return 1;
 }
 
-int gamepad_library(lua_State *luaState) {
+int gamepad_library(lua_State* luaState) {
 	const luaL_Reg hubfunctions[] = {
-		{		 "value",		  gamepad_value},
-		{	 "connected",	  gamepad_connected},
-		{"buttonpressed", gamepad_buttonpressed},
-		{	 "buttonsraw",	  gamepad_buttonraw},
-		{		   NULL,				  NULL}
-	};
+	    {        "value",         gamepad_value},
+	    {    "connected",     gamepad_connected},
+	    {"buttonpressed", gamepad_buttonpressed},
+	    {   "buttonsraw",     gamepad_buttonraw},
+	    {	       NULL,	              NULL}
+    };
 	luaL_newlib(luaState, hubfunctions);
 	return 1;
 }

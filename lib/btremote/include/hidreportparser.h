@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+
 #include <ArduinoJson.h>
 #include <vector>
 
@@ -11,16 +12,16 @@
  * and converts them to human-readable JSON format for debugging purposes.
  */
 class HIDReportParser {
-public:
+  public:
 	/**
 	 * @brief Parse a HID report descriptor and output as JSON to Serial
 	 *
 	 * @param descriptor Pointer to the descriptor data
 	 * @param length Length of the descriptor in bytes
 	 */
-	static void parseAndPrintJSON(const uint8_t *descriptor, size_t length);
+	static void parseAndPrintJSON(const uint8_t* descriptor, size_t length);
 
-private:
+  private:
 	// HID Item Type (bits 2-3 of prefix byte)
 	enum ItemType {
 		ITEM_TYPE_MAIN = 0,
@@ -82,7 +83,7 @@ private:
 	/**
 	 * @brief Parse the descriptor and build a JSON document
 	 */
-	static JsonDocument parseDescriptor(const uint8_t *descriptor, size_t length);
+	static JsonDocument parseDescriptor(const uint8_t* descriptor, size_t length);
 
 	/**
 	 * @brief Get the name of a usage page
@@ -102,10 +103,10 @@ private:
 	/**
 	 * @brief Decode input/output/feature flags
 	 */
-	static void decodeIOFlags(JsonObject &obj, uint32_t flags);
+	static void decodeIOFlags(JsonObject& obj, uint32_t flags);
 
 	/**
 	 * @brief Extract signed or unsigned value from item data
 	 */
-	static int32_t extractValue(const uint8_t *data, uint8_t size, bool isSigned = false);
+	static int32_t extractValue(const uint8_t* data, uint8_t size, bool isSigned = false);
 };

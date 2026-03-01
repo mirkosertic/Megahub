@@ -29,6 +29,7 @@ Domain-specific context is in `.claude/skills/` and loads automatically:
 | `memory-freertos` | Memory, heap, stack, FreeRTOS tasks, synchronization |
 | `lua-integration` | Lua scripting, bindings, error handling, Blockly→Lua pipeline |
 | `documentation` | Doc structure, README outline, style rules, what to update and when |
+| `linting` | Formatting and linting — clang-format, ESLint, Prettier, lefthook |
 
 ## Key Architecture
 

@@ -22,18 +22,18 @@
 #include <Wire.h>
 #include <nvs_flash.h>
 
-SC16IS752 *i2cuart1 = NULL;
-SC16IS752 *i2cuart2 = NULL;
-IMU *imu = NULL;
-Megahub *megahub = NULL;
-HubWebServer *webserver = NULL;
-Configuration *configuration = NULL;
-SerialLoggingOutput *loggingOutput = NULL;
-InputDevices *inputDevices = NULL;
-BTRemote *btremote = NULL;
-MotorPWMController *pwmController = NULL;
+SC16IS752* i2cuart1 = NULL;
+SC16IS752* i2cuart2 = NULL;
+IMU* imu = NULL;
+Megahub* megahub = NULL;
+HubWebServer* webserver = NULL;
+Configuration* configuration = NULL;
+SerialLoggingOutput* loggingOutput = NULL;
+InputDevices* inputDevices = NULL;
+BTRemote* btremote = NULL;
+MotorPWMController* pwmController = NULL;
 
-#define GPIO_SPI_SS	  GPIO_NUM_4
+#define GPIO_SPI_SS   GPIO_NUM_4
 #define GPIO_SPI_SCK  GPIO_NUM_18
 #define GPIO_SPI_MOSI GPIO_NUM_23
 #define GPIO_SPI_MISO GPIO_NUM_19
@@ -48,7 +48,8 @@ void setup() {
 	INFO("Setup started");
 	INFO("ESP Chip model     : %s", ESP.getChipModel());
 	INFO("ESP Chip revision  : %d", ESP.getChipRevision());
-	INFO("Running on Arduino : %d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
+	INFO("Running on Arduino : %d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR,
+	     ESP_ARDUINO_VERSION_PATCH);
 	INFO("Running on ESP IDF : %s", esp_get_idf_version());
 	INFO("Max  HEAP  is %d", ESP.getHeapSize());
 	INFO("Free HEAP  is %d", ESP.getFreeHeap());
@@ -103,21 +104,21 @@ void setup() {
 	i2cuart2->begin(2400, 2400);
 
 	INFO("Initializing Lego Device ports ...");
-	SC16IS752SerialAdapter *adapter1 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_AA >> 1);
-	LegoDevice *legodevice1 = new LegoDevice(adapter1, 0);  // Device index 0
+	SC16IS752SerialAdapter* adapter1 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_AA >> 1);
+	LegoDevice* legodevice1 = new LegoDevice(adapter1, 0); // Device index 0
 
-	SC16IS752SerialAdapter *adapter2 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_AA >> 1);
-	LegoDevice *legodevice2 = new LegoDevice(adapter2, 1);  // Device index 1
+	SC16IS752SerialAdapter* adapter2 = new SC16IS752SerialAdapter(i2cuart1, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_AA >> 1);
+	LegoDevice* legodevice2 = new LegoDevice(adapter2, 1); // Device index 1
 
-	SC16IS752SerialAdapter *adapter3 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_BB >> 1);
-	LegoDevice *legodevice3 = new LegoDevice(adapter3, 2);  // Device index 2
+	SC16IS752SerialAdapter* adapter3 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_A, 0, 1, SC16IS750_ADDRESS_BB >> 1);
+	LegoDevice* legodevice3 = new LegoDevice(adapter3, 2); // Device index 2
 
-	SC16IS752SerialAdapter *adapter4 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_BB >> 1);
-	LegoDevice *legodevice4 = new LegoDevice(adapter4, 3);  // Device index 3
+	SC16IS752SerialAdapter* adapter4 = new SC16IS752SerialAdapter(i2cuart2, CHANNEL_B, 2, 3, SC16IS750_ADDRESS_BB >> 1);
+	LegoDevice* legodevice4 = new LegoDevice(adapter4, 3); // Device index 3
 
 	INFO("Creating Motor PWM Controller...");
 	pwmController = new MotorPWMController();
-	//pwmController->start();
+	// pwmController->start();
 
 	INFO("Injecting PWM controller into devices...");
 	legodevice1->setPWMController(pwmController);
@@ -180,8 +181,7 @@ void loop() {
 
 	// Log free heap memory every 10 seconds
 	if (currentMillis - lastHeapLog >= 10000) {
-		INFO("Free HEAP: %d bytes, Free PSRAM : %d bytes",
-			ESP.getFreeHeap(), ESP.getFreePsram());
+		INFO("Free HEAP: %d bytes, Free PSRAM : %d bytes", ESP.getFreeHeap(), ESP.getFreePsram());
 
 		char task_list_buffer[1024];
 		vTaskList(task_list_buffer);
@@ -199,7 +199,8 @@ void loop() {
 	if (configuration->isWiFiEnabled()) {
 		if (WiFi.status() == WL_CONNECTED) {
 			if (!webserver->isStarted()) {
-				INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP / URL: http://%s:80/", WiFi.localIP().toString().c_str());
+				INFO("Starting WebServer as WiFi status == WL_CONNECTED. Local IP / URL: http://%s:80/",
+				     WiFi.localIP().toString().c_str());
 				webserver->start();
 			} else {
 				webserver->loop();

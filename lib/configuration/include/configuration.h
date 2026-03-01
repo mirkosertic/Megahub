@@ -7,12 +7,12 @@
 #include <memory>
 #include <vector>
 
-typedef std::function<void(char *buffer, int size)> Configuration_StreamTarget;
+typedef std::function<void(char* buffer, int size)> Configuration_StreamTarget;
 
 class Configuration {
-private:
+  private:
 	std::unique_ptr<Megahub> hub_;
-	FS *fs_;
+	FS* fs_;
 
 	bool wifiEnabled_;
 	bool btEnabled_;
@@ -21,8 +21,8 @@ private:
 
 	bool deleteDirectory(String directory);
 
-public:
-	Configuration(FS *fs, Megahub *hub);
+  public:
+	Configuration(FS* fs, Megahub* hub);
 	virtual ~Configuration();
 
 	bool isWiFiEnabled();
@@ -38,11 +38,11 @@ public:
 
 	void deleteProject(String projectId);
 	std::vector<String> getProjects();
-	bool writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t *data, size_t length);
-	void streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget &streamTarget);
+	bool writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t* data, size_t length);
+	void streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget& streamTarget);
 	File getProjectFile(String projectId, String fileName);
 
-	bool writeProjectFileContent(String project, String filename, String &content);
+	bool writeProjectFileContent(String project, String filename, String& content);
 };
 
 #endif // CONFIGURATION_H

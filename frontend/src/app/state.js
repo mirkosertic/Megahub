@@ -18,11 +18,11 @@
 
 /** @type {{ portStatuses: Array, deviceList: Array, isConnected: boolean, activeProject: string|null, projects: Array, autostartProject: string|null }} */
 const _state = {
-    portStatuses:    [],
-    deviceList:      [],
-    isConnected:     false,
-    activeProject:   null,
-    projects:        [],
+    portStatuses: [],
+    deviceList: [],
+    isConnected: false,
+    activeProject: null,
+    projects: [],
     autostartProject: null,
 };
 
@@ -46,7 +46,7 @@ export function getState(key) {
 export function setState(patch) {
     Object.assign(_state, patch);
     for (const key of Object.keys(patch)) {
-        _listeners.get(key)?.forEach(fn => fn(_state[key]));
+        _listeners.get(key)?.forEach((fn) => fn(_state[key]));
     }
 }
 
@@ -70,11 +70,11 @@ export function subscribe(key, fn) {
  */
 export function resetState() {
     Object.assign(_state, {
-        portStatuses:    [],
-        deviceList:      [],
-        isConnected:     false,
-        activeProject:   null,
-        projects:        [],
+        portStatuses: [],
+        deviceList: [],
+        isConnected: false,
+        activeProject: null,
+        projects: [],
         autostartProject: null,
     });
     _listeners.clear();

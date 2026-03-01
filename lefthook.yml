@@ -1,0 +1,24 @@
+# Pre-commit hooks for Megahub
+# Install: brew install lefthook && lefthook install
+pre-commit:
+  parallel: true
+  commands:
+    cpp-format:
+      glob: "**/*.{cpp,h,c}"
+      run: clang-format --dry-run --Werror {staged_files}
+    js-eslint:
+      root: frontend/
+      glob: "src/**/*.js"
+      run: npx eslint {staged_files}
+    js-eslint-tests:
+      root: frontend/
+      glob: "test/**/*.js"
+      run: npx eslint {staged_files}
+    js-prettier:
+      root: frontend/
+      glob: "src/**/*.{js,css}"
+      run: npx prettier --check {staged_files}
+    css-prettier:
+      root: frontend/
+      glob: "*.css"
+      run: npx prettier --check {staged_files}

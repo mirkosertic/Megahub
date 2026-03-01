@@ -1,27 +1,26 @@
 import template from './component.html?raw';
 import styleSheet from './style.css?raw';
 
-import Prism from 'prismjs'
-import 'prismjs/components/prism-lua'
-import 'prismjs/plugins/line-numbers/prism-line-numbers'
-import 'prismjs/themes/prism-tomorrow.css'
-import 'prismjs/plugins/line-numbers/prism-line-numbers.css'
+import Prism from 'prismjs';
+import 'prismjs/components/prism-lua';
+import 'prismjs/plugins/line-numbers/prism-line-numbers';
+import 'prismjs/themes/prism-tomorrow.css';
+import 'prismjs/plugins/line-numbers/prism-line-numbers.css';
 
 class LuaPreviewHTMLElement extends HTMLElement {
+    isCollapsed = true;
 
-	isCollapsed = true;
+    connectedCallback() {
+        const shadow = this.attachShadow({ mode: 'open' });
 
-	connectedCallback() {
-		const shadow = this.attachShadow({ mode: 'open' });
+        // Create adoptable stylesheet
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(styleSheet);
+        shadow.adoptedStyleSheets = [sheet];
 
-		// Create adoptable stylesheet
-		const sheet = new CSSStyleSheet();
-		sheet.replaceSync(styleSheet);
-		shadow.adoptedStyleSheets = [sheet];
-
-		// Add Prism styles to shadow DOM
-		const prismStyles = document.createElement('style');
-		prismStyles.textContent = `
+        // Add Prism styles to shadow DOM
+        const prismStyles = document.createElement('style');
+        prismStyles.textContent = `
 			/* Prism Tomorrow theme - minimal subset for Lua */
 			code[class*="language-"],
 			pre[class*="language-"] {
@@ -137,157 +136,157 @@ class LuaPreviewHTMLElement extends HTMLElement {
 				text-align: right;
 			}
 		`;
-		shadow.appendChild(prismStyles);
+        shadow.appendChild(prismStyles);
 
-		shadow.innerHTML += template;
+        shadow.innerHTML += template;
 
-		// Set up collapse toggle functionality
-		this.setupCollapseToggle();
-	};
+        // Set up collapse toggle functionality
+        this.setupCollapseToggle();
+    }
 
-	/**
-	 * Set up collapse toggle button
-	 */
-	setupCollapseToggle() {
-		const collapseToggle = this.shadowRoot.getElementById('collapseToggle');
-		const headerToggle = this.shadowRoot.getElementById('headerToggle');
+    /**
+     * Set up collapse toggle button
+     */
+    setupCollapseToggle() {
+        const collapseToggle = this.shadowRoot.getElementById('collapseToggle');
+        const headerToggle = this.shadowRoot.getElementById('headerToggle');
 
-		if (collapseToggle) {
-			// Click on button
-			collapseToggle.addEventListener('click', (e) => {
-				e.stopPropagation();
-				this.toggleCollapse();
-			});
+        if (collapseToggle) {
+            // Click on button
+            collapseToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleCollapse();
+            });
 
-			// Click on entire header
-			headerToggle.addEventListener('click', () => {
-				this.toggleCollapse();
-			});
-		}
+            // Click on entire header
+            headerToggle.addEventListener('click', () => {
+                this.toggleCollapse();
+            });
+        }
 
-		// Set up copy button
-		this.setupCopyButton();
-	}
+        // Set up copy button
+        this.setupCopyButton();
+    }
 
-	/**
-	 * Set up copy code button
-	 */
-	setupCopyButton() {
-		const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
-		if (copyBtn) {
-			copyBtn.addEventListener('click', async (e) => {
-				e.stopPropagation();
-				await this.copyCodeToClipboard();
-			});
-		}
-	}
+    /**
+     * Set up copy code button
+     */
+    setupCopyButton() {
+        const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.copyCodeToClipboard();
+            });
+        }
+    }
 
-	/**
-	 * Copy the current Lua code to clipboard
-	 */
-	async copyCodeToClipboard() {
-		const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
-		const codePreview = this.shadowRoot.getElementById('codePreview');
+    /**
+     * Copy the current Lua code to clipboard
+     */
+    async copyCodeToClipboard() {
+        const copyBtn = this.shadowRoot.getElementById('copyCodeBtn');
+        const codePreview = this.shadowRoot.getElementById('codePreview');
 
-		if (!codePreview) return;
+        if (!codePreview) return;
 
-		// Get the code text content
-		const codeElement = codePreview.querySelector('code');
-		if (!codeElement) {
-			// No code to copy
-			if (window.showNotification) {
-				window.showNotification('warning', 'No Code', 'No Lua code to copy');
-			}
-			return;
-		}
+        // Get the code text content
+        const codeElement = codePreview.querySelector('code');
+        if (!codeElement) {
+            // No code to copy
+            if (window.showNotification) {
+                window.showNotification('warning', 'No Code', 'No Lua code to copy');
+            }
+            return;
+        }
 
-		const codeText = codeElement.textContent;
+        const codeText = codeElement.textContent;
 
-		try {
-			await navigator.clipboard.writeText(codeText);
+        try {
+            await navigator.clipboard.writeText(codeText);
 
-			// Show copied feedback
-			if (copyBtn) {
-				copyBtn.classList.add('copied');
-				const textSpan = copyBtn.querySelector('.copy-btn-text');
-				if (textSpan) {
-					textSpan.textContent = 'Copied!';
-				}
+            // Show copied feedback
+            if (copyBtn) {
+                copyBtn.classList.add('copied');
+                const textSpan = copyBtn.querySelector('.copy-btn-text');
+                if (textSpan) {
+                    textSpan.textContent = 'Copied!';
+                }
 
-				// Reset after 2 seconds
-				setTimeout(() => {
-					copyBtn.classList.remove('copied');
-					if (textSpan) {
-						textSpan.textContent = 'Copy';
-					}
-				}, 2000);
-			}
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    if (textSpan) {
+                        textSpan.textContent = 'Copy';
+                    }
+                }, 2000);
+            }
 
-			if (window.showNotification) {
-				window.showNotification('success', 'Copied', 'Lua code copied to clipboard');
-			}
-		} catch (error) {
-			console.error('Failed to copy code:', error);
-			if (window.showNotification) {
-				window.showNotification('error', 'Copy Failed', 'Could not copy code to clipboard');
-			}
-		}
-	}
+            if (window.showNotification) {
+                window.showNotification('success', 'Copied', 'Lua code copied to clipboard');
+            }
+        } catch (error) {
+            console.error('Failed to copy code:', error);
+            if (window.showNotification) {
+                window.showNotification('error', 'Copy Failed', 'Could not copy code to clipboard');
+            }
+        }
+    }
 
-	/**
-	 * Toggle collapse state
-	 */
-	toggleCollapse() {
-		this.isCollapsed = !this.isCollapsed;
-		const container = this.shadowRoot.querySelector('.lua-preview-container');
+    /**
+     * Toggle collapse state
+     */
+    toggleCollapse() {
+        this.isCollapsed = !this.isCollapsed;
+        const container = this.shadowRoot.querySelector('.lua-preview-container');
 
-		if (container) {
-			if (this.isCollapsed) {
-				container.classList.add('collapsed');
-				this.dispatchEvent(new CustomEvent('accordion-collapse', { bubbles: true }));
-			} else {
-				container.classList.remove('collapsed');
-				this.dispatchEvent(new CustomEvent('accordion-expand', { bubbles: true }));
-			}
-		}
-	}
+        if (container) {
+            if (this.isCollapsed) {
+                container.classList.add('collapsed');
+                this.dispatchEvent(new CustomEvent('accordion-collapse', { bubbles: true }));
+            } else {
+                container.classList.remove('collapsed');
+                this.dispatchEvent(new CustomEvent('accordion-expand', { bubbles: true }));
+            }
+        }
+    }
 
-	/**
-	 * Collapse the panel (called by accordion controller)
-	 */
-	collapse() {
-		if (!this.isCollapsed) {
-			this.isCollapsed = true;
-			const container = this.shadowRoot.querySelector('.lua-preview-container');
-			if (container) {
-				container.classList.add('collapsed');
-			}
-		}
-	}
+    /**
+     * Collapse the panel (called by accordion controller)
+     */
+    collapse() {
+        if (!this.isCollapsed) {
+            this.isCollapsed = true;
+            const container = this.shadowRoot.querySelector('.lua-preview-container');
+            if (container) {
+                container.classList.add('collapsed');
+            }
+        }
+    }
 
-	highlightCode(code) {
-		const codePreview = this.shadowRoot.getElementById('codePreview');
-		if (codePreview) {
-			codePreview.innerHTML = `<pre class="line-numbers"><code class="language-lua">${Prism.highlight(code, Prism.languages.lua, 'lua')}</code></pre>`;
+    highlightCode(code) {
+        const codePreview = this.shadowRoot.getElementById('codePreview');
+        if (codePreview) {
+            codePreview.innerHTML = `<pre class="line-numbers"><code class="language-lua">${Prism.highlight(code, Prism.languages.lua, 'lua')}</code></pre>`;
 
-			// Manually add line numbers for shadow DOM
-			const pre = codePreview.querySelector('pre');
-			if (pre) {
-				const lines = code.split('\n').length;
-				const lineNumbersWrapper = document.createElement('span');
-				lineNumbersWrapper.className = 'line-numbers-rows';
-				lineNumbersWrapper.innerHTML = '<span></span>'.repeat(lines);
-				pre.appendChild(lineNumbersWrapper);
-			}
-		}
-	};
+            // Manually add line numbers for shadow DOM
+            const pre = codePreview.querySelector('pre');
+            if (pre) {
+                const lines = code.split('\n').length;
+                const lineNumbersWrapper = document.createElement('span');
+                lineNumbersWrapper.className = 'line-numbers-rows';
+                lineNumbersWrapper.innerHTML = '<span></span>'.repeat(lines);
+                pre.appendChild(lineNumbersWrapper);
+            }
+        }
+    }
 
-	clear() {
-		const codePreview = this.shadowRoot.getElementById('codePreview');
-		if (codePreview) {
-			codePreview.innerHTML = '<div class="no-code-message">No code generated yet</div>';
-		}
-	}
-};
+    clear() {
+        const codePreview = this.shadowRoot.getElementById('codePreview');
+        if (codePreview) {
+            codePreview.innerHTML = '<div class="no-code-message">No code generated yet</div>';
+        }
+    }
+}
 
 customElements.define('custom-lua-preview', LuaPreviewHTMLElement);

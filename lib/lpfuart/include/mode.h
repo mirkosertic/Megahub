@@ -11,7 +11,7 @@
 #include <vector>
 
 class Mode {
-public:
+  public:
 	enum class InputOutputType {
 		SUPPORTS_FUNCTIONAL_MAPPING_20,
 		ABS,
@@ -25,8 +25,8 @@ public:
 
 	void registerInputType(InputOutputType inputType);
 	void registerOutputType(InputOutputType outputType);
-	void setName(const std::string &name);
-	void setUnits(const std::string &units);
+	void setName(const std::string& name);
+	void setUnits(const std::string& units);
 	void setPctMinMax(float min, float max);
 	void setSiMinMax(float min, float max);
 	void setFormat(std::unique_ptr<Format> format);
@@ -40,11 +40,11 @@ public:
 
 	void reset();
 
-	void processDataPacket(const uint8_t *payload, int payloadSize);
-	Dataset *getDataset(int index);
+	void processDataPacket(const uint8_t* payload, int payloadSize);
+	Dataset* getDataset(int index);
 	Format* getFormat();
 
-private:
+  private:
 	std::string name_;
 	std::string units_;
 	float pctMin_;

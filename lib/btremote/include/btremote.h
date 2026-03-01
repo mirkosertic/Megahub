@@ -145,21 +145,21 @@ struct HIDDevice {
 struct HIDEventItem {
 	esp_hidh_cb_event_t event;
 	esp_hidh_cb_param_t param;
-	uint8_t *data_copy; // Deep copy of data for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT (must be freed manually)
-	uint16_t data_len; // Length of copied data
+	uint8_t* data_copy; // Deep copy of data for ESP_HIDH_DATA_IND_EVT and ESP_HIDH_GET_RPT_EVT (must be freed manually)
+	uint16_t data_len;  // Length of copied data
 };
 
 class BTRemote {
-private:
+  private:
 	BLEHandles handles_;
 	ConnectionState connState_;
 	uint16_t gatts_if_;
 	uint16_t app_id_;
 
-	InputDevices *inputDevices_;
-	SerialLoggingOutput *loggingOutput_;
-	Configuration *configuration_;
-	Megahub *hub_;
+	InputDevices* inputDevices_;
+	SerialLoggingOutput* loggingOutput_;
+	Configuration* configuration_;
+	Megahub* hub_;
 
 	TaskHandle_t logforwarderTaskHandle_;
 
@@ -178,7 +178,7 @@ private:
 	// CRITICAL: Semaphore for indication flow control (ESP_GATTS_CONF_EVT sync)
 	SemaphoreHandle_t indicationConfirmSemaphore_;
 
-	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> onRequestCallback_;
+	std::function<void(uint8_t, uint8_t, const std::vector<uint8_t>&)> onRequestCallback_;
 
 	// Bluetooth Classic Discovery and Pairing
 	std::map<std::string, BTClassicDevice> discoveredDevices_;
@@ -200,92 +200,95 @@ private:
 	std::map<uint8_t, ActiveStreamTransfer> activeStreams_;
 	SemaphoreHandle_t streamsMutex_;
 
-	void handleFragment(const uint8_t *data, size_t length);
-	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data);
-	void handleControlMessage(const uint8_t *data, size_t length);
-	bool sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType,
-		uint8_t messageId, const std::vector<uint8_t> &data);
-	bool sendResponse(uint8_t messageId, const std::vector<uint8_t> &data);
+	void handleFragment(const uint8_t* data, size_t length);
+	void processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t>& data);
+	void handleControlMessage(const uint8_t* data, size_t length);
+	bool sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType, uint8_t messageId,
+	                    const std::vector<uint8_t>& data);
+	bool sendResponse(uint8_t messageId, const std::vector<uint8_t>& data);
 
-	bool sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider);
+	bool sendLargeResponse(
+	    uint8_t messageId, size_t totalSize,
+	    std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t>& dataContainer)>
+	        chunkProvider);
 	void sendMTUNotification();
 
-	bool reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqGetProjectFile(uint8_t messageId, const JsonDocument &requestDoc);
-	bool reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqRun(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqGetProjects(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqRequestPairing(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqRemovePairing(const JsonDocument &requestDoc, JsonDocument &responseDoc);
-	bool reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &responseDoc);
+	bool reqStopProgram(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqGetProjectFile(uint8_t messageId, const JsonDocument& requestDoc);
+	bool reqPutProjectFile(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqDeleteProject(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqSyntaxCheck(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqRun(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqGetProjects(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqGetAutostart(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqPutAutostart(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqReadyForEvents(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqRequestPairing(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqRemovePairing(const JsonDocument& requestDoc, JsonDocument& responseDoc);
+	bool reqStartDiscovery(const JsonDocument& requestDoc, JsonDocument& responseDoc);
 
 	void sendControlMessage(ControlMessageType type, uint8_t messageId);
-	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback);
-	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data);
+	void onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t>&)> callback);
+	bool sendEvent(uint8_t appEventType, const std::vector<uint8_t>& data);
 
-	void handleGattsConnect(esp_ble_gatts_cb_param_t *param);
-	void handleGattsDisconnect(esp_ble_gatts_cb_param_t *param);
-	void handleGattsMTU(esp_ble_gatts_cb_param_t *param);
-	void handleGattsWrite(esp_ble_gatts_cb_param_t *param);
-	void handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-	void handleGattsCreate(esp_ble_gatts_cb_param_t *param);
-	void handleGattsAddChar(esp_ble_gatts_cb_param_t *param);
-	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param);
-	void handleGattsConfirm(esp_ble_gatts_cb_param_t *param);
+	void handleGattsConnect(esp_ble_gatts_cb_param_t* param);
+	void handleGattsDisconnect(esp_ble_gatts_cb_param_t* param);
+	void handleGattsMTU(esp_ble_gatts_cb_param_t* param);
+	void handleGattsWrite(esp_ble_gatts_cb_param_t* param);
+	void handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param);
+	void handleGattsCreate(esp_ble_gatts_cb_param_t* param);
+	void handleGattsAddChar(esp_ble_gatts_cb_param_t* param);
+	void handleGattsAddCharDescr(esp_ble_gatts_cb_param_t* param);
+	void handleGattsConfirm(esp_ble_gatts_cb_param_t* param);
 
 	// Streaming file transfer handlers
-	void handleStreamStart(const uint8_t *data, size_t length);
-	void handleStreamData(const uint8_t *data, size_t length);
-	void handleStreamEnd(const uint8_t *data, size_t length);
+	void handleStreamStart(const uint8_t* data, size_t length);
+	void handleStreamData(const uint8_t* data, size_t length);
+	void handleStreamEnd(const uint8_t* data, size_t length);
 	void sendStreamAck(uint8_t streamId, uint16_t chunkIndex);
 	void sendStreamError(uint8_t streamId, uint8_t errorCode);
 	void cleanupTimedOutStreams();
 
 	// Bluetooth Classic GAP Event Handlers
-	void handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param);
-	void handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param);
-	void handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param);
-	void handleGapBTPinRequest(esp_bt_gap_cb_param_t *param);
-	void handleGapBTCfmRequest(esp_bt_gap_cb_param_t *param);
-	void handleGapBTKeyNotify(esp_bt_gap_cb_param_t *param);
-	void handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param);
-	void handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param);
-	void handleGapBTAclConnComplete(esp_bt_gap_cb_param_t *param);
-	void handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t *param);
+	void handleGapBTAuthComplete(esp_bt_gap_cb_param_t* param);
+	void handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t* param);
+	void handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t* param);
+	void handleGapBTPinRequest(esp_bt_gap_cb_param_t* param);
+	void handleGapBTCfmRequest(esp_bt_gap_cb_param_t* param);
+	void handleGapBTKeyNotify(esp_bt_gap_cb_param_t* param);
+	void handleGapBTKeyRequest(esp_bt_gap_cb_param_t* param);
+	void handleGapBTReadRemoteName(esp_bt_gap_cb_param_t* param);
+	void handleGapBTAclConnComplete(esp_bt_gap_cb_param_t* param);
+	void handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t* param);
 
 	// HID Host Event Handlers (called from HID event task, not callback)
-	void handleHIDHostInit(esp_hidh_cb_param_t *param);
-	void handleHIDHostOpen(esp_hidh_cb_param_t *param);
-	void handleHIDHostClose(esp_hidh_cb_param_t *param);
-	void handleHIDHostData(esp_hidh_cb_param_t *param);
-	void processGamepadReport(const esp_bd_addr_t address, const uint8_t *data, uint16_t length);
+	void handleHIDHostInit(esp_hidh_cb_param_t* param);
+	void handleHIDHostOpen(esp_hidh_cb_param_t* param);
+	void handleHIDHostClose(esp_hidh_cb_param_t* param);
+	void handleHIDHostData(esp_hidh_cb_param_t* param);
+	void processGamepadReport(const esp_bd_addr_t address, const uint8_t* data, uint16_t length);
 
 	// HID event processing task
-	static void hidEventTask(void *pvParameters);
-	void processHIDEvent(const HIDEventItem &item);
+	static void hidEventTask(void* pvParameters);
+	void processHIDEvent(const HIDEventItem& item);
 
 	// Helper methods for Bluetooth Classic
 	void stopDiscoveryInternal();
 	BTClassicDeviceType classifyDevice(uint32_t cod);
 	std::string bdAddrToString(const esp_bd_addr_t address);
-	void stringToBdAddr(const std::string &str, esp_bd_addr_t address);
+	void stringToBdAddr(const std::string& str, esp_bd_addr_t address);
 
-public:
-	BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuragtion);
+  public:
+	BTRemote(FS* fs, InputDevices* inputDevices, Megahub* hub, SerialLoggingOutput* loggingOutput,
+	         Configuration* configuragtion);
 	~BTRemote();
 
-	void begin(const char *deviceName);
+	void begin(const char* deviceName);
 
-	static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
-		esp_ble_gatts_cb_param_t *param);
-	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
-	static void gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
-	static void hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t *param);
+	static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param);
+	static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param);
+	static void gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param);
+	static void hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t* param);
 
 	void publishLogMessages();
 	void publishCommands();
@@ -303,13 +306,13 @@ public:
 	void clearDiscoveredDevices();
 
 	// Bluetooth Classic Pairing API
-	bool removePairing(const char *macAddress);
-	bool startPairing(const char *macAddress);
+	bool removePairing(const char* macAddress);
+	bool startPairing(const char* macAddress);
 	bool isPairingInProgress() const;
 
 	// HID Host API
-	bool hidConnect(const char *macAddress);
-	bool hidDisconnect(const char *macAddress);
+	bool hidConnect(const char* macAddress);
+	bool hidDisconnect(const char* macAddress);
 	std::vector<HIDDevice> getConnectedHIDDevices();
 };
 

@@ -1,7 +1,8 @@
 #include "hidreportparser.h"
+
 #include "logging.h"
 
-void HIDReportParser::parseAndPrintJSON(const uint8_t *descriptor, size_t length) {
+void HIDReportParser::parseAndPrintJSON(const uint8_t* descriptor, size_t length) {
 	if (descriptor == nullptr || length == 0) {
 		ERROR("Invalid HID descriptor");
 		return;
@@ -19,7 +20,7 @@ void HIDReportParser::parseAndPrintJSON(const uint8_t *descriptor, size_t length
 	Serial.println("==========================================================");
 }
 
-JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t length) {
+JsonDocument HIDReportParser::parseDescriptor(const uint8_t* descriptor, size_t length) {
 	JsonDocument doc;
 	JsonArray items = doc["items"].to<JsonArray>();
 
@@ -58,14 +59,18 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 
 		// Handle long items (bSize = 3)
 		if (bSize == 3) {
-			if (pos >= length) break;
+			if (pos >= length) {
+				break;
+			}
 			uint8_t dataSize = descriptor[pos++];
 			JsonObject item = items.add<JsonObject>();
 			item["type"] = "LongItem";
 			item["tag"] = bTag;
 			item["size"] = dataSize;
 			pos += dataSize;
-			if (pos > length) break;
+			if (pos > length) {
+				break;
+			}
 			continue;
 		}
 
@@ -75,7 +80,7 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 		// Extract data bytes
 		uint32_t data = 0;
 		for (int i = 0; i < dataSize && pos < length; i++) {
-			data |= ((uint32_t)descriptor[pos++]) << (i * 8);
+			data |= ((uint32_t) descriptor[pos++]) << (i * 8);
 		}
 
 		// Create JSON object for this item
@@ -90,14 +95,16 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 					case MAIN_INPUT:
 					case MAIN_OUTPUT:
 					case MAIN_FEATURE: {
-						const char* tagName = (bTag == MAIN_INPUT) ? "Input" :
-						                      (bTag == MAIN_OUTPUT) ? "Output" : "Feature";
+						const char* tagName = (bTag == MAIN_INPUT)    ? "Input"
+						                      : (bTag == MAIN_OUTPUT) ? "Output"
+						                                              : "Feature";
 						item["tag"] = tagName;
 						decodeIOFlags(item, data);
 
 						// Calculate bit offset based on type
-						uint32_t* bitOffset = (bTag == MAIN_INPUT) ? &inputBitOffset :
-						                      (bTag == MAIN_OUTPUT) ? &outputBitOffset : &featureBitOffset;
+						uint32_t* bitOffset = (bTag == MAIN_INPUT)    ? &inputBitOffset
+						                      : (bTag == MAIN_OUTPUT) ? &outputBitOffset
+						                                              : &featureBitOffset;
 
 						// Add layout information
 						JsonObject layout = reportLayout.add<JsonObject>();
@@ -137,13 +144,21 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 						} else if (currentUsagePage == 0x01) {
 							if (!usageStack.empty()) {
 								uint16_t usage = usageStack[0];
-								if (usage == 0x30) description = "X Axis";
-								else if (usage == 0x31) description = "Y Axis";
-								else if (usage == 0x32) description = "Z Axis";
-								else if (usage == 0x33) description = "Rx Axis";
-								else if (usage == 0x34) description = "Ry Axis";
-								else if (usage == 0x35) description = "Rz Axis";
-								else if (usage == 0x39) description = "Hat Switch";
+								if (usage == 0x30) {
+									description = "X Axis";
+								} else if (usage == 0x31) {
+									description = "Y Axis";
+								} else if (usage == 0x32) {
+									description = "Z Axis";
+								} else if (usage == 0x33) {
+									description = "Rx Axis";
+								} else if (usage == 0x34) {
+									description = "Ry Axis";
+								} else if (usage == 0x35) {
+									description = "Rz Axis";
+								} else if (usage == 0x39) {
+									description = "Hat Switch";
+								}
 							}
 						}
 						if (description.length() > 0) {
@@ -187,25 +202,25 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 						break;
 					case GLOBAL_LOGICAL_MIN:
 						item["tag"] = "LogicalMinimum";
-						item["value"] = extractValue((const uint8_t*)&data, dataSize, true);
-						logicalMin = extractValue((const uint8_t*)&data, dataSize, true);
+						item["value"] = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
+						logicalMin = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
 						break;
 					case GLOBAL_LOGICAL_MAX:
 						item["tag"] = "LogicalMaximum";
-						item["value"] = extractValue((const uint8_t*)&data, dataSize, true);
-						logicalMax = extractValue((const uint8_t*)&data, dataSize, true);
+						item["value"] = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
+						logicalMax = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
 						break;
 					case GLOBAL_PHYSICAL_MIN:
 						item["tag"] = "PhysicalMinimum";
-						item["value"] = extractValue((const uint8_t*)&data, dataSize, true);
+						item["value"] = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
 						break;
 					case GLOBAL_PHYSICAL_MAX:
 						item["tag"] = "PhysicalMaximum";
-						item["value"] = extractValue((const uint8_t*)&data, dataSize, true);
+						item["value"] = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
 						break;
 					case GLOBAL_UNIT_EXPONENT:
 						item["tag"] = "UnitExponent";
-						item["value"] = extractValue((const uint8_t*)&data, dataSize, true);
+						item["value"] = extractValue(reinterpret_cast<const uint8_t*>(&data), dataSize, true);
 						break;
 					case GLOBAL_UNIT:
 						item["tag"] = "Unit";
@@ -319,24 +334,42 @@ JsonDocument HIDReportParser::parseDescriptor(const uint8_t *descriptor, size_t 
 
 const char* HIDReportParser::getUsagePageName(uint16_t usagePage) {
 	switch (usagePage) {
-		case 0x01: return "Generic Desktop";
-		case 0x02: return "Simulation Controls";
-		case 0x03: return "VR Controls";
-		case 0x04: return "Sport Controls";
-		case 0x05: return "Game Controls";
-		case 0x06: return "Generic Device Controls";
-		case 0x07: return "Keyboard/Keypad";
-		case 0x08: return "LEDs";
-		case 0x09: return "Button";
-		case 0x0A: return "Ordinal";
-		case 0x0B: return "Telephony";
-		case 0x0C: return "Consumer";
-		case 0x0D: return "Digitizer";
-		case 0x0F: return "PID Page";
-		case 0x10: return "Unicode";
-		case 0x14: return "Alphanumeric Display";
-		case 0x40: return "Medical Instruments";
-		default: return "Unknown";
+		case 0x01:
+			return "Generic Desktop";
+		case 0x02:
+			return "Simulation Controls";
+		case 0x03:
+			return "VR Controls";
+		case 0x04:
+			return "Sport Controls";
+		case 0x05:
+			return "Game Controls";
+		case 0x06:
+			return "Generic Device Controls";
+		case 0x07:
+			return "Keyboard/Keypad";
+		case 0x08:
+			return "LEDs";
+		case 0x09:
+			return "Button";
+		case 0x0A:
+			return "Ordinal";
+		case 0x0B:
+			return "Telephony";
+		case 0x0C:
+			return "Consumer";
+		case 0x0D:
+			return "Digitizer";
+		case 0x0F:
+			return "PID Page";
+		case 0x10:
+			return "Unicode";
+		case 0x14:
+			return "Alphanumeric Display";
+		case 0x40:
+			return "Medical Instruments";
+		default:
+			return "Unknown";
 	}
 }
 
@@ -344,34 +377,62 @@ const char* HIDReportParser::getUsageName(uint16_t usagePage, uint16_t usage) {
 	// Generic Desktop usages (0x01)
 	if (usagePage == 0x01) {
 		switch (usage) {
-			case 0x01: return "Pointer";
-			case 0x02: return "Mouse";
-			case 0x04: return "Joystick";
-			case 0x05: return "Game Pad";
-			case 0x06: return "Keyboard";
-			case 0x07: return "Keypad";
-			case 0x08: return "Multi-axis Controller";
-			case 0x30: return "X";
-			case 0x31: return "Y";
-			case 0x32: return "Z";
-			case 0x33: return "Rx";
-			case 0x34: return "Ry";
-			case 0x35: return "Rz";
-			case 0x36: return "Slider";
-			case 0x37: return "Dial";
-			case 0x38: return "Wheel";
-			case 0x39: return "Hat switch";
-			case 0x3A: return "Counted Buffer";
-			case 0x3B: return "Byte Count";
-			case 0x3C: return "Motion Wakeup";
-			case 0x3D: return "Start";
-			case 0x3E: return "Select";
-			case 0x85: return "System Main Menu";
-			case 0x90: return "D-pad Up";
-			case 0x91: return "D-pad Down";
-			case 0x92: return "D-pad Right";
-			case 0x93: return "D-pad Left";
-			default: return nullptr;
+			case 0x01:
+				return "Pointer";
+			case 0x02:
+				return "Mouse";
+			case 0x04:
+				return "Joystick";
+			case 0x05:
+				return "Game Pad";
+			case 0x06:
+				return "Keyboard";
+			case 0x07:
+				return "Keypad";
+			case 0x08:
+				return "Multi-axis Controller";
+			case 0x30:
+				return "X";
+			case 0x31:
+				return "Y";
+			case 0x32:
+				return "Z";
+			case 0x33:
+				return "Rx";
+			case 0x34:
+				return "Ry";
+			case 0x35:
+				return "Rz";
+			case 0x36:
+				return "Slider";
+			case 0x37:
+				return "Dial";
+			case 0x38:
+				return "Wheel";
+			case 0x39:
+				return "Hat switch";
+			case 0x3A:
+				return "Counted Buffer";
+			case 0x3B:
+				return "Byte Count";
+			case 0x3C:
+				return "Motion Wakeup";
+			case 0x3D:
+				return "Start";
+			case 0x3E:
+				return "Select";
+			case 0x85:
+				return "System Main Menu";
+			case 0x90:
+				return "D-pad Up";
+			case 0x91:
+				return "D-pad Down";
+			case 0x92:
+				return "D-pad Right";
+			case 0x93:
+				return "D-pad Left";
+			default:
+				return nullptr;
 		}
 	}
 	// Button usages (0x09)
@@ -384,18 +445,26 @@ const char* HIDReportParser::getUsageName(uint16_t usagePage, uint16_t usage) {
 
 const char* HIDReportParser::getCollectionTypeName(uint8_t type) {
 	switch (type) {
-		case COLLECTION_PHYSICAL: return "Physical";
-		case COLLECTION_APPLICATION: return "Application";
-		case COLLECTION_LOGICAL: return "Logical";
-		case COLLECTION_REPORT: return "Report";
-		case COLLECTION_NAMED_ARRAY: return "Named Array";
-		case COLLECTION_USAGE_SWITCH: return "Usage Switch";
-		case COLLECTION_USAGE_MODIFIER: return "Usage Modifier";
-		default: return "Unknown";
+		case COLLECTION_PHYSICAL:
+			return "Physical";
+		case COLLECTION_APPLICATION:
+			return "Application";
+		case COLLECTION_LOGICAL:
+			return "Logical";
+		case COLLECTION_REPORT:
+			return "Report";
+		case COLLECTION_NAMED_ARRAY:
+			return "Named Array";
+		case COLLECTION_USAGE_SWITCH:
+			return "Usage Switch";
+		case COLLECTION_USAGE_MODIFIER:
+			return "Usage Modifier";
+		default:
+			return "Unknown";
 	}
 }
 
-void HIDReportParser::decodeIOFlags(JsonObject &obj, uint32_t flags) {
+void HIDReportParser::decodeIOFlags(JsonObject& obj, uint32_t flags) {
 	obj["flags"] = flags;
 
 	JsonObject decoded = obj["decoded"].to<JsonObject>();
@@ -425,12 +494,12 @@ void HIDReportParser::decodeIOFlags(JsonObject &obj, uint32_t flags) {
 	decoded["bufferType"] = (flags & 0x100) ? "BufferedBytes" : "BitField";
 }
 
-int32_t HIDReportParser::extractValue(const uint8_t *data, uint8_t size, bool isSigned) {
+int32_t HIDReportParser::extractValue(const uint8_t* data, uint8_t size, bool isSigned) {
 	int32_t value = 0;
 
 	// Extract bytes
 	for (int i = 0; i < size; i++) {
-		value |= ((int32_t)data[i]) << (i * 8);
+		value |= ((int32_t) data[i]) << (i * 8);
 	}
 
 	// Sign extend if needed

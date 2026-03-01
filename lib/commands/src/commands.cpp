@@ -9,12 +9,13 @@ Commands::Commands() {
 	commandQueue_ = xQueueCreate(COMMAND_QUEUE_LENGTH, COMMAND_MESSAGE_SIZE);
 	if (!commandQueue_) {
 		ERROR("Failed to initialize queue!");
-		while(true);
+		while (true)
+			;
 	}
 }
 
 void Commands::queue(String command) {
-	const char *buffer = command.c_str();
+	const char* buffer = command.c_str();
 
 	if (xQueueSend(commandQueue_, buffer, 0) != pdTRUE) {
 		// Queue full, message dropped
@@ -30,7 +31,7 @@ String Commands::waitForCommand(TickType_t ticksToWait) {
 	return String();
 }
 
-Commands *Commands::instance() {
+Commands* Commands::instance() {
 	static Commands instance;
 	return &instance;
 }

@@ -1,11 +1,7 @@
 #include "format.h"
 
 Format::Format(int datasets, FormatType formatType, int figures, int decimals)
-	: datasets(datasets)
-	, formatType(formatType)
-	, figures(figures)
-	, decimals(decimals) {
-}
+    : datasets(datasets), formatType(formatType), figures(figures), decimals(decimals) {}
 
 Format::FormatType Format::forId(int id) {
 	switch (id) {

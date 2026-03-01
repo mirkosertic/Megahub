@@ -8,13 +8,13 @@ import { definition } from '../../src/components/blockly/mh_set_motor_speed.js';
 
 function makeBlock(fields = {}) {
     return {
-        getFieldValue: key => fields[key] ?? null,
+        getFieldValue: (key) => fields[key] ?? null,
     };
 }
 
 function makeGenerator(values = {}) {
     return {
-        valueToCode: (_block, name, _order) => values[name] ?? '0',
+        valueToCode: (_block, name) => values[name] ?? '0',
     };
 }
 
@@ -41,7 +41,7 @@ describe('mh_set_motor_speed block definition', () => {
 describe('mh_set_motor_speed generator', () => {
     it('generates hub.setmotorspeed(port, value) call', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT1', VALUE: '50' });
+        const gen = makeGenerator({ PORT: 'PORT1', VALUE: '50' });
 
         const code = definition.generator(block, gen);
 
@@ -52,7 +52,7 @@ describe('mh_set_motor_speed generator', () => {
 
     it('produces a statement ending with newline', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT1', VALUE: '100' });
+        const gen = makeGenerator({ PORT: 'PORT1', VALUE: '100' });
 
         const code = definition.generator(block, gen);
 
@@ -61,7 +61,7 @@ describe('mh_set_motor_speed generator', () => {
 
     it('uses default 0 for missing VALUE input', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT2' });  // no VALUE
+        const gen = makeGenerator({ PORT: 'PORT2' }); // no VALUE
 
         const code = definition.generator(block, gen);
 
@@ -71,7 +71,7 @@ describe('mh_set_motor_speed generator', () => {
 
     it('includes both PORT and VALUE in the output', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'myPort', VALUE: 'speed * 2' });
+        const gen = makeGenerator({ PORT: 'myPort', VALUE: 'speed * 2' });
 
         const code = definition.generator(block, gen);
 
@@ -81,7 +81,7 @@ describe('mh_set_motor_speed generator', () => {
 
     it('produces exactly hub.setmotorspeed(port,value)\\n', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'p', VALUE: 'v' });
+        const gen = makeGenerator({ PORT: 'p', VALUE: 'v' });
 
         const code = definition.generator(block, gen);
 

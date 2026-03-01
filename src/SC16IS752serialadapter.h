@@ -12,8 +12,9 @@ enum SC16IS752SerialAdapterChannel {
 };
 
 class SC16IS752SerialAdapter : public SerialIO {
-public:
-	SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel port, int m1pin, int m2pin, uint8_t i2cAddress);
+  public:
+	SC16IS752SerialAdapter(SC16IS752* hardwareserial, SC16IS752SerialAdapterChannel port, int m1pin, int m2pin,
+	                       uint8_t i2cAddress);
 	virtual ~SC16IS752SerialAdapter();
 
 	virtual int available();
@@ -31,8 +32,8 @@ public:
 	virtual int digitalRead(int pin);
 	virtual void digitalWrite(int pin, int value);
 
-private:
-	SC16IS752 *hardwareserial_;
+  private:
+	SC16IS752* hardwareserial_;
 	SC16IS752SerialAdapterChannel channel_;
 	int m1pin_;
 	int m2pin_;

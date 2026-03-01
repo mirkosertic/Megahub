@@ -12,26 +12,26 @@ const CONTROL_CHAR_UUID = 'f78ebbff-c8b7-4107-93de-889a6a06d408';
 
 // Protocol Message Types (INTERNAL - for fragmentation protocol)
 const ProtocolMessageType = {
-	REQUEST : 0x01,
-	RESPONSE : 0x02,
-	EVENT : 0x03,
-	CONTROL : 0x04,
-	STREAM_DATA : 0x05,
-	STREAM_START : 0x06,
-	STREAM_END : 0x07
+    REQUEST: 0x01,
+    RESPONSE: 0x02,
+    EVENT: 0x03,
+    CONTROL: 0x04,
+    STREAM_DATA: 0x05,
+    STREAM_START: 0x06,
+    STREAM_END: 0x07,
 };
 
 // Control Message Types (INTERNAL - for control channel)
 const ControlMessageType = {
-	ACK : 0x01,
-	NACK : 0x02,
-	RETRY : 0x03,
-	BUFFER_FULL : 0x04,
-	RESET : 0x05,
-	MTU_INFO : 0x06,
-	REQUEST_MTU_INFO : 0x07,  // Browser -> ESP32 only
-	STREAM_ACK : 0x07,         // ESP32 -> Browser only (same value, different direction)
-	STREAM_ERROR : 0x09
+    ACK: 0x01,
+    NACK: 0x02,
+    RETRY: 0x03,
+    BUFFER_FULL: 0x04,
+    RESET: 0x05,
+    MTU_INFO: 0x06,
+    REQUEST_MTU_INFO: 0x07, // Browser -> ESP32 only
+    STREAM_ACK: 0x07, // ESP32 -> Browser only (same value, different direction)
+    STREAM_ERROR: 0x09,
 };
 
 // Fragment Flags (INTERNAL)
@@ -47,1109 +47,1118 @@ const MAX_RETRIES = 3;
 const VERBOSE_LOGGING = false;
 
 export class BLEClient {
-	constructor() {
-		this.device = null;
-		this.server = null;
-		this.service = null;
-
-		this.requestChar = null;
-		this.responseChar = null;
-		this.eventChar = null;
-		this.controlChar = null;
-
-		this.mtu = 23; // Default MTU, will be updated after connection
-		this.mtuReceived = false;
-		this.mtuReceivedResolve = null;
-		this.connected = false;
-
-		// Fragment management
-		this.fragmentBuffers = new Map();
-
-		// Request management
-		this.pendingRequests = new Map();
-		this.currentMessageId = 0;
-
-		// Event listeners
-		this.eventListeners = new Map();
-
-		// Disconnect listener
-		this.onDisconnectCallback = null;
-
-		// Streaming file transfer state
-		this.activeStreams = new Map();
-	}
-
-	// Logging helpers
-	logVerbose(...args) {
-		if (VERBOSE_LOGGING) {
-			console.log('[BLE VERBOSE]', ...args);
-		}
-	}
-
-	logInfo(...args) {
-		console.log('[BLE]', ...args);
-	}
-
-	logWarn(...args) {
-		console.warn('[BLE]', ...args);
-	}
-
-	logError(...args) {
-		console.error('[BLE]', ...args);
-	}
-
-	/**
-	 * Establish connection to BLE device (initial connection with user gesture)
-	 * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
-	 * @returns {Promise<void>}
-	 */
-	async connect(onProgress = null) {
-		try {
-			this.logInfo('Starting BLE connection...');
-			if (onProgress) onProgress('requesting', 'Requesting device...');
-
-			// Select device (requires user gesture)
-			this.device = await navigator.bluetooth.requestDevice({
-				filters : [ {services : [ SERVICE_UUID ]} ],
-				optionalServices : [ SERVICE_UUID ]
-			});
-
-			this.logInfo('Device selected:', this.device.name);
-
-			// Disconnect handler (only register once during initial connection)
-			this.device.addEventListener('gattserverdisconnected', () => {
-				this.handleDisconnect();
-			});
-
-			// Perform the actual GATT connection setup
-			await this._setupGattConnection(onProgress);
-
-		} catch (error) {
-			this.logError('Connection error:', error);
-			throw new Error(`BLE connection failed: ${error.message}`);
-		}
-	}
-
-	/**
-	 * Reconnect to existing BLE device (no user gesture required)
-	 * @returns {Promise<void>}
-	 */
-	async reconnect() {
-		if (!this.device) {
-			throw new Error('No device available for reconnection. Please use connect() first.');
-		}
-
-		try {
-			this.logInfo('Reconnecting to device:', this.device.name);
-
-			// Perform the actual GATT connection setup
-			await this._setupGattConnection();
-
-		} catch (error) {
-			this.logError('Reconnection error:', error);
-			throw new Error(`BLE reconnection failed: ${error.message}`);
-		}
-	}
-
-	/**
-	 * Internal method to set up GATT connection and characteristics
-	 * @private
-	 * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
-	 * @returns {Promise<void>}
-	 */
-	async _setupGattConnection(onProgress = null) {
-		// Connect to GATT server
-		if (onProgress) onProgress('connecting', 'Connecting to GATT server...');
-		this.server = await this.device.gatt.connect();
-		this.logVerbose('GATT server connected');
-
-		// Get service
-		if (onProgress) onProgress('services', 'Discovering services...');
-		this.service = await this.server.getPrimaryService(SERVICE_UUID);
-		this.logVerbose('Service found');
-
-		// Get characteristics
-		this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
-		this.responseChar = await this.service.getCharacteristic(RESPONSE_CHAR_UUID);
-		this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
-		this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
-
-		this.logVerbose('All characteristics found');
-
-		// Event listeners for incoming data - register BEFORE starting notifications
-		this.logVerbose('Registering event listeners for characteristics');
-		this.responseChar.addEventListener('characteristicvaluechanged',
-			(event) => this.handleFragment(event.target.value, 'response'));
-
-		this.eventChar.addEventListener('characteristicvaluechanged',
-			(event) => this.handleFragment(event.target.value, 'event'));
-
-		this.controlChar.addEventListener('characteristicvaluechanged',
-			(event) => this.handleControlMessage(event.target.value));
-
-		// Enable notifications AFTER event listeners are registered
-		if (onProgress) onProgress('notifications', 'Enabling notifications...');
-		await this.responseChar.startNotifications();
-		this.logVerbose('Response notifications enabled');
-		await this.eventChar.startNotifications();
-		this.logVerbose('Event notifications enabled');
-		await this.controlChar.startNotifications();
-		this.logVerbose('Control notifications enabled');
-
-		// Verify notifications are active
-		if (!this.responseChar.properties.notify && !this.responseChar.properties.indicate) {
-			throw new Error('Response characteristic does not support notifications/indications');
-		}
-		if (!this.eventChar.properties.notify && !this.eventChar.properties.indicate) {
-			throw new Error('Event characteristic does not support notifications/indications');
-		}
-		if (!this.controlChar.properties.notify && !this.controlChar.properties.indicate) {
-			throw new Error('Control characteristic does not support notifications/indications');
-		}
-
-		// Give BLE stack time to fully initialize indication handling
-		// CRITICAL: CCCD writes need time to propagate through BLE stack
-		// Without this delay, ESP32 gets ESP_GATT_NO_RESOURCES when sending indications
-		await this.sleep(200);
-
-		this.connected = true;
-		this.logInfo('BLE connection established');
-
-		// Wait for MTU information from server (with timeout)
-		if (onProgress) onProgress('mtu', 'Negotiating MTU...');
-		await this.waitForMTU(2000);
-		this.logVerbose(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
-
-		// Test control channel by requesting MTU info again
-		// This "primes" the indication confirmation path and verifies it works
-		await this.testControlChannel();
-
-		if (onProgress) onProgress('ready', 'Connection established!');
-		this.logVerbose('BLE stack fully initialized and ready for streaming');
-	}
-
-	/**
-	 * Test control channel to ensure indication confirmations work
-	 * @returns {Promise<void>}
-	 */
-	async testControlChannel() {
-		this.logVerbose('Testing control channel indication path...');
-
-		// Set up a test to verify we can receive control indications
-		let controlTestReceived = false;
-		const originalMtuResolve = this.mtuReceivedResolve;
-
-		const testPromise = new Promise((resolve) => {
-			this.mtuReceivedResolve = () => {
-				controlTestReceived = true;
-				resolve();
-			};
-		});
-
-		try {
-			// Send REQUEST_MTU_INFO control message
-			// This should trigger an MTU_INFO indication response
-			const data = new Uint8Array([ ControlMessageType.REQUEST_MTU_INFO, 0x00 ]);
-			await this.controlChar.writeValueWithResponse(data);
-
-			// Wait for MTU_INFO response (or timeout)
-			const raceResult = await Promise.race([
-				testPromise,
-				this.sleep(500).then(() => 'timeout')
-			]);
-
-			if (raceResult === 'timeout' || !controlTestReceived) {
-				this.logVerbose('Control channel test: No indication received');
-				// Give more time for BLE stack to initialize
-				await this.sleep(200);
-			} else {
-				this.logVerbose('Control channel test: Indication received successfully');
-			}
-		} catch (error) {
-			this.logVerbose('Control channel test failed (non-fatal):', error.message);
-			// Give more time for BLE stack to settle
-			await this.sleep(200);
-		} finally {
-			this.mtuReceivedResolve = originalMtuResolve;
-		}
-	}
-
-	/**
-	 * Wait for MTU information from server
-	 * @param {number} timeout - Timeout in milliseconds
-	 */
-	async waitForMTU(timeout = 2000) {
-		this.logVerbose('Waiting for MTU information from server...');
-
-		// Create promise for MTU reception
-		const mtuPromise = new Promise((resolve) => {
-			this.mtuReceivedResolve = resolve;
-		});
-
-		// Timeout promise
-		const timeoutPromise = new Promise((resolve) => {
-			setTimeout(() => resolve('timeout'), timeout);
-		});
-
-		// Wait for MTU or timeout
-		const result = await Promise.race([ mtuPromise, timeoutPromise ]);
-
-		// If timeout, determine MTU ourselves
-		if (result === 'timeout') {
-			this.logWarn('No MTU info received from server (timeout), determining MTU ourselves...');
-			await this.negotiateMTU();
-		} else {
-			this.logInfo('MTU info from server successfully received');
-		}
-	}
-
-	/**
-	 * Determine MTU by testing
-	 */
-	async negotiateMTU() {
-		const testSizes = [ 517, 251, 185, 158, 131, 104, 77, 50, 23 ];
-
-		for (const size of testSizes) {
-			try {
-				const testData = new Uint8Array(size - 3);
-				testData.fill(0xFF);
-				await this.requestChar.writeValue(testData);
-				this.mtu = size;
-				this.logInfo(`MTU negotiated: ${size} bytes`);
-				return;
-			} catch (error) {
-				continue;
-			}
-		}
-
-		this.mtu = 23;
-		this.logWarn('MTU negotiation failed, using minimum: 23 bytes');
-	}
-
-	/**
-	 * Disconnect
-	 */
-	async disconnect() {
-		if (this.device && this.device.gatt.connected) {
-			await this.device.gatt.disconnect();
-		}
-		this.handleDisconnect();
-	}
-
-	/**
-	 * Disconnect handler
-	 */
-	handleDisconnect() {
-		this.logInfo('Disconnected');
-		this.connected = false;
-
-		// Clean up event listeners for proper resource cleanup
-		this.removeAllEventListeners();
-
-		for (const [messageId, request] of this.pendingRequests) {
-			request.reject(new Error('Connection closed'));
-		}
-		this.pendingRequests.clear();
-		this.fragmentBuffers.clear();
-
-		if (this.onDisconnectCallback) {
-			this.onDisconnectCallback();
-		}
-	}
-
-	/**
-	 * Register disconnect callback
-	 * @param {Function} callback
-	 */
-	onDisconnect(callback) {
-		this.onDisconnectCallback = callback;
-	}
-
-	/**
-	 * Process fragment (INTERNAL)
-	 * @param {DataView} dataView
-	 * @param {string} type - 'response' or 'event'
-	 */
-	handleFragment(dataView, type) {
-		if (dataView.byteLength < FRAGMENT_HEADER_SIZE) {
-			this.logError('Fragment too small');
-			return;
-		}
-
-		// Parse header
-		const protocolMsgType = dataView.getUint8(0);
-		const messageId = dataView.getUint8(1);
-		const fragmentNum = dataView.getUint16(2);
-		const flags = dataView.getUint8(4);
-
-		this.logVerbose(`Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`);
-
-		// Extract payload
-		const payload = new Uint8Array(
-			dataView.buffer,
-			dataView.byteOffset + FRAGMENT_HEADER_SIZE,
-			dataView.byteLength - FRAGMENT_HEADER_SIZE);
-
-		// Buffer key
-		const bufferKey = `${type}-${messageId}`;
-
-		// Initialize or extend buffer
-		if (!this.fragmentBuffers.has(bufferKey)) {
-			this.fragmentBuffers.set(bufferKey, {
-				fragments : [],
-				protocolMsgType : protocolMsgType,
-				messageId : messageId,
-				timestamp : Date.now()
-			});
-		}
-
-		const buffer = this.fragmentBuffers.get(bufferKey);
-		buffer.fragments.push(payload);
-		buffer.timestamp = Date.now();
-
-		// Last fragment?
-		if (flags & FLAG_LAST_FRAGMENT) {
-			this.logVerbose(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
-
-			// Merge fragments
-			const completeData = this.mergeFragments(buffer.fragments);
-
-			// Release buffer
-			this.fragmentBuffers.delete(bufferKey);
-
-			// Process message
-			if (type === 'response') {
-				this.handleResponse(messageId, completeData);
-			} else if (type === 'event') {
-				this.handleEvent(messageId, completeData);
-			}
-		}
-	}
-
-	/**
-	 * Merge fragments
-	 * @param {Array<Uint8Array>} fragments
-	 * @returns {Uint8Array}
-	 */
-	mergeFragments(fragments) {
-		const totalLength = fragments.reduce((sum, f) => sum + f.length, 0);
-		const result = new Uint8Array(totalLength);
-		let offset = 0;
-
-		for (const fragment of fragments) {
-			result.set(fragment, offset);
-			offset += fragment.length;
-		}
-
-		return result;
-	}
-
-	/**
-	 * Process response
-	 * @param {number} messageId - Internal message ID (protocol layer)
-	 * @param {Uint8Array} data - Complete response data (incl. Application Request Type)
-	 */
-	handleResponse(messageId, data) {
-		const pending = this.pendingRequests.get(messageId);
-		if (pending) {
-			clearTimeout(pending.timeout);
-			this.pendingRequests.delete(messageId);
-			// Return complete data (incl. request type if server sends it back)
-			pending.resolve(data);
-		} else {
-			this.logWarn(`No pending request for message ID ${messageId}`);
-		}
-	}
-
-	/**
-	 * Process event
-	 * @param {number} messageId - Internal message ID (protocol layer)
-	 * @param {Uint8Array} data - Complete event data
-	 */
-	handleEvent(messageId, data) {
-		if (data.length === 0) {
-			this.logWarn('Event received without data');
-			return;
-		}
-
-		// First byte is the Application Event Type
-		const appEventType = data[0];
-		const eventData = data.slice(1);
-
-		this.logVerbose(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
-
-		// Call event listeners
-		const listeners = this.eventListeners.get(appEventType);
-		if (listeners) {
-			for (const listener of listeners) {
-				try {
-					listener(eventData);
-				} catch (error) {
-					this.logError('Error in event listener:', error);
-				}
-			}
-		}
-
-		// Wildcard listeners (for all events)
-		const wildcardListeners = this.eventListeners.get('*');
-		if (wildcardListeners) {
-			for (const listener of wildcardListeners) {
-				try {
-					listener(appEventType, eventData);
-				} catch (error) {
-					this.logError('Error in wildcard event listener:', error);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Process control message (INTERNAL)
-	 * @param {DataView} dataView
-	 */
-	handleControlMessage(dataView) {
-		if (dataView.byteLength < 1)
-			return;
-
-		const ctrlType = dataView.getUint8(0);
-
-		this.logVerbose(`Control message received: Type=0x${ctrlType.toString(16)} (${ctrlType}), Length=${dataView.byteLength}`);
-
-		switch (ctrlType) {
-			case ControlMessageType.MTU_INFO:
-				if (dataView.byteLength >= 4) {
-					const mtu = (dataView.getUint8(2) << 8) | dataView.getUint8(3);
-					this.logInfo(`MTU received from server: ${mtu} bytes (payload: ${mtu - 3} bytes)`);
-					this.mtu = mtu;
-					this.mtuReceived = true;
-
-					if (this.mtuReceivedResolve) {
-						this.mtuReceivedResolve('received');
-						this.mtuReceivedResolve = null;
-					}
-				} else {
-					this.logError('MTU_INFO too short:', dataView.byteLength);
-				}
-				break;
-
-			case ControlMessageType.ACK:
-				if (dataView.byteLength >= 2) {
-					const messageId = dataView.getUint8(1);
-					this.logVerbose(`ACK for message ${messageId}`);
-				}
-				break;
-
-			case ControlMessageType.NACK:
-				if (dataView.byteLength >= 2) {
-					const messageId = dataView.getUint8(1);
-					this.logWarn(`NACK received for message ${messageId}`);
-
-					const pending = this.pendingRequests.get(messageId);
-					if (pending) {
-						clearTimeout(pending.timeout);
-						this.pendingRequests.delete(messageId);
-						pending.reject(new Error(`Server rejected request ${messageId} (NACK)`));
-					}
-				}
-				break;
-
-			case ControlMessageType.BUFFER_FULL:
-				if (dataView.byteLength >= 2) {
-					const messageId = dataView.getUint8(1);
-					this.logWarn(`Buffer full for message ${messageId}`);
-
-					const pending = this.pendingRequests.get(messageId);
-					if (pending) {
-						clearTimeout(pending.timeout);
-						this.pendingRequests.delete(messageId);
-						pending.reject(new Error(`Server buffer full for message ${messageId}`));
-					}
-				}
-				break;
-
-			case ControlMessageType.RETRY:
-				if (dataView.byteLength >= 2) {
-					const messageId = dataView.getUint8(1);
-					this.logVerbose(`Server requests retry for message ${messageId}`);
-				}
-				break;
-
-			case ControlMessageType.RESET:
-				this.logInfo('Server requests reset');
-				this.fragmentBuffers.clear();
-				break;
-
-			case ControlMessageType.STREAM_ACK:
-				if (dataView.byteLength >= 4) {
-					const streamId = dataView.getUint8(1);
-					const chunkIndex = dataView.getUint16(2, true); // little-endian
-					this.handleStreamAck(streamId, chunkIndex);
-				}
-				break;
-
-			case ControlMessageType.STREAM_ERROR:
-				if (dataView.byteLength >= 3) {
-					const streamId = dataView.getUint8(1);
-					const errorCode = dataView.getUint8(2);
-					this.handleStreamError(streamId, errorCode);
-				}
-				break;
-
-			default:
-				this.logWarn(`Unknown control message type: ${ctrlType}`);
-		}
-	}
-
-	/**
-	 * Handle stream ACK (INTERNAL)
-	 * @param {number} streamId
-	 * @param {number} chunkIndex - 0xFFFF = start ACK, 0xFFFE = completion ACK
-	 */
-	handleStreamAck(streamId, chunkIndex) {
-		this.logVerbose(`STREAM_ACK received: streamId=${streamId}, chunkIndex=0x${chunkIndex.toString(16)}`);
-
-		const stream = this.activeStreams.get(streamId);
-		if (!stream) {
-			this.logWarn(`STREAM_ACK for unknown stream ${streamId} (active streams: ${Array.from(this.activeStreams.keys()).join(', ')})`);
-			return;
-		}
-
-		if (chunkIndex === 0xFFFF) {
-			this.logVerbose(`Stream ${streamId} start acknowledged`);
-			stream.startAcked = true;
-			if (stream.startResolve) {
-				stream.startResolve();
-				stream.startResolve = null;
-			}
-		} else if (chunkIndex === 0xFFFE) {
-			this.logInfo(`Stream ${streamId} upload complete`);
-			stream.complete = true;
-			if (stream.completeResolve) {
-				stream.completeResolve();
-				stream.completeResolve = null;
-			}
-		} else {
-			stream.ackedChunks.add(chunkIndex);
-			stream.lastAckedChunk = chunkIndex;
-
-			// Resolve any pending chunk ACK waiter
-			if (stream.chunkAckResolve) {
-				stream.chunkAckResolve(chunkIndex);
-			}
-
-			if (stream.onProgress) {
-				const bytesAcked = Math.min((chunkIndex + 1) * stream.chunkPayloadSize, stream.totalSize);
-				stream.onProgress(bytesAcked, stream.totalSize);
-			}
-		}
-	}
-
-	/**
-	 * Handle stream error (INTERNAL)
-	 * @param {number} streamId
-	 * @param {number} errorCode
-	 */
-	handleStreamError(streamId, errorCode) {
-		const stream = this.activeStreams.get(streamId);
-		if (!stream) {
-			this.logWarn(`STREAM_ERROR for unknown stream ${streamId}`);
-			return;
-		}
-
-		const errorMessages = {
-			0x01: 'Invalid header',
-			0x02: 'Invalid metadata',
-			0x03: 'Mutex error',
-			0x04: 'Too many concurrent streams',
-			0x05: 'Cannot create file',
-			0x06: 'Unknown stream',
-			0x07: 'SD write failed',
-			0x08: 'Timeout'
-		};
-
-		const message = errorMessages[errorCode] || `Unknown error (0x${errorCode.toString(16)})`;
-		this.logError(`Stream ${streamId} error: ${message}`);
-
-		stream.error = new Error(`Stream error: ${message}`);
-		if (stream.errorReject) {
-			stream.errorReject(stream.error);
-		}
-	}
-
-	/**
-	 * Send fragmented message (INTERNAL)
-	 * @param {BLECharacteristic} characteristic
-	 * @param {number} protocolMsgType - Protocol Message Type (REQUEST/RESPONSE/EVENT)
-	 * @param {number} messageId - Internal message ID
-	 * @param {Uint8Array} data - Complete data (incl. Application Type)
-	 */
-	async sendFragmented(characteristic, protocolMsgType, messageId, data) {
-		const payloadSize = this.mtu - FRAGMENT_HEADER_SIZE;
-		const totalFragments = Math.ceil(data.length / payloadSize) || 1;
-
-		this.logVerbose(`Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`);
-
-		for (let i = 0; i < totalFragments; i++) {
-			const fragment = new Uint8Array(Math.min(this.mtu, FRAGMENT_HEADER_SIZE + data.length - i * payloadSize));
-
-			// Header
-			fragment[0] = protocolMsgType;
-			fragment[1] = messageId;
-			fragment[2] = (i >> 8) & 0xFF;
-			fragment[3] = i & 0xFF;
-
-			// Flags
-			const flags = (i === totalFragments - 1) ? FLAG_LAST_FRAGMENT : 0x00;
-			fragment[4] = flags;
-
-			// Payload
-			const start = i * payloadSize;
-			const end = Math.min(start + payloadSize, data.length);
-			const payload = data.slice(start, end);
-			fragment.set(payload, FRAGMENT_HEADER_SIZE);
-
-			// Send fragment with ATT Write Response (BLE flow control)
-			// This waits for ESP32 confirmation before sending next fragment
-			await characteristic.writeValueWithResponse(fragment.slice(0, FRAGMENT_HEADER_SIZE + payload.length));
-		}
-	}
-
-	/**
-	 * Send request and wait for response (promise-based)
-	 * @param {number} appRequestType - Application Request Type (e.g. 1=Echo, 2=GetStatus, 3=SetConfig)
-	 * @param {Uint8Array|Array|string} data - Request data
-	 * @param {number} timeout - Timeout in milliseconds
-	 * @returns {Promise<Uint8Array>} - Response data
-	 */
-	async sendRequest(appRequestType, data = [], timeout = DEFAULT_TIMEOUT_MS) {
-		if (!this.connected) {
-			throw new Error('Not connected');
-		}
-
-		// Convert data to Uint8Array
-		let payload;
-		if (typeof data === 'string') {
-			payload = new TextEncoder().encode(data);
-		} else if (data instanceof Uint8Array) {
-			payload = data;
-		} else if (Array.isArray(data)) {
-			payload = new Uint8Array(data);
-		} else {
-			throw new Error('Invalid data format');
-		}
-
-		// Request data: [Application Request Type][Payload...]
-		const requestData = new Uint8Array(1 + payload.length);
-		requestData[0] = appRequestType;
-		requestData.set(payload, 1);
-
-		const messageId = this.currentMessageId++;
-		if (this.currentMessageId > 255)
-			this.currentMessageId = 0;
-
-		return new Promise((resolve, reject) => {
-			// Set timeout
-			const timeoutId = setTimeout(() => {
-				this.pendingRequests.delete(messageId);
-				reject(new Error(`Request timeout (${timeout}ms)`));
-			}, timeout);
-
-			// Register request
-			this.pendingRequests.set(messageId, {
-				resolve,
-				reject,
-				timeout : timeoutId,
-				timestamp : Date.now()
-			});
-
-			// Send request (Protocol Type = REQUEST)
-			this.sendFragmented(this.requestChar, ProtocolMessageType.REQUEST, messageId, requestData)
-				.catch(error => {
-					clearTimeout(timeoutId);
-					this.pendingRequests.delete(messageId);
-					reject(error);
-				});
-		});
-	}
-
-	/**
-	 * Send request with automatic retry
-	 * @param {number} appRequestType - Application Request Type
-	 * @param {Uint8Array|Array|string} data
-	 * @param {number} maxRetries
-	 * @param {number} timeout
-	 * @returns {Promise<Uint8Array>}
-	 */
-	async sendRequestWithRetry(appRequestType, data = [], maxRetries = MAX_RETRIES, timeout = DEFAULT_TIMEOUT_MS) {
-		let lastError;
-
-		for (let attempt = 0; attempt < maxRetries; attempt++) {
-			try {
-				this.logInfo(`Request attempt ${attempt + 1}/${maxRetries}`);
-				return await this.sendRequest(appRequestType, data, timeout);
-			} catch (error) {
-				lastError = error;
-				this.logWarn(`Request failed (attempt ${attempt + 1}):`, error.message);
-
-				if (attempt < maxRetries - 1) {
-					const delay = 1000 * Math.pow(2, attempt);
-					this.logWarn(`Waiting ${delay}ms before retry...`);
-					await this.sleep(delay);
-				}
-			}
-		}
-
-		throw lastError;
-	}
-
-	/**
-	 * Register event listener
-	 * @param {number|string} appEventType - Application Event Type or '*' for all events
-	 * @param {Function} callback - Callback function (data: Uint8Array)
-	 */
-	addEventListener(appEventType, callback) {
-		if (!this.eventListeners.has(appEventType)) {
-			this.eventListeners.set(appEventType, []);
-		}
-		this.eventListeners.get(appEventType).push(callback);
-
-		this.logVerbose(`Event listener registered for AppEventType: ${appEventType}`);
-	}
-
-	/**
-	 * Remove event listener
-	 * @param {number|string} appEventType
-	 * @param {Function} callback
-	 */
-	removeEventListener(appEventType, callback) {
-		const listeners = this.eventListeners.get(appEventType);
-		if (listeners) {
-			const index = listeners.indexOf(callback);
-			if (index !== -1) {
-				listeners.splice(index, 1);
-			}
-
-			if (listeners.length === 0) {
-				this.eventListeners.delete(appEventType);
-			}
-		}
-	}
-
-	/**
-	 * Remove all event listeners
-	 */
-	removeAllEventListeners() {
-		this.eventListeners.clear();
-		this.logVerbose('All event listeners removed');
-	}
-
-	/**
-	 * Send control message (INTERNAL)
-	 * @param {number} ctrlType
-	 * @param {number} messageId
-	 */
-	async sendControlMessage(ctrlType, messageId) {
-		const data = new Uint8Array([ ctrlType, messageId ]);
-		await this.controlChar.writeValue(data);
-	}
-
-	/**
-	 * Upload file using streaming binary protocol (memory-efficient)
-	 * @param {string} projectId - Project identifier
-	 * @param {string} filename - Target filename
-	 * @param {ArrayBuffer|Uint8Array|string} content - File content
-	 * @param {function} onProgress - Progress callback (bytesUploaded, totalBytes)
-	 * @returns {Promise<boolean>} - Success status
-	 */
-	async uploadFileStreaming(projectId, filename, content, onProgress = null) {
-		if (!this.connected) {
-			throw new Error('Not connected');
-		}
-
-		// Convert content to Uint8Array
-		let data;
-		if (typeof content === 'string') {
-			data = new TextEncoder().encode(content);
-		} else if (content instanceof ArrayBuffer) {
-			data = new Uint8Array(content);
-		} else {
-			data = content;
-		}
-
-		const streamId = this.currentMessageId++ & 0xFF;
-		const totalSize = data.length;
-		const chunkPayloadSize = this.mtu - 5; // 5-byte header for STREAM_DATA
-		const chunkCount = Math.ceil(totalSize / chunkPayloadSize) || 1;
-
-		this.logInfo(`Starting streaming upload: stream=${streamId}, file=${filename}, size=${totalSize}, chunks=${chunkCount}`);
-
-		// Initialize stream state
-		const streamState = {
-			streamId: streamId,
-			totalSize: totalSize,
-			chunkPayloadSize: chunkPayloadSize,
-			ackedChunks: new Set(),
-			lastAckedChunk: -1,
-			startAcked: false,
-			complete: false,
-			error: null,
-			onProgress: onProgress,
-			startResolve: null,
-			completeResolve: null,
-			errorReject: null,
-			chunkAckResolve: null
-		};
-		this.activeStreams.set(streamId, streamState);
-
-		try {
-			// 1. Send STREAM_START with retry logic
-			const metadata = JSON.stringify({ project: projectId, filename: filename });
-			const metadataBytes = new TextEncoder().encode(metadata);
-			const startPacket = new Uint8Array(9 + metadataBytes.length);
-			startPacket[0] = ProtocolMessageType.STREAM_START;
-			startPacket[1] = streamId;
-			// Total size (little-endian uint32)
-			startPacket[2] = totalSize & 0xFF;
-			startPacket[3] = (totalSize >> 8) & 0xFF;
-			startPacket[4] = (totalSize >> 16) & 0xFF;
-			startPacket[5] = (totalSize >> 24) & 0xFF;
-			// Chunk count (little-endian uint16)
-			startPacket[6] = chunkCount & 0xFF;
-			startPacket[7] = (chunkCount >> 8) & 0xFF;
-			startPacket[8] = 0x01; // Flags: overwrite
-			startPacket.set(metadataBytes, 9);
-
-			// Send STREAM_START with retry logic for transient errors
-			let startSuccess = false;
-			for (let attempt = 0; attempt < 3 && !startSuccess; attempt++) {
-				try {
-					if (attempt > 0) {
-						this.logWarn(`Stream ${streamId}: Retrying STREAM_START (attempt ${attempt + 1}/3)...`);
-						await this.sleep(200 * attempt); // Short retry delay
-					}
-
-					await this.requestChar.writeValueWithResponse(startPacket);
-					this.logVerbose(`Stream ${streamId}: STREAM_START sent (attempt ${attempt + 1})`);
-
-					// Wait for start ACK (ESP32 now properly uses indications with confirmation)
-					await this.waitForStreamEvent(streamState, 'start', 5000);
-					this.logVerbose(`Stream ${streamId}: Start acknowledged on attempt ${attempt + 1}`);
-					startSuccess = true;
-				} catch (error) {
-					if (attempt === 2) {
-						throw new Error(`Stream start failed after 3 attempts: ${error.message}`);
-					}
-					this.logWarn(`Stream ${streamId}: Start ACK timeout on attempt ${attempt + 1}: ${error.message}`);
-					streamState.startAcked = false; // Reset for retry
-				}
-			}
-
-			// 2. Send STREAM_DATA chunks with sliding window flow control
-			// Window size balances throughput vs ESP32 queue capacity (20 items)
-			const WINDOW_SIZE = 8; // Max chunks in flight
-			let nextChunkToSend = 0;
-			let nextChunkToAck = 0;
-
-			while (nextChunkToAck < chunkCount) {
-				if (streamState.error) {
-					throw streamState.error;
-				}
-
-				// Send chunks up to window limit
-				while (nextChunkToSend < chunkCount && (nextChunkToSend - nextChunkToAck) < WINDOW_SIZE) {
-					const i = nextChunkToSend;
-					const start = i * chunkPayloadSize;
-					const end = Math.min(start + chunkPayloadSize, totalSize);
-					const chunkData = data.slice(start, end);
-					const isLast = (i === chunkCount - 1);
-
-					const dataPacket = new Uint8Array(5 + chunkData.length);
-					dataPacket[0] = ProtocolMessageType.STREAM_DATA;
-					dataPacket[1] = streamId;
-					dataPacket[2] = i & 0xFF;
-					dataPacket[3] = (i >> 8) & 0xFF;
-					dataPacket[4] = isLast ? 0x01 : 0x00;
-					dataPacket.set(chunkData, 5);
-
-					await this.requestChar.writeValueWithResponse(dataPacket);
-					this.logVerbose(`Stream ${streamId}: Sent chunk ${i}/${chunkCount - 1}`);
-					nextChunkToSend++;
-				}
-
-				// Wait for ACK of the oldest unacked chunk
-				if (nextChunkToAck < chunkCount) {
-					try {
-						await this.waitForChunkAck(streamState, nextChunkToAck, 5000);
-						this.logVerbose(`Stream ${streamId}: Chunk ${nextChunkToAck} ACKed`);
-						nextChunkToAck++;
-					} catch (error) {
-						throw new Error(`Stream ${streamId}: ACK timeout for chunk ${nextChunkToAck}: ${error.message}`);
-					}
-				}
-
-				if (streamState.error) {
-					throw streamState.error;
-				}
-			}
-
-			this.logVerbose(`Stream ${streamId}: All chunks sent`);
-
-			// 3. Send STREAM_END
-			const endPacket = new Uint8Array(6);
-			endPacket[0] = ProtocolMessageType.STREAM_END;
-			endPacket[1] = streamId;
-			endPacket[2] = totalSize & 0xFF;
-			endPacket[3] = (totalSize >> 8) & 0xFF;
-			endPacket[4] = (totalSize >> 16) & 0xFF;
-			endPacket[5] = (totalSize >> 24) & 0xFF;
-
-			await this.requestChar.writeValueWithResponse(endPacket);
-			this.logVerbose(`Stream ${streamId}: STREAM_END sent`);
-
-			// Wait for completion ACK
-			await this.waitForStreamEvent(streamState, 'complete', 5000);
-
-			this.logVerbose(`Stream ${streamId} completed successfully`);
-			return true;
-
-		} catch (error) {
-			this.logError(`Stream ${streamId} failed:`, error);
-			throw error;
-		} finally {
-			this.activeStreams.delete(streamId);
-		}
-	}
-
-	/**
-	 * Wait for a stream event (start ACK, completion, or error)
-	 * @param {object} streamState
-	 * @param {string} eventType - 'start' or 'complete'
-	 * @param {number} timeoutMs
-	 */
-	async waitForStreamEvent(streamState, eventType, timeoutMs) {
-		return new Promise((resolve, reject) => {
-			// Set up error rejection
-			streamState.errorReject = reject;
-
-			if (eventType === 'start') {
-				if (streamState.startAcked) {
-					resolve();
-					return;
-				}
-				streamState.startResolve = resolve;
-			} else if (eventType === 'complete') {
-				if (streamState.complete) {
-					resolve();
-					return;
-				}
-				streamState.completeResolve = resolve;
-			}
-
-			// Timeout
-			const timeoutId = setTimeout(() => {
-				if (eventType === 'start') {
-					streamState.startResolve = null;
-				} else if (eventType === 'complete') {
-					streamState.completeResolve = null;
-				}
-				reject(new Error(`Stream ${eventType} timeout (${timeoutMs}ms)`));
-			}, timeoutMs);
-
-			// Clean up timeout if resolved early
-			const originalResolve = resolve;
-			const wrappedResolve = () => {
-				clearTimeout(timeoutId);
-				originalResolve();
-			};
-
-			if (eventType === 'start') {
-				streamState.startResolve = wrappedResolve;
-			} else if (eventType === 'complete') {
-				streamState.completeResolve = wrappedResolve;
-			}
-		});
-	}
-
-	/**
-	 * Wait for ACK of a specific chunk
-	 * @param {object} streamState
-	 * @param {number} chunkIndex
-	 * @param {number} timeoutMs
-	 */
-	async waitForChunkAck(streamState, chunkIndex, timeoutMs) {
-		return new Promise((resolve, reject) => {
-			// Check if already ACKed
-			if (streamState.ackedChunks.has(chunkIndex) || streamState.lastAckedChunk >= chunkIndex) {
-				resolve(chunkIndex);
-				return;
-			}
-
-			// Check for error
-			if (streamState.error) {
-				reject(streamState.error);
-				return;
-			}
-
-			// Set up ACK waiter
-			streamState.chunkAckResolve = (ackedIndex) => {
-				if (ackedIndex >= chunkIndex) {
-					clearTimeout(timeoutId);
-					streamState.chunkAckResolve = null;
-					resolve(ackedIndex);
-				}
-			};
-
-			// Set up error rejection
-			const originalErrorReject = streamState.errorReject;
-			streamState.errorReject = (error) => {
-				clearTimeout(timeoutId);
-				streamState.chunkAckResolve = null;
-				if (originalErrorReject) {
-					originalErrorReject(error);
-				}
-				reject(error);
-			};
-
-			// Timeout
-			const timeoutId = setTimeout(() => {
-				streamState.chunkAckResolve = null;
-				streamState.errorReject = originalErrorReject;
-				reject(new Error(`Chunk ${chunkIndex} ACK timeout (${timeoutMs}ms)`));
-			}, timeoutMs);
-		});
-	}
-
-	/**
-	 * Wait for a condition to become true
-	 * @param {function} condition - Function that returns boolean
-	 * @param {number} timeoutMs
-	 */
-	async waitForCondition(condition, timeoutMs) {
-		const startTime = Date.now();
-		while (!condition()) {
-			if (Date.now() - startTime > timeoutMs) {
-				throw new Error('Condition timeout');
-			}
-			await this.sleep(50);
-		}
-	}
-
-	/**
-	 * Helper function: Sleep
-	 * @param {number} ms
-	 * @returns {Promise<void>}
-	 */
-	sleep(ms) {
-		return new Promise(resolve => setTimeout(resolve, ms));
-	}
-
-	/**
-	 * Connection status
-	 * @returns {boolean}
-	 */
-	isConnected() {
-		return this.connected && this.device && this.device.gatt.connected;
-	}
+    constructor() {
+        this.device = null;
+        this.server = null;
+        this.service = null;
+
+        this.requestChar = null;
+        this.responseChar = null;
+        this.eventChar = null;
+        this.controlChar = null;
+
+        this.mtu = 23; // Default MTU, will be updated after connection
+        this.mtuReceived = false;
+        this.mtuReceivedResolve = null;
+        this.connected = false;
+
+        // Fragment management
+        this.fragmentBuffers = new Map();
+
+        // Request management
+        this.pendingRequests = new Map();
+        this.currentMessageId = 0;
+
+        // Event listeners
+        this.eventListeners = new Map();
+
+        // Disconnect listener
+        this.onDisconnectCallback = null;
+
+        // Streaming file transfer state
+        this.activeStreams = new Map();
+    }
+
+    // Logging helpers
+    logVerbose(...args) {
+        if (VERBOSE_LOGGING) {
+            console.log('[BLE VERBOSE]', ...args);
+        }
+    }
+
+    logInfo(...args) {
+        console.log('[BLE]', ...args);
+    }
+
+    logWarn(...args) {
+        console.warn('[BLE]', ...args);
+    }
+
+    logError(...args) {
+        console.error('[BLE]', ...args);
+    }
+
+    /**
+     * Establish connection to BLE device (initial connection with user gesture)
+     * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
+     * @returns {Promise<void>}
+     */
+    async connect(onProgress = null) {
+        try {
+            this.logInfo('Starting BLE connection...');
+            if (onProgress) onProgress('requesting', 'Requesting device...');
+
+            // Select device (requires user gesture)
+            this.device = await navigator.bluetooth.requestDevice({
+                filters: [{ services: [SERVICE_UUID] }],
+                optionalServices: [SERVICE_UUID],
+            });
+
+            this.logInfo('Device selected:', this.device.name);
+
+            // Disconnect handler (only register once during initial connection)
+            this.device.addEventListener('gattserverdisconnected', () => {
+                this.handleDisconnect();
+            });
+
+            // Perform the actual GATT connection setup
+            await this._setupGattConnection(onProgress);
+        } catch (error) {
+            this.logError('Connection error:', error);
+            throw new Error(`BLE connection failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Reconnect to existing BLE device (no user gesture required)
+     * @returns {Promise<void>}
+     */
+    async reconnect() {
+        if (!this.device) {
+            throw new Error('No device available for reconnection. Please use connect() first.');
+        }
+
+        try {
+            this.logInfo('Reconnecting to device:', this.device.name);
+
+            // Perform the actual GATT connection setup
+            await this._setupGattConnection();
+        } catch (error) {
+            this.logError('Reconnection error:', error);
+            throw new Error(`BLE reconnection failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Internal method to set up GATT connection and characteristics
+     * @private
+     * @param {Function|null} onProgress - Optional progress callback (stepId: string, label: string) => void
+     * @returns {Promise<void>}
+     */
+    async _setupGattConnection(onProgress = null) {
+        // Connect to GATT server
+        if (onProgress) onProgress('connecting', 'Connecting to GATT server...');
+        this.server = await this.device.gatt.connect();
+        this.logVerbose('GATT server connected');
+
+        // Get service
+        if (onProgress) onProgress('services', 'Discovering services...');
+        this.service = await this.server.getPrimaryService(SERVICE_UUID);
+        this.logVerbose('Service found');
+
+        // Get characteristics
+        this.requestChar = await this.service.getCharacteristic(REQUEST_CHAR_UUID);
+        this.responseChar = await this.service.getCharacteristic(RESPONSE_CHAR_UUID);
+        this.eventChar = await this.service.getCharacteristic(EVENT_CHAR_UUID);
+        this.controlChar = await this.service.getCharacteristic(CONTROL_CHAR_UUID);
+
+        this.logVerbose('All characteristics found');
+
+        // Event listeners for incoming data - register BEFORE starting notifications
+        this.logVerbose('Registering event listeners for characteristics');
+        this.responseChar.addEventListener('characteristicvaluechanged', (event) =>
+            this.handleFragment(event.target.value, 'response')
+        );
+
+        this.eventChar.addEventListener('characteristicvaluechanged', (event) =>
+            this.handleFragment(event.target.value, 'event')
+        );
+
+        this.controlChar.addEventListener('characteristicvaluechanged', (event) =>
+            this.handleControlMessage(event.target.value)
+        );
+
+        // Enable notifications AFTER event listeners are registered
+        if (onProgress) onProgress('notifications', 'Enabling notifications...');
+        await this.responseChar.startNotifications();
+        this.logVerbose('Response notifications enabled');
+        await this.eventChar.startNotifications();
+        this.logVerbose('Event notifications enabled');
+        await this.controlChar.startNotifications();
+        this.logVerbose('Control notifications enabled');
+
+        // Verify notifications are active
+        if (!this.responseChar.properties.notify && !this.responseChar.properties.indicate) {
+            throw new Error('Response characteristic does not support notifications/indications');
+        }
+        if (!this.eventChar.properties.notify && !this.eventChar.properties.indicate) {
+            throw new Error('Event characteristic does not support notifications/indications');
+        }
+        if (!this.controlChar.properties.notify && !this.controlChar.properties.indicate) {
+            throw new Error('Control characteristic does not support notifications/indications');
+        }
+
+        // Give BLE stack time to fully initialize indication handling
+        // CRITICAL: CCCD writes need time to propagate through BLE stack
+        // Without this delay, ESP32 gets ESP_GATT_NO_RESOURCES when sending indications
+        await this.sleep(200);
+
+        this.connected = true;
+        this.logInfo('BLE connection established');
+
+        // Wait for MTU information from server (with timeout)
+        if (onProgress) onProgress('mtu', 'Negotiating MTU...');
+        await this.waitForMTU(2000);
+        this.logVerbose(`MTU: ${this.mtu} bytes (Payload: ${this.mtu - 3} bytes)`);
+
+        // Test control channel by requesting MTU info again
+        // This "primes" the indication confirmation path and verifies it works
+        await this.testControlChannel();
+
+        if (onProgress) onProgress('ready', 'Connection established!');
+        this.logVerbose('BLE stack fully initialized and ready for streaming');
+    }
+
+    /**
+     * Test control channel to ensure indication confirmations work
+     * @returns {Promise<void>}
+     */
+    async testControlChannel() {
+        this.logVerbose('Testing control channel indication path...');
+
+        // Set up a test to verify we can receive control indications
+        let controlTestReceived = false;
+        const originalMtuResolve = this.mtuReceivedResolve;
+
+        const testPromise = new Promise((resolve) => {
+            this.mtuReceivedResolve = () => {
+                controlTestReceived = true;
+                resolve();
+            };
+        });
+
+        try {
+            // Send REQUEST_MTU_INFO control message
+            // This should trigger an MTU_INFO indication response
+            const data = new Uint8Array([ControlMessageType.REQUEST_MTU_INFO, 0x00]);
+            await this.controlChar.writeValueWithResponse(data);
+
+            // Wait for MTU_INFO response (or timeout)
+            const raceResult = await Promise.race([testPromise, this.sleep(500).then(() => 'timeout')]);
+
+            if (raceResult === 'timeout' || !controlTestReceived) {
+                this.logVerbose('Control channel test: No indication received');
+                // Give more time for BLE stack to initialize
+                await this.sleep(200);
+            } else {
+                this.logVerbose('Control channel test: Indication received successfully');
+            }
+        } catch (error) {
+            this.logVerbose('Control channel test failed (non-fatal):', error.message);
+            // Give more time for BLE stack to settle
+            await this.sleep(200);
+        } finally {
+            this.mtuReceivedResolve = originalMtuResolve;
+        }
+    }
+
+    /**
+     * Wait for MTU information from server
+     * @param {number} timeout - Timeout in milliseconds
+     */
+    async waitForMTU(timeout = 2000) {
+        this.logVerbose('Waiting for MTU information from server...');
+
+        // Create promise for MTU reception
+        const mtuPromise = new Promise((resolve) => {
+            this.mtuReceivedResolve = resolve;
+        });
+
+        // Timeout promise
+        const timeoutPromise = new Promise((resolve) => {
+            setTimeout(() => resolve('timeout'), timeout);
+        });
+
+        // Wait for MTU or timeout
+        const result = await Promise.race([mtuPromise, timeoutPromise]);
+
+        // If timeout, determine MTU ourselves
+        if (result === 'timeout') {
+            this.logWarn('No MTU info received from server (timeout), determining MTU ourselves...');
+            await this.negotiateMTU();
+        } else {
+            this.logInfo('MTU info from server successfully received');
+        }
+    }
+
+    /**
+     * Determine MTU by testing
+     */
+    async negotiateMTU() {
+        const testSizes = [517, 251, 185, 158, 131, 104, 77, 50, 23];
+
+        for (const size of testSizes) {
+            try {
+                const testData = new Uint8Array(size - 3);
+                testData.fill(0xff);
+                await this.requestChar.writeValue(testData);
+                this.mtu = size;
+                this.logInfo(`MTU negotiated: ${size} bytes`);
+                return;
+            } catch (error) {
+                continue;
+            }
+        }
+
+        this.mtu = 23;
+        this.logWarn('MTU negotiation failed, using minimum: 23 bytes');
+    }
+
+    /**
+     * Disconnect
+     */
+    async disconnect() {
+        if (this.device && this.device.gatt.connected) {
+            await this.device.gatt.disconnect();
+        }
+        this.handleDisconnect();
+    }
+
+    /**
+     * Disconnect handler
+     */
+    handleDisconnect() {
+        this.logInfo('Disconnected');
+        this.connected = false;
+
+        // Clean up event listeners for proper resource cleanup
+        this.removeAllEventListeners();
+
+        for (const [messageId, request] of this.pendingRequests) {
+            request.reject(new Error('Connection closed'));
+        }
+        this.pendingRequests.clear();
+        this.fragmentBuffers.clear();
+
+        if (this.onDisconnectCallback) {
+            this.onDisconnectCallback();
+        }
+    }
+
+    /**
+     * Register disconnect callback
+     * @param {Function} callback
+     */
+    onDisconnect(callback) {
+        this.onDisconnectCallback = callback;
+    }
+
+    /**
+     * Process fragment (INTERNAL)
+     * @param {DataView} dataView
+     * @param {string} type - 'response' or 'event'
+     */
+    handleFragment(dataView, type) {
+        if (dataView.byteLength < FRAGMENT_HEADER_SIZE) {
+            this.logError('Fragment too small');
+            return;
+        }
+
+        // Parse header
+        const protocolMsgType = dataView.getUint8(0);
+        const messageId = dataView.getUint8(1);
+        const fragmentNum = dataView.getUint16(2);
+        const flags = dataView.getUint8(4);
+
+        this.logVerbose(
+            `Fragment received: ProtocolType=${protocolMsgType}, ID=${messageId}, Num=${fragmentNum}, Flags=0x${flags.toString(16)}`
+        );
+
+        // Extract payload
+        const payload = new Uint8Array(
+            dataView.buffer,
+            dataView.byteOffset + FRAGMENT_HEADER_SIZE,
+            dataView.byteLength - FRAGMENT_HEADER_SIZE
+        );
+
+        // Buffer key
+        const bufferKey = `${type}-${messageId}`;
+
+        // Initialize or extend buffer
+        if (!this.fragmentBuffers.has(bufferKey)) {
+            this.fragmentBuffers.set(bufferKey, {
+                fragments: [],
+                protocolMsgType: protocolMsgType,
+                messageId: messageId,
+                timestamp: Date.now(),
+            });
+        }
+
+        const buffer = this.fragmentBuffers.get(bufferKey);
+        buffer.fragments.push(payload);
+        buffer.timestamp = Date.now();
+
+        // Last fragment?
+        if (flags & FLAG_LAST_FRAGMENT) {
+            this.logVerbose(`Complete message received: ID=${messageId}, Fragments=${buffer.fragments.length}`);
+
+            // Merge fragments
+            const completeData = this.mergeFragments(buffer.fragments);
+
+            // Release buffer
+            this.fragmentBuffers.delete(bufferKey);
+
+            // Process message
+            if (type === 'response') {
+                this.handleResponse(messageId, completeData);
+            } else if (type === 'event') {
+                this.handleEvent(messageId, completeData);
+            }
+        }
+    }
+
+    /**
+     * Merge fragments
+     * @param {Array<Uint8Array>} fragments
+     * @returns {Uint8Array}
+     */
+    mergeFragments(fragments) {
+        const totalLength = fragments.reduce((sum, f) => sum + f.length, 0);
+        const result = new Uint8Array(totalLength);
+        let offset = 0;
+
+        for (const fragment of fragments) {
+            result.set(fragment, offset);
+            offset += fragment.length;
+        }
+
+        return result;
+    }
+
+    /**
+     * Process response
+     * @param {number} messageId - Internal message ID (protocol layer)
+     * @param {Uint8Array} data - Complete response data (incl. Application Request Type)
+     */
+    handleResponse(messageId, data) {
+        const pending = this.pendingRequests.get(messageId);
+        if (pending) {
+            clearTimeout(pending.timeout);
+            this.pendingRequests.delete(messageId);
+            // Return complete data (incl. request type if server sends it back)
+            pending.resolve(data);
+        } else {
+            this.logWarn(`No pending request for message ID ${messageId}`);
+        }
+    }
+
+    /**
+     * Process event
+     * @param {number} messageId - Internal message ID (protocol layer)
+     * @param {Uint8Array} data - Complete event data
+     */
+    handleEvent(messageId, data) {
+        if (data.length === 0) {
+            this.logWarn('Event received without data');
+            return;
+        }
+
+        // First byte is the Application Event Type
+        const appEventType = data[0];
+        const eventData = data.slice(1);
+
+        this.logVerbose(`Event received: AppEventType=${appEventType}, Size=${eventData.length}`);
+
+        // Call event listeners
+        const listeners = this.eventListeners.get(appEventType);
+        if (listeners) {
+            for (const listener of listeners) {
+                try {
+                    listener(eventData);
+                } catch (error) {
+                    this.logError('Error in event listener:', error);
+                }
+            }
+        }
+
+        // Wildcard listeners (for all events)
+        const wildcardListeners = this.eventListeners.get('*');
+        if (wildcardListeners) {
+            for (const listener of wildcardListeners) {
+                try {
+                    listener(appEventType, eventData);
+                } catch (error) {
+                    this.logError('Error in wildcard event listener:', error);
+                }
+            }
+        }
+    }
+
+    /**
+     * Process control message (INTERNAL)
+     * @param {DataView} dataView
+     */
+    handleControlMessage(dataView) {
+        if (dataView.byteLength < 1) return;
+
+        const ctrlType = dataView.getUint8(0);
+
+        this.logVerbose(
+            `Control message received: Type=0x${ctrlType.toString(16)} (${ctrlType}), Length=${dataView.byteLength}`
+        );
+
+        switch (ctrlType) {
+            case ControlMessageType.MTU_INFO:
+                if (dataView.byteLength >= 4) {
+                    const mtu = (dataView.getUint8(2) << 8) | dataView.getUint8(3);
+                    this.logInfo(`MTU received from server: ${mtu} bytes (payload: ${mtu - 3} bytes)`);
+                    this.mtu = mtu;
+                    this.mtuReceived = true;
+
+                    if (this.mtuReceivedResolve) {
+                        this.mtuReceivedResolve('received');
+                        this.mtuReceivedResolve = null;
+                    }
+                } else {
+                    this.logError('MTU_INFO too short:', dataView.byteLength);
+                }
+                break;
+
+            case ControlMessageType.ACK:
+                if (dataView.byteLength >= 2) {
+                    const messageId = dataView.getUint8(1);
+                    this.logVerbose(`ACK for message ${messageId}`);
+                }
+                break;
+
+            case ControlMessageType.NACK:
+                if (dataView.byteLength >= 2) {
+                    const messageId = dataView.getUint8(1);
+                    this.logWarn(`NACK received for message ${messageId}`);
+
+                    const pending = this.pendingRequests.get(messageId);
+                    if (pending) {
+                        clearTimeout(pending.timeout);
+                        this.pendingRequests.delete(messageId);
+                        pending.reject(new Error(`Server rejected request ${messageId} (NACK)`));
+                    }
+                }
+                break;
+
+            case ControlMessageType.BUFFER_FULL:
+                if (dataView.byteLength >= 2) {
+                    const messageId = dataView.getUint8(1);
+                    this.logWarn(`Buffer full for message ${messageId}`);
+
+                    const pending = this.pendingRequests.get(messageId);
+                    if (pending) {
+                        clearTimeout(pending.timeout);
+                        this.pendingRequests.delete(messageId);
+                        pending.reject(new Error(`Server buffer full for message ${messageId}`));
+                    }
+                }
+                break;
+
+            case ControlMessageType.RETRY:
+                if (dataView.byteLength >= 2) {
+                    const messageId = dataView.getUint8(1);
+                    this.logVerbose(`Server requests retry for message ${messageId}`);
+                }
+                break;
+
+            case ControlMessageType.RESET:
+                this.logInfo('Server requests reset');
+                this.fragmentBuffers.clear();
+                break;
+
+            case ControlMessageType.STREAM_ACK:
+                if (dataView.byteLength >= 4) {
+                    const streamId = dataView.getUint8(1);
+                    const chunkIndex = dataView.getUint16(2, true); // little-endian
+                    this.handleStreamAck(streamId, chunkIndex);
+                }
+                break;
+
+            case ControlMessageType.STREAM_ERROR:
+                if (dataView.byteLength >= 3) {
+                    const streamId = dataView.getUint8(1);
+                    const errorCode = dataView.getUint8(2);
+                    this.handleStreamError(streamId, errorCode);
+                }
+                break;
+
+            default:
+                this.logWarn(`Unknown control message type: ${ctrlType}`);
+        }
+    }
+
+    /**
+     * Handle stream ACK (INTERNAL)
+     * @param {number} streamId
+     * @param {number} chunkIndex - 0xFFFF = start ACK, 0xFFFE = completion ACK
+     */
+    handleStreamAck(streamId, chunkIndex) {
+        this.logVerbose(`STREAM_ACK received: streamId=${streamId}, chunkIndex=0x${chunkIndex.toString(16)}`);
+
+        const stream = this.activeStreams.get(streamId);
+        if (!stream) {
+            this.logWarn(
+                `STREAM_ACK for unknown stream ${streamId} (active streams: ${Array.from(this.activeStreams.keys()).join(', ')})`
+            );
+            return;
+        }
+
+        if (chunkIndex === 0xffff) {
+            this.logVerbose(`Stream ${streamId} start acknowledged`);
+            stream.startAcked = true;
+            if (stream.startResolve) {
+                stream.startResolve();
+                stream.startResolve = null;
+            }
+        } else if (chunkIndex === 0xfffe) {
+            this.logInfo(`Stream ${streamId} upload complete`);
+            stream.complete = true;
+            if (stream.completeResolve) {
+                stream.completeResolve();
+                stream.completeResolve = null;
+            }
+        } else {
+            stream.ackedChunks.add(chunkIndex);
+            stream.lastAckedChunk = chunkIndex;
+
+            // Resolve any pending chunk ACK waiter
+            if (stream.chunkAckResolve) {
+                stream.chunkAckResolve(chunkIndex);
+            }
+
+            if (stream.onProgress) {
+                const bytesAcked = Math.min((chunkIndex + 1) * stream.chunkPayloadSize, stream.totalSize);
+                stream.onProgress(bytesAcked, stream.totalSize);
+            }
+        }
+    }
+
+    /**
+     * Handle stream error (INTERNAL)
+     * @param {number} streamId
+     * @param {number} errorCode
+     */
+    handleStreamError(streamId, errorCode) {
+        const stream = this.activeStreams.get(streamId);
+        if (!stream) {
+            this.logWarn(`STREAM_ERROR for unknown stream ${streamId}`);
+            return;
+        }
+
+        const errorMessages = {
+            0x01: 'Invalid header',
+            0x02: 'Invalid metadata',
+            0x03: 'Mutex error',
+            0x04: 'Too many concurrent streams',
+            0x05: 'Cannot create file',
+            0x06: 'Unknown stream',
+            0x07: 'SD write failed',
+            0x08: 'Timeout',
+        };
+
+        const message = errorMessages[errorCode] || `Unknown error (0x${errorCode.toString(16)})`;
+        this.logError(`Stream ${streamId} error: ${message}`);
+
+        stream.error = new Error(`Stream error: ${message}`);
+        if (stream.errorReject) {
+            stream.errorReject(stream.error);
+        }
+    }
+
+    /**
+     * Send fragmented message (INTERNAL)
+     * @param {BLECharacteristic} characteristic
+     * @param {number} protocolMsgType - Protocol Message Type (REQUEST/RESPONSE/EVENT)
+     * @param {number} messageId - Internal message ID
+     * @param {Uint8Array} data - Complete data (incl. Application Type)
+     */
+    async sendFragmented(characteristic, protocolMsgType, messageId, data) {
+        const payloadSize = this.mtu - FRAGMENT_HEADER_SIZE;
+        const totalFragments = Math.ceil(data.length / payloadSize) || 1;
+
+        this.logVerbose(
+            `Sending fragmented: ProtocolType=${protocolMsgType}, ID=${messageId}, Size=${data.length}, Fragments=${totalFragments}`
+        );
+
+        for (let i = 0; i < totalFragments; i++) {
+            const fragment = new Uint8Array(Math.min(this.mtu, FRAGMENT_HEADER_SIZE + data.length - i * payloadSize));
+
+            // Header
+            fragment[0] = protocolMsgType;
+            fragment[1] = messageId;
+            fragment[2] = (i >> 8) & 0xff;
+            fragment[3] = i & 0xff;
+
+            // Flags
+            const flags = i === totalFragments - 1 ? FLAG_LAST_FRAGMENT : 0x00;
+            fragment[4] = flags;
+
+            // Payload
+            const start = i * payloadSize;
+            const end = Math.min(start + payloadSize, data.length);
+            const payload = data.slice(start, end);
+            fragment.set(payload, FRAGMENT_HEADER_SIZE);
+
+            // Send fragment with ATT Write Response (BLE flow control)
+            // This waits for ESP32 confirmation before sending next fragment
+            await characteristic.writeValueWithResponse(fragment.slice(0, FRAGMENT_HEADER_SIZE + payload.length));
+        }
+    }
+
+    /**
+     * Send request and wait for response (promise-based)
+     * @param {number} appRequestType - Application Request Type (e.g. 1=Echo, 2=GetStatus, 3=SetConfig)
+     * @param {Uint8Array|Array|string} data - Request data
+     * @param {number} timeout - Timeout in milliseconds
+     * @returns {Promise<Uint8Array>} - Response data
+     */
+    async sendRequest(appRequestType, data = [], timeout = DEFAULT_TIMEOUT_MS) {
+        if (!this.connected) {
+            throw new Error('Not connected');
+        }
+
+        // Convert data to Uint8Array
+        let payload;
+        if (typeof data === 'string') {
+            payload = new TextEncoder().encode(data);
+        } else if (data instanceof Uint8Array) {
+            payload = data;
+        } else if (Array.isArray(data)) {
+            payload = new Uint8Array(data);
+        } else {
+            throw new Error('Invalid data format');
+        }
+
+        // Request data: [Application Request Type][Payload...]
+        const requestData = new Uint8Array(1 + payload.length);
+        requestData[0] = appRequestType;
+        requestData.set(payload, 1);
+
+        const messageId = this.currentMessageId++;
+        if (this.currentMessageId > 255) this.currentMessageId = 0;
+
+        return new Promise((resolve, reject) => {
+            // Set timeout
+            const timeoutId = setTimeout(() => {
+                this.pendingRequests.delete(messageId);
+                reject(new Error(`Request timeout (${timeout}ms)`));
+            }, timeout);
+
+            // Register request
+            this.pendingRequests.set(messageId, {
+                resolve,
+                reject,
+                timeout: timeoutId,
+                timestamp: Date.now(),
+            });
+
+            // Send request (Protocol Type = REQUEST)
+            this.sendFragmented(this.requestChar, ProtocolMessageType.REQUEST, messageId, requestData).catch(
+                (error) => {
+                    clearTimeout(timeoutId);
+                    this.pendingRequests.delete(messageId);
+                    reject(error);
+                }
+            );
+        });
+    }
+
+    /**
+     * Send request with automatic retry
+     * @param {number} appRequestType - Application Request Type
+     * @param {Uint8Array|Array|string} data
+     * @param {number} maxRetries
+     * @param {number} timeout
+     * @returns {Promise<Uint8Array>}
+     */
+    async sendRequestWithRetry(appRequestType, data = [], maxRetries = MAX_RETRIES, timeout = DEFAULT_TIMEOUT_MS) {
+        let lastError;
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                this.logInfo(`Request attempt ${attempt + 1}/${maxRetries}`);
+                return await this.sendRequest(appRequestType, data, timeout);
+            } catch (error) {
+                lastError = error;
+                this.logWarn(`Request failed (attempt ${attempt + 1}):`, error.message);
+
+                if (attempt < maxRetries - 1) {
+                    const delay = 1000 * Math.pow(2, attempt);
+                    this.logWarn(`Waiting ${delay}ms before retry...`);
+                    await this.sleep(delay);
+                }
+            }
+        }
+
+        throw lastError;
+    }
+
+    /**
+     * Register event listener
+     * @param {number|string} appEventType - Application Event Type or '*' for all events
+     * @param {Function} callback - Callback function (data: Uint8Array)
+     */
+    addEventListener(appEventType, callback) {
+        if (!this.eventListeners.has(appEventType)) {
+            this.eventListeners.set(appEventType, []);
+        }
+        this.eventListeners.get(appEventType).push(callback);
+
+        this.logVerbose(`Event listener registered for AppEventType: ${appEventType}`);
+    }
+
+    /**
+     * Remove event listener
+     * @param {number|string} appEventType
+     * @param {Function} callback
+     */
+    removeEventListener(appEventType, callback) {
+        const listeners = this.eventListeners.get(appEventType);
+        if (listeners) {
+            const index = listeners.indexOf(callback);
+            if (index !== -1) {
+                listeners.splice(index, 1);
+            }
+
+            if (listeners.length === 0) {
+                this.eventListeners.delete(appEventType);
+            }
+        }
+    }
+
+    /**
+     * Remove all event listeners
+     */
+    removeAllEventListeners() {
+        this.eventListeners.clear();
+        this.logVerbose('All event listeners removed');
+    }
+
+    /**
+     * Send control message (INTERNAL)
+     * @param {number} ctrlType
+     * @param {number} messageId
+     */
+    async sendControlMessage(ctrlType, messageId) {
+        const data = new Uint8Array([ctrlType, messageId]);
+        await this.controlChar.writeValue(data);
+    }
+
+    /**
+     * Upload file using streaming binary protocol (memory-efficient)
+     * @param {string} projectId - Project identifier
+     * @param {string} filename - Target filename
+     * @param {ArrayBuffer|Uint8Array|string} content - File content
+     * @param {function} onProgress - Progress callback (bytesUploaded, totalBytes)
+     * @returns {Promise<boolean>} - Success status
+     */
+    async uploadFileStreaming(projectId, filename, content, onProgress = null) {
+        if (!this.connected) {
+            throw new Error('Not connected');
+        }
+
+        // Convert content to Uint8Array
+        let data;
+        if (typeof content === 'string') {
+            data = new TextEncoder().encode(content);
+        } else if (content instanceof ArrayBuffer) {
+            data = new Uint8Array(content);
+        } else {
+            data = content;
+        }
+
+        const streamId = this.currentMessageId++ & 0xff;
+        const totalSize = data.length;
+        const chunkPayloadSize = this.mtu - 5; // 5-byte header for STREAM_DATA
+        const chunkCount = Math.ceil(totalSize / chunkPayloadSize) || 1;
+
+        this.logInfo(
+            `Starting streaming upload: stream=${streamId}, file=${filename}, size=${totalSize}, chunks=${chunkCount}`
+        );
+
+        // Initialize stream state
+        const streamState = {
+            streamId: streamId,
+            totalSize: totalSize,
+            chunkPayloadSize: chunkPayloadSize,
+            ackedChunks: new Set(),
+            lastAckedChunk: -1,
+            startAcked: false,
+            complete: false,
+            error: null,
+            onProgress: onProgress,
+            startResolve: null,
+            completeResolve: null,
+            errorReject: null,
+            chunkAckResolve: null,
+        };
+        this.activeStreams.set(streamId, streamState);
+
+        try {
+            // 1. Send STREAM_START with retry logic
+            const metadata = JSON.stringify({ project: projectId, filename: filename });
+            const metadataBytes = new TextEncoder().encode(metadata);
+            const startPacket = new Uint8Array(9 + metadataBytes.length);
+            startPacket[0] = ProtocolMessageType.STREAM_START;
+            startPacket[1] = streamId;
+            // Total size (little-endian uint32)
+            startPacket[2] = totalSize & 0xff;
+            startPacket[3] = (totalSize >> 8) & 0xff;
+            startPacket[4] = (totalSize >> 16) & 0xff;
+            startPacket[5] = (totalSize >> 24) & 0xff;
+            // Chunk count (little-endian uint16)
+            startPacket[6] = chunkCount & 0xff;
+            startPacket[7] = (chunkCount >> 8) & 0xff;
+            startPacket[8] = 0x01; // Flags: overwrite
+            startPacket.set(metadataBytes, 9);
+
+            // Send STREAM_START with retry logic for transient errors
+            let startSuccess = false;
+            for (let attempt = 0; attempt < 3 && !startSuccess; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        this.logWarn(`Stream ${streamId}: Retrying STREAM_START (attempt ${attempt + 1}/3)...`);
+                        await this.sleep(200 * attempt); // Short retry delay
+                    }
+
+                    await this.requestChar.writeValueWithResponse(startPacket);
+                    this.logVerbose(`Stream ${streamId}: STREAM_START sent (attempt ${attempt + 1})`);
+
+                    // Wait for start ACK (ESP32 now properly uses indications with confirmation)
+                    await this.waitForStreamEvent(streamState, 'start', 5000);
+                    this.logVerbose(`Stream ${streamId}: Start acknowledged on attempt ${attempt + 1}`);
+                    startSuccess = true;
+                } catch (error) {
+                    if (attempt === 2) {
+                        throw new Error(`Stream start failed after 3 attempts: ${error.message}`);
+                    }
+                    this.logWarn(`Stream ${streamId}: Start ACK timeout on attempt ${attempt + 1}: ${error.message}`);
+                    streamState.startAcked = false; // Reset for retry
+                }
+            }
+
+            // 2. Send STREAM_DATA chunks with sliding window flow control
+            // Window size balances throughput vs ESP32 queue capacity (20 items)
+            const WINDOW_SIZE = 8; // Max chunks in flight
+            let nextChunkToSend = 0;
+            let nextChunkToAck = 0;
+
+            while (nextChunkToAck < chunkCount) {
+                if (streamState.error) {
+                    throw streamState.error;
+                }
+
+                // Send chunks up to window limit
+                while (nextChunkToSend < chunkCount && nextChunkToSend - nextChunkToAck < WINDOW_SIZE) {
+                    const i = nextChunkToSend;
+                    const start = i * chunkPayloadSize;
+                    const end = Math.min(start + chunkPayloadSize, totalSize);
+                    const chunkData = data.slice(start, end);
+                    const isLast = i === chunkCount - 1;
+
+                    const dataPacket = new Uint8Array(5 + chunkData.length);
+                    dataPacket[0] = ProtocolMessageType.STREAM_DATA;
+                    dataPacket[1] = streamId;
+                    dataPacket[2] = i & 0xff;
+                    dataPacket[3] = (i >> 8) & 0xff;
+                    dataPacket[4] = isLast ? 0x01 : 0x00;
+                    dataPacket.set(chunkData, 5);
+
+                    await this.requestChar.writeValueWithResponse(dataPacket);
+                    this.logVerbose(`Stream ${streamId}: Sent chunk ${i}/${chunkCount - 1}`);
+                    nextChunkToSend++;
+                }
+
+                // Wait for ACK of the oldest unacked chunk
+                if (nextChunkToAck < chunkCount) {
+                    try {
+                        await this.waitForChunkAck(streamState, nextChunkToAck, 5000);
+                        this.logVerbose(`Stream ${streamId}: Chunk ${nextChunkToAck} ACKed`);
+                        nextChunkToAck++;
+                    } catch (error) {
+                        throw new Error(
+                            `Stream ${streamId}: ACK timeout for chunk ${nextChunkToAck}: ${error.message}`
+                        );
+                    }
+                }
+
+                if (streamState.error) {
+                    throw streamState.error;
+                }
+            }
+
+            this.logVerbose(`Stream ${streamId}: All chunks sent`);
+
+            // 3. Send STREAM_END
+            const endPacket = new Uint8Array(6);
+            endPacket[0] = ProtocolMessageType.STREAM_END;
+            endPacket[1] = streamId;
+            endPacket[2] = totalSize & 0xff;
+            endPacket[3] = (totalSize >> 8) & 0xff;
+            endPacket[4] = (totalSize >> 16) & 0xff;
+            endPacket[5] = (totalSize >> 24) & 0xff;
+
+            await this.requestChar.writeValueWithResponse(endPacket);
+            this.logVerbose(`Stream ${streamId}: STREAM_END sent`);
+
+            // Wait for completion ACK
+            await this.waitForStreamEvent(streamState, 'complete', 5000);
+
+            this.logVerbose(`Stream ${streamId} completed successfully`);
+            return true;
+        } catch (error) {
+            this.logError(`Stream ${streamId} failed:`, error);
+            throw error;
+        } finally {
+            this.activeStreams.delete(streamId);
+        }
+    }
+
+    /**
+     * Wait for a stream event (start ACK, completion, or error)
+     * @param {object} streamState
+     * @param {string} eventType - 'start' or 'complete'
+     * @param {number} timeoutMs
+     */
+    async waitForStreamEvent(streamState, eventType, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            // Set up error rejection
+            streamState.errorReject = reject;
+
+            if (eventType === 'start') {
+                if (streamState.startAcked) {
+                    resolve();
+                    return;
+                }
+                streamState.startResolve = resolve;
+            } else if (eventType === 'complete') {
+                if (streamState.complete) {
+                    resolve();
+                    return;
+                }
+                streamState.completeResolve = resolve;
+            }
+
+            // Timeout
+            const timeoutId = setTimeout(() => {
+                if (eventType === 'start') {
+                    streamState.startResolve = null;
+                } else if (eventType === 'complete') {
+                    streamState.completeResolve = null;
+                }
+                reject(new Error(`Stream ${eventType} timeout (${timeoutMs}ms)`));
+            }, timeoutMs);
+
+            // Clean up timeout if resolved early
+            const originalResolve = resolve;
+            const wrappedResolve = () => {
+                clearTimeout(timeoutId);
+                originalResolve();
+            };
+
+            if (eventType === 'start') {
+                streamState.startResolve = wrappedResolve;
+            } else if (eventType === 'complete') {
+                streamState.completeResolve = wrappedResolve;
+            }
+        });
+    }
+
+    /**
+     * Wait for ACK of a specific chunk
+     * @param {object} streamState
+     * @param {number} chunkIndex
+     * @param {number} timeoutMs
+     */
+    async waitForChunkAck(streamState, chunkIndex, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            // Check if already ACKed
+            if (streamState.ackedChunks.has(chunkIndex) || streamState.lastAckedChunk >= chunkIndex) {
+                resolve(chunkIndex);
+                return;
+            }
+
+            // Check for error
+            if (streamState.error) {
+                reject(streamState.error);
+                return;
+            }
+
+            // Set up ACK waiter
+            streamState.chunkAckResolve = (ackedIndex) => {
+                if (ackedIndex >= chunkIndex) {
+                    clearTimeout(timeoutId);
+                    streamState.chunkAckResolve = null;
+                    resolve(ackedIndex);
+                }
+            };
+
+            // Set up error rejection
+            const originalErrorReject = streamState.errorReject;
+            streamState.errorReject = (error) => {
+                clearTimeout(timeoutId);
+                streamState.chunkAckResolve = null;
+                if (originalErrorReject) {
+                    originalErrorReject(error);
+                }
+                reject(error);
+            };
+
+            // Timeout
+            const timeoutId = setTimeout(() => {
+                streamState.chunkAckResolve = null;
+                streamState.errorReject = originalErrorReject;
+                reject(new Error(`Chunk ${chunkIndex} ACK timeout (${timeoutMs}ms)`));
+            }, timeoutMs);
+        });
+    }
+
+    /**
+     * Wait for a condition to become true
+     * @param {function} condition - Function that returns boolean
+     * @param {number} timeoutMs
+     */
+    async waitForCondition(condition, timeoutMs) {
+        const startTime = Date.now();
+        while (!condition()) {
+            if (Date.now() - startTime > timeoutMs) {
+                throw new Error('Condition timeout');
+            }
+            await this.sleep(50);
+        }
+    }
+
+    /**
+     * Helper function: Sleep
+     * @param {number} ms
+     * @returns {Promise<void>}
+     */
+    sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Connection status
+     * @returns {boolean}
+     */
+    isConnected() {
+        return this.connected && this.device && this.device.gatt.connected;
+    }
 }
 
 export const APP_REQUEST_TYPE_STOP_PROGRAM = 0x01;
@@ -1161,10 +1170,10 @@ export const APP_REQUEST_TYPE_RUN_PROGRAM = 0x06;
 export const APP_REQUEST_TYPE_GET_PROJECTS = 0x07;
 export const APP_REQUEST_TYPE_GET_AUTOSTART = 0x08;
 export const APP_REQUEST_TYPE_PUT_AUTOSTART = 0x09;
-export const APP_REQUEST_TYPE_READY_FOR_EVENTS = 0x0A;
-export const APP_REQUEST_TYPE_REQUEST_PAIRING = 0x0B;
-export const APP_REQUEST_TYPE_REMOVE_PAIRING = 0x0C;
-export const APP_REQUEST_TYPE_START_DISCOVERY = 0x0D;
+export const APP_REQUEST_TYPE_READY_FOR_EVENTS = 0x0a;
+export const APP_REQUEST_TYPE_REQUEST_PAIRING = 0x0b;
+export const APP_REQUEST_TYPE_REMOVE_PAIRING = 0x0c;
+export const APP_REQUEST_TYPE_START_DISCOVERY = 0x0d;
 
 export const APP_EVENT_TYPE_LOG = 0x01;
 export const APP_EVENT_TYPE_PORTSTATUS = 0x02;

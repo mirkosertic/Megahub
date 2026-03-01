@@ -4,305 +4,307 @@
  */
 
 :host {
-  /* Re-declare theme variables for Shadow DOM */
-  --vscode-bg-primary: #1e1e1e;
-  --vscode-bg-secondary: #252526;
-  --vscode-bg-elevated: #2d2d30;
-  --vscode-bg-input: #3c3c3c;
-  --vscode-text-primary: #cccccc;
-  --vscode-text-secondary: #858585;
-  --vscode-border-light: #3c3c3c;
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 0.75rem;
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --transition-fast: 0.15s ease;
-  --transition-medium: 0.3s ease;
-  --font-fixed-10: 0.625rem;
-  --font-fixed-11: 0.688rem;
-  --font-fixed-13: 0.813rem;
+    /* Re-declare theme variables for Shadow DOM */
+    --vscode-bg-primary: #1e1e1e;
+    --vscode-bg-secondary: #252526;
+    --vscode-bg-elevated: #2d2d30;
+    --vscode-bg-input: #3c3c3c;
+    --vscode-text-primary: #cccccc;
+    --vscode-text-secondary: #858585;
+    --vscode-border-light: #3c3c3c;
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 0.75rem;
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --transition-fast: 0.15s ease;
+    --transition-medium: 0.3s ease;
+    --font-fixed-10: 0.625rem;
+    --font-fixed-11: 0.688rem;
+    --font-fixed-13: 0.813rem;
 
-  display: block;
-  background: var(--vscode-bg-primary);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+    display: block;
+    background: var(--vscode-bg-primary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
 }
 
 /* Accordion expanded state - fill available space */
 :host(.accordion-expanded) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 :host(.accordion-expanded) .lua-preview-container {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 :host(.accordion-expanded) .collapsible-content {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-  overflow-x: auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 /* Scrollbar styling for Shadow DOM - WebKit browsers (Chrome, Safari, Edge) */
 .collapsible-content::-webkit-scrollbar,
 .lua-code-preview::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 .collapsible-content::-webkit-scrollbar-track,
 .lua-code-preview::-webkit-scrollbar-track {
-  background: #1e1e1e;
+    background: #1e1e1e;
 }
 
 .collapsible-content::-webkit-scrollbar-thumb,
 .lua-code-preview::-webkit-scrollbar-thumb {
-  background: #424242;
-  border-radius: 4px;
+    background: #424242;
+    border-radius: 4px;
 }
 
 .collapsible-content::-webkit-scrollbar-thumb:hover,
 .lua-code-preview::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+    background: #4e4e4e;
 }
 
 /* Scrollbar corner styling (where horizontal and vertical scrollbars meet) */
 .collapsible-content::-webkit-scrollbar-corner,
 .lua-code-preview::-webkit-scrollbar-corner {
-  background: #1e1e1e;
+    background: #1e1e1e;
 }
 
 /* Firefox scrollbar styling */
 .collapsible-content,
 .lua-code-preview {
-  scrollbar-width: thin;
-  scrollbar-color: #424242 #1e1e1e;
+    scrollbar-width: thin;
+    scrollbar-color: #424242 #1e1e1e;
 }
 
 /* Pre element inside code preview also needs scrollbar styling */
 .lua-code-preview pre::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 .lua-code-preview pre::-webkit-scrollbar-track {
-  background: #1e1e1e;
+    background: #1e1e1e;
 }
 
 .lua-code-preview pre::-webkit-scrollbar-thumb {
-  background: #424242;
-  border-radius: 4px;
+    background: #424242;
+    border-radius: 4px;
 }
 
 .lua-code-preview pre::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+    background: #4e4e4e;
 }
 
 .lua-code-preview pre::-webkit-scrollbar-corner {
-  background: #1e1e1e;
+    background: #1e1e1e;
 }
 
 .lua-code-preview pre {
-  scrollbar-width: thin;
-  scrollbar-color: #424242 #1e1e1e;
+    scrollbar-width: thin;
+    scrollbar-color: #424242 #1e1e1e;
 }
 
 /* Container */
 .lua-preview-container {
-  display: flex;
-  flex-direction: column;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Collapsible Header */
 .collapsible-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm);
-  background: var(--vscode-bg-secondary);
-  border-bottom: 1px solid var(--vscode-border-light);
-  cursor: pointer;
-  user-select: none;
-  transition: background-color var(--transition-fast);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--vscode-bg-secondary);
+    border-bottom: 1px solid var(--vscode-border-light);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--transition-fast);
 }
 
 .collapsible-header:hover {
-  background: var(--vscode-bg-elevated);
+    background: var(--vscode-bg-elevated);
 }
 
 .collapsible-header-title {
-  margin: 0;
-  font-weight: 600;
-  color: var(--vscode-text-primary);
-  font-size: var(--font-fixed-11);
+    margin: 0;
+    font-weight: 600;
+    color: var(--vscode-text-primary);
+    font-size: var(--font-fixed-11);
 }
 
 @media (min-width: 768px) {
-  .collapsible-header-title {
-    font-size: var(--font-fixed-13);
-  }
+    .collapsible-header-title {
+        font-size: var(--font-fixed-13);
+    }
 }
 
 .collapsible-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--vscode-text-secondary);
-  cursor: pointer;
-  padding: var(--spacing-xs);
-  transition: all var(--transition-fast);
-  min-width: 24px;
-  min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: all var(--transition-fast);
+    min-width: 24px;
+    min-height: 24px;
 }
 
 .collapsible-toggle:hover {
-  color: var(--vscode-text-primary);
-  background: var(--vscode-bg-input);
-  border-radius: var(--radius-sm);
+    color: var(--vscode-text-primary);
+    background: var(--vscode-bg-input);
+    border-radius: var(--radius-sm);
 }
 
 .collapsible-icon {
-  font-size: 10px;
-  transition: transform var(--transition-fast);
-  display: inline-block;
+    font-size: 10px;
+    transition: transform var(--transition-fast);
+    display: inline-block;
 }
 
 .lua-preview-container.collapsed .collapsible-icon {
-  transform: rotate(-90deg);
+    transform: rotate(-90deg);
 }
 
 /* Collapsible Content */
 .collapsible-content {
-  overflow-y: auto;
-  overflow-x: auto;
-  transition: max-height var(--transition-medium), opacity var(--transition-medium);
-  max-height: 300px;
-  opacity: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    transition:
+        max-height var(--transition-medium),
+        opacity var(--transition-medium);
+    max-height: 300px;
+    opacity: 1;
 }
 
 @media (min-width: 768px) {
-  .collapsible-content {
-    max-height: 400px;
-  }
+    .collapsible-content {
+        max-height: 400px;
+    }
 }
 
 .lua-preview-container.collapsed .collapsible-content {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
 }
 
 /* Code preview area */
 .lua-code-preview {
-  padding: var(--spacing-sm);
-  overflow-x: auto;
-  font-size: 0.65rem;
+    padding: var(--spacing-sm);
+    overflow-x: auto;
+    font-size: 0.65rem;
 }
 
 @media (min-width: 768px) {
-  .lua-code-preview {
-    font-size: 0.7rem;
-  }
+    .lua-code-preview {
+        font-size: 0.7rem;
+    }
 }
 
 @media (min-width: 1024px) {
-  .lua-code-preview {
-    font-size: 0.8rem;
-  }
+    .lua-code-preview {
+        font-size: 0.8rem;
+    }
 }
 
 /* Override Prism styles for better fit */
 .lua-code-preview pre {
-  margin: 0;
-  padding: 0;
-  background: transparent !important;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
 }
 
 .lua-code-preview code {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
 /* Placeholder text when no code */
 .no-code-message {
-  padding: var(--spacing-md);
-  color: var(--vscode-text-secondary);
-  font-style: italic;
-  text-align: center;
-  font-size: var(--font-fixed-11);
+    padding: var(--spacing-md);
+    color: var(--vscode-text-secondary);
+    font-style: italic;
+    text-align: center;
+    font-size: var(--font-fixed-11);
 }
 
 /* Code preview wrapper with copy button */
 .lua-code-preview-wrapper {
-  position: relative;
+    position: relative;
 }
 
 /* Copy code button */
 .copy-code-btn {
-  position: absolute;
-  top: var(--spacing-sm);
-  right: var(--spacing-sm);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: var(--vscode-bg-elevated);
-  color: var(--vscode-text-secondary);
-  border: 1px solid var(--vscode-border-light);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-fixed-11);
-  font-family: inherit;
-  opacity: 0;
-  visibility: hidden;
-  transition: all var(--transition-fast);
-  z-index: 10;
-  min-width: auto;
-  min-height: auto;
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: var(--vscode-bg-elevated);
+    color: var(--vscode-text-secondary);
+    border: 1px solid var(--vscode-border-light);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: var(--font-fixed-11);
+    font-family: inherit;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-fast);
+    z-index: 10;
+    min-width: auto;
+    min-height: auto;
 }
 
 .copy-code-btn svg {
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .copy-code-btn:hover {
-  background: var(--vscode-bg-input);
-  color: var(--vscode-text-bright);
-  border-color: #007acc;
+    background: var(--vscode-bg-input);
+    color: var(--vscode-text-bright);
+    border-color: #007acc;
 }
 
 .copy-code-btn:active {
-  transform: scale(0.95);
+    transform: scale(0.95);
 }
 
 .copy-code-btn.copied {
-  background: #27ae60;
-  border-color: #27ae60;
-  color: #ffffff;
+    background: #27ae60;
+    border-color: #27ae60;
+    color: #ffffff;
 }
 
 /* Show copy button on hover over the wrapper */
 .lua-code-preview-wrapper:hover .copy-code-btn {
-  opacity: 1;
-  visibility: visible;
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Also show when content is focused */
 .lua-code-preview-wrapper:focus-within .copy-code-btn {
-  opacity: 1;
-  visibility: visible;
+    opacity: 1;
+    visibility: visible;
 }
 
 .copy-btn-text {
-  font-weight: 500;
+    font-weight: 500;
 }

@@ -8,20 +8,18 @@
  */
 import { definition } from '../../src/components/blockly/mh_startthread.js';
 
-function makeBlock({ fields = {}, values = {}, stmts = {}, asExpression = false } = {}) {
+function makeBlock({ fields = {}, asExpression = false } = {}) {
     return {
-        getFieldValue: key => fields[key] ?? null,
+        getFieldValue: (key) => fields[key] ?? null,
         id: 'test-block-id',
-        outputConnection: asExpression
-            ? { targetConnection: {} }
-            : null,
+        outputConnection: asExpression ? { targetConnection: {} } : null,
     };
 }
 
 function makeGenerator({ values = {}, stmts = {} } = {}) {
     return {
-        valueToCode:    (_block, name, _order) => values[name] ?? '0',
-        statementToCode:(_block, name)          => stmts[name]  ?? '',
+        valueToCode: (_block, name) => values[name] ?? '0',
+        statementToCode: (_block, name) => stmts[name] ?? '',
     };
 }
 
@@ -48,7 +46,7 @@ describe('mh_startthread block definition', () => {
 describe('mh_startthread generator — statement mode', () => {
     it('generates hub.startthread(...) call ending with \\n', () => {
         const block = makeBlock({ fields: { NAME: 'myThread', PROFILING: 'TRUE' } });
-        const gen   = makeGenerator({ values: { STACKSIZE: '4096' }, stmts: { DO: '  x = 1\n' } });
+        const gen = makeGenerator({ values: { STACKSIZE: '4096' }, stmts: { DO: '  x = 1\n' } });
 
         const code = definition.generator(block, gen);
 
@@ -56,7 +54,7 @@ describe('mh_startthread generator — statement mode', () => {
         expect(code).toContain('hub.startthread(');
         expect(code).toContain("'myThread'");
         expect(code).toContain('4096');
-        expect(code).toContain('true');          // PROFILING: "TRUE" → true
+        expect(code).toContain('true'); // PROFILING: "TRUE" → true
         expect(code).toContain('function()');
         expect(code).toContain('end)');
         expect(code).toMatch(/\n$/);
@@ -64,7 +62,7 @@ describe('mh_startthread generator — statement mode', () => {
 
     it('sets profiling=false when checkbox is unchecked', () => {
         const block = makeBlock({ fields: { NAME: 'bg', PROFILING: 'FALSE' } });
-        const gen   = makeGenerator({ values: { STACKSIZE: '2048' } });
+        const gen = makeGenerator({ values: { STACKSIZE: '2048' } });
 
         const code = definition.generator(block, gen);
 
@@ -73,9 +71,9 @@ describe('mh_startthread generator — statement mode', () => {
 
     it('embeds DO body inside function() ... end)', () => {
         const block = makeBlock({ fields: { NAME: 't', PROFILING: 'TRUE' } });
-        const gen   = makeGenerator({
+        const gen = makeGenerator({
             values: { STACKSIZE: '4096' },
-            stmts:  { DO: '  wait(100)\n' },
+            stmts: { DO: '  wait(100)\n' },
         });
 
         const code = definition.generator(block, gen);
@@ -87,7 +85,7 @@ describe('mh_startthread generator — statement mode', () => {
 
     it('uses block.id in the generated code', () => {
         const block = makeBlock({ fields: { NAME: 'n', PROFILING: 'TRUE' } });
-        const gen   = makeGenerator({ values: { STACKSIZE: '4096' } });
+        const gen = makeGenerator({ values: { STACKSIZE: '4096' } });
 
         const code = definition.generator(block, gen);
 

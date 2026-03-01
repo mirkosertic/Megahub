@@ -25,15 +25,15 @@
 #include "esp32-hal-bt.h"
 
 // Global instance pointer for static callbacks
-static BTRemote *g_btremote_instance = nullptr;
-#define SERVICE_UUID	   "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+static BTRemote* g_btremote_instance = nullptr;
+#define SERVICE_UUID       "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define REQUEST_CHAR_UUID  "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define RESPONSE_CHAR_UUID "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e"
-#define EVENT_CHAR_UUID	   "d8de624e-140f-4a22-8594-e2216b84a5f2"
+#define EVENT_CHAR_UUID    "d8de624e-140f-4a22-8594-e2216b84a5f2"
 #define CONTROL_CHAR_UUID  "f78ebbff-c8b7-4107-93de-889a6a06d408"
 
 // Convert UUID string to esp_bt_uuid_t, handling ESP32's little-endian byte order requirement
-static esp_bt_uuid_t stringToUUID128(const char *uuid_str) {
+static esp_bt_uuid_t stringToUUID128(const char* uuid_str) {
 	esp_bt_uuid_t uuid;
 	uuid.len = ESP_UUID_LEN_128;
 
@@ -58,36 +58,36 @@ static esp_bt_uuid_t stringToUUID128(const char *uuid_str) {
 }
 
 static esp_ble_adv_params_t g_adv_params = {
-	.adv_int_min = 0x20,
-	.adv_int_max = 0x40,
-	.adv_type = ADV_TYPE_IND,
-	.own_addr_type = BLE_ADDR_TYPE_PUBLIC,
-	.peer_addr = {0},
-	.peer_addr_type = BLE_ADDR_TYPE_PUBLIC,
-	.channel_map = ADV_CHNL_ALL,
-	.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
+    .adv_int_min = 0x20,
+    .adv_int_max = 0x40,
+    .adv_type = ADV_TYPE_IND,
+    .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
+    .peer_addr = {0},
+    .peer_addr_type = BLE_ADDR_TYPE_PUBLIC,
+    .channel_map = ADV_CHNL_ALL,
+    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
 #define FLAG_LAST_FRAGMENT 0x01
-#define FLAG_ERROR		   0x02
+#define FLAG_ERROR         0x02
 
-#define APP_REQUEST_TYPE_STOP_PROGRAM	  0x01
+#define APP_REQUEST_TYPE_STOP_PROGRAM     0x01
 #define APP_REQUEST_TYPE_GET_PROJECT_FILE 0x02
 #define APP_REQUEST_TYPE_PUT_PROJECT_FILE 0x03
-#define APP_REQUEST_TYPE_DELETE_PROJECT	  0x04
-#define APP_REQUEST_TYPE_SYNTAX_CHECK	  0x05
-#define APP_REQUEST_TYPE_RUN_PROGRAM	  0x06
-#define APP_REQUEST_TYPE_GET_PROJECTS	  0x07
-#define APP_REQUEST_TYPE_GET_AUTOSTART	  0x08
-#define APP_REQUEST_TYPE_PUT_AUTOSTART	  0x09
+#define APP_REQUEST_TYPE_DELETE_PROJECT   0x04
+#define APP_REQUEST_TYPE_SYNTAX_CHECK     0x05
+#define APP_REQUEST_TYPE_RUN_PROGRAM      0x06
+#define APP_REQUEST_TYPE_GET_PROJECTS     0x07
+#define APP_REQUEST_TYPE_GET_AUTOSTART    0x08
+#define APP_REQUEST_TYPE_PUT_AUTOSTART    0x09
 #define APP_REQUEST_TYPE_READY_FOR_EVENTS 0x0A
 #define APP_REQUEST_TYPE_REQUEST_PAIRING  0x0B
-#define APP_REQUEST_TYPE_REMOVE_PAIRING	  0x0C
+#define APP_REQUEST_TYPE_REMOVE_PAIRING   0x0C
 #define APP_REQUEST_TYPE_START_DISCOVERY  0x0D
 
-#define APP_EVENT_TYPE_LOG				0x01
-#define APP_EVENT_TYPE_PORTSTATUS		0x02
-#define APP_EVENT_TYPE_COMMAND			0x03
+#define APP_EVENT_TYPE_LOG              0x01
+#define APP_EVENT_TYPE_PORTSTATUS       0x02
+#define APP_EVENT_TYPE_COMMAND          0x03
 #define APP_EVENT_TYPE_BTCLASSICDEVICES 0x04
 
 const uint32_t TASK_LOOP_DELAY_MS = 10;
@@ -104,7 +104,7 @@ const uint32_t TASK_LOOP_DELAY_MS = 10;
  *   stringToVector(message, buffer);
  *   btRemote.sendEvent(1, buffer);
  */
-inline void stringToVector(const String &str, std::vector<uint8_t> &buffer) {
+inline void stringToVector(const String& str, std::vector<uint8_t>& buffer) {
 	buffer.clear();
 	buffer.reserve(str.length());
 	for (size_t i = 0; i < str.length(); i++) {
@@ -129,7 +129,7 @@ inline void stringToVector(const String &str, std::vector<uint8_t> &buffer) {
  *       btRemote.sendResponse(messageId, buffer);
  *   }
  */
-inline bool serializeJsonToVector(const JsonDocument &doc, std::vector<uint8_t> &buffer) {
+inline bool serializeJsonToVector(const JsonDocument& doc, std::vector<uint8_t>& buffer) {
 	buffer.clear();
 	size_t size = measureJson(doc);
 	if (size == 0) {
@@ -138,7 +138,7 @@ inline bool serializeJsonToVector(const JsonDocument &doc, std::vector<uint8_t> 
 	}
 
 	buffer.resize(size);
-	size_t written = serializeJson(doc, (char *) buffer.data(), size);
+	size_t written = serializeJson(doc, (char*) buffer.data(), size);
 
 	if (written != size) {
 		WARN("Expected %d bytes, wrote %d bytes", size, written);
@@ -166,13 +166,13 @@ inline bool serializeJsonToVector(const JsonDocument &doc, std::vector<uint8_t> 
  *       int humid = doc["humidity"];
  *   }
  */
-inline DeserializationError deserializeVectorToJson(const std::vector<uint8_t> &buffer, JsonDocument &doc) {
+inline DeserializationError deserializeVectorToJson(const std::vector<uint8_t>& buffer, JsonDocument& doc) {
 	if (buffer.empty()) {
 		WARN("Buffer is empty");
 		return DeserializationError::EmptyInput;
 	}
 
-	DeserializationError error = deserializeJson(doc, (const char *) buffer.data(), buffer.size());
+	DeserializationError error = deserializeJson(doc, (const char*) buffer.data(), buffer.size());
 	if (error) {
 		WARN("Deserialization error: %s", error.c_str());
 	}
@@ -180,16 +180,14 @@ inline DeserializationError deserializeVectorToJson(const std::vector<uint8_t> &
 }
 
 // Create JSON response via lambda and serialize to vector
-template <typename Func>
-inline bool createJsonResponse(std::vector<uint8_t> &buffer, Func fn) {
+template <typename Func> inline bool createJsonResponse(std::vector<uint8_t>& buffer, Func fn) {
 	JsonDocument doc;
 	fn(doc);
 	return serializeJsonToVector(doc, buffer);
 }
 
 // Parse JSON from vector and execute callback if successful
-template <typename Func>
-inline bool parseJsonFromVector(const std::vector<uint8_t> &buffer, Func fn) {
+template <typename Func> inline bool parseJsonFromVector(const std::vector<uint8_t>& buffer, Func fn) {
 	JsonDocument doc;
 	DeserializationError error = deserializeVectorToJson(buffer, doc);
 
@@ -254,19 +252,20 @@ struct StreamEndData {
 // 3. If xQueueSend() fails -> caller MUST delete to prevent leak
 struct MessageProcessorItem {
 	MessageProcessorItemType type;
-	void *dataPtr;
+	void* dataPtr;
 
-	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String &project, const String &filename) {
+	static MessageProcessorItem createFileTransfer(uint8_t messageId, const String& project, const String& filename) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::FILE_TRANSFER;
-		item.dataPtr = new PendingFileTransfer {messageId, project, filename}; // Caller owns, must free on queue failure
+		item.dataPtr = new PendingFileTransfer{messageId, project, filename}; // Caller owns, must free on queue failure
 		return item;
 	}
 
-	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data) {
+	static MessageProcessorItem createRequest(ProtocolMessageType protocolType, uint8_t messageId,
+	                                          const std::vector<uint8_t>& data) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::INCOMING_REQUEST;
-		item.dataPtr = new IncomingRequest {protocolType, messageId, data}; // Caller owns, must free on queue failure
+		item.dataPtr = new IncomingRequest{protocolType, messageId, data}; // Caller owns, must free on queue failure
 		return item;
 	}
 
@@ -278,32 +277,32 @@ struct MessageProcessorItem {
 	}
 
 	static MessageProcessorItem createStreamStart(uint8_t streamId, uint32_t totalSize, uint16_t chunkCount,
-		uint8_t flags, const String &projectId, const String &filename) {
+	                                              uint8_t flags, const String& projectId, const String& filename) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::STREAM_START;
-		item.dataPtr = new StreamStartData {streamId, totalSize, chunkCount, flags, projectId, filename};
+		item.dataPtr = new StreamStartData{streamId, totalSize, chunkCount, flags, projectId, filename};
 		return item;
 	}
 
 	static MessageProcessorItem createStreamData(uint8_t streamId, uint16_t chunkIndex, uint8_t flags,
-		const uint8_t *payload, size_t payloadLen) {
+	                                             const uint8_t* payload, size_t payloadLen) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::STREAM_DATA;
-		item.dataPtr = new StreamChunkData {streamId, chunkIndex, flags,
-			std::vector<uint8_t>(payload, payload + payloadLen)};
+		item.dataPtr =
+		    new StreamChunkData{streamId, chunkIndex, flags, std::vector<uint8_t>(payload, payload + payloadLen)};
 		return item;
 	}
 
 	static MessageProcessorItem createStreamEnd(uint8_t streamId, uint32_t reportedBytes) {
 		MessageProcessorItem item;
 		item.type = MessageProcessorItemType::STREAM_END;
-		item.dataPtr = new StreamEndData {streamId, reportedBytes};
+		item.dataPtr = new StreamEndData{streamId, reportedBytes};
 		return item;
 	}
 };
 
-void btMessageProcessorTask(void *param) {
-	BTRemote *server = (BTRemote *) param;
+void btMessageProcessorTask(void* param) {
+	BTRemote* server = (BTRemote*) param;
 	while (true) {
 
 		server->processMessageQueue();
@@ -314,29 +313,14 @@ void btMessageProcessorTask(void *param) {
 // Bluetooth Classic discovery interval (30 seconds)
 const uint32_t BT_DISCOVERY_INTERVAL_MS = 30000;
 
-BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggingOutput *loggingOutput, Configuration *configuration)
-	: gatts_if_(ESP_GATT_IF_NONE)
-	, app_id_(0x55)
-	, inputDevices_(inputDevices)
-	, loggingOutput_(loggingOutput)
-	, configuration_(configuration)
-	, hub_(hub)
-	, deviceConnected_(false)
-	, readyForEvents_(false)
-	, mtu_(23)
-	, nextMessageId_(0)
-	, fragmentBuffersMutex_(nullptr)
-	, responseQueue_(nullptr)
-	, responseSenderTaskHandle_(nullptr)
-	, indicationConfirmSemaphore_(nullptr)
-	, discoveredDevicesMutex_(nullptr)
-	, lastDeviceListPublishTime_(0)
-	, discoveryInProgress_(false)
-	, pairingInProgress_(false)
-	, hidDevicesMutex_(nullptr)
-	, hidEventQueue_(nullptr)
-	, hidEventTaskHandle_(nullptr)
-	, streamsMutex_(nullptr) {
+BTRemote::BTRemote(FS* fs, InputDevices* inputDevices, Megahub* hub, SerialLoggingOutput* loggingOutput,
+                   Configuration* configuration)
+    : gatts_if_(ESP_GATT_IF_NONE), app_id_(0x55), inputDevices_(inputDevices), loggingOutput_(loggingOutput),
+      configuration_(configuration), hub_(hub), deviceConnected_(false), readyForEvents_(false), mtu_(23),
+      nextMessageId_(0), fragmentBuffersMutex_(nullptr), responseQueue_(nullptr), responseSenderTaskHandle_(nullptr),
+      indicationConfirmSemaphore_(nullptr), discoveredDevicesMutex_(nullptr), lastDeviceListPublishTime_(0),
+      discoveryInProgress_(false), pairingInProgress_(false), hidDevicesMutex_(nullptr), hidEventQueue_(nullptr),
+      hidEventTaskHandle_(nullptr), streamsMutex_(nullptr) {
 	memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
 	responseQueue_ = xQueueCreate(20, sizeof(MessageProcessorItem));
 	fragmentBuffersMutex_ = xSemaphoreCreateMutex();
@@ -357,18 +341,45 @@ BTRemote::BTRemote(FS *fs, InputDevices *inputDevices, Megahub *hub, SerialLoggi
 }
 
 BTRemote::~BTRemote() {
-	if (hidEventTaskHandle_)       { vTaskDelete(hidEventTaskHandle_);       hidEventTaskHandle_ = nullptr; }
-	if (responseSenderTaskHandle_) { vTaskDelete(responseSenderTaskHandle_); responseSenderTaskHandle_ = nullptr; }
-	if (fragmentBuffersMutex_)       { vSemaphoreDelete(fragmentBuffersMutex_);       fragmentBuffersMutex_ = nullptr; }
-	if (responseQueue_)              { vQueueDelete(responseQueue_);                   responseQueue_ = nullptr; }
-	if (indicationConfirmSemaphore_) { vSemaphoreDelete(indicationConfirmSemaphore_);  indicationConfirmSemaphore_ = nullptr; }
-	if (discoveredDevicesMutex_)     { vSemaphoreDelete(discoveredDevicesMutex_);      discoveredDevicesMutex_ = nullptr; }
-	if (hidDevicesMutex_)            { vSemaphoreDelete(hidDevicesMutex_);             hidDevicesMutex_ = nullptr; }
-	if (hidEventQueue_)              { vQueueDelete(hidEventQueue_);                   hidEventQueue_ = nullptr; }
-	if (streamsMutex_)               { vSemaphoreDelete(streamsMutex_);                streamsMutex_ = nullptr; }
+	if (hidEventTaskHandle_) {
+		vTaskDelete(hidEventTaskHandle_);
+		hidEventTaskHandle_ = nullptr;
+	}
+	if (responseSenderTaskHandle_) {
+		vTaskDelete(responseSenderTaskHandle_);
+		responseSenderTaskHandle_ = nullptr;
+	}
+	if (fragmentBuffersMutex_) {
+		vSemaphoreDelete(fragmentBuffersMutex_);
+		fragmentBuffersMutex_ = nullptr;
+	}
+	if (responseQueue_) {
+		vQueueDelete(responseQueue_);
+		responseQueue_ = nullptr;
+	}
+	if (indicationConfirmSemaphore_) {
+		vSemaphoreDelete(indicationConfirmSemaphore_);
+		indicationConfirmSemaphore_ = nullptr;
+	}
+	if (discoveredDevicesMutex_) {
+		vSemaphoreDelete(discoveredDevicesMutex_);
+		discoveredDevicesMutex_ = nullptr;
+	}
+	if (hidDevicesMutex_) {
+		vSemaphoreDelete(hidDevicesMutex_);
+		hidDevicesMutex_ = nullptr;
+	}
+	if (hidEventQueue_) {
+		vQueueDelete(hidEventQueue_);
+		hidEventQueue_ = nullptr;
+	}
+	if (streamsMutex_) {
+		vSemaphoreDelete(streamsMutex_);
+		streamsMutex_ = nullptr;
+	}
 }
 
-void BTRemote::begin(const char *deviceName) {
+void BTRemote::begin(const char* deviceName) {
 	esp_err_t ret;
 
 	// Initialize BT controller in dual-mode (BLE + Classic for future HID Host).
@@ -454,13 +465,12 @@ void BTRemote::begin(const char *deviceName) {
 	// CRITICAL: Create HID event processing task BEFORE registering callback
 	// This ensures the queue consumer is ready when events start arriving
 	INFO("Creating HID event processing task...");
-	BaseType_t taskRet = xTaskCreate(
-		hidEventTask, // Task function
-		"HIDEventTask", // Task name
-		4096, // Stack size (4KB)
-		this, // Task parameter (this instance)
-		5, // Priority (higher than default)
-		&hidEventTaskHandle_ // Task handle
+	BaseType_t taskRet = xTaskCreate(hidEventTask,        // Task function
+	                                 "HIDEventTask",      // Task name
+	                                 4096,                // Stack size (4KB)
+	                                 this,                // Task parameter (this instance)
+	                                 5,                   // Priority (higher than default)
+	                                 &hidEventTaskHandle_ // Task handle
 	);
 	if (taskRet != pdPASS) {
 		ERROR("Failed to create HID event task!");
@@ -494,16 +504,17 @@ void BTRemote::begin(const char *deviceName) {
 
 	INFO("Bluedroid BLE initialization started, waiting for registration...");
 
-	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t> &payload) {
-		INFO("Processing BT message with id %d and appRequestType %d, size of payload is %d", messageId, appRequestType, payload.size());
+	onRequest([this](uint8_t appRequestType, uint8_t messageId, const std::vector<uint8_t>& payload) {
+		INFO("Processing BT message with id %d and appRequestType %d, size of payload is %d", messageId, appRequestType,
+		     payload.size());
 
-		parseJsonFromVector(payload, [this, messageId, appRequestType](const JsonDocument &requestDoc) {
+		parseJsonFromVector(payload, [this, messageId, appRequestType](const JsonDocument& requestDoc) {
 			std::vector<uint8_t> response;
 			if (appRequestType == APP_REQUEST_TYPE_GET_PROJECT_FILE) {
 				reqGetProjectFile(messageId, requestDoc);
 				return;
 			} else {
-				createJsonResponse(response, [this, appRequestType, requestDoc](JsonDocument &responseDoc) {
+				createJsonResponse(response, [this, appRequestType, requestDoc](JsonDocument& responseDoc) {
 					bool result = false;
 					switch (appRequestType) {
 						case APP_REQUEST_TYPE_STOP_PROGRAM:
@@ -555,18 +566,12 @@ void BTRemote::begin(const char *deviceName) {
 		});
 	});
 
-	xTaskCreate(
-		btMessageProcessorTask,
-		"BTMsgProcessor",
-		8192,
-		(void *) this,
-		2,
-		&responseSenderTaskHandle_);
+	xTaskCreate(btMessageProcessorTask, "BTMsgProcessor", 8192, (void*) this, 2, &responseSenderTaskHandle_);
 
 	INFO("BLE Server started as ID %s, waiting for connections...", SERVICE_UUID);
 }
 
-void BTRemote::handleFragment(const uint8_t *data, size_t length) {
+void BTRemote::handleFragment(const uint8_t* data, size_t length) {
 	ProtocolMessageType protocolType = (ProtocolMessageType) data[0];
 
 	// Route streaming protocol messages to dedicated handlers (bypass fragment reassembly)
@@ -585,8 +590,8 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	uint16_t fragmentNum = (data[2] << 8) | data[3];
 	uint8_t flags = data[4];
 
-	DEBUG("Fragment received: ProtocolType=%d, ID=%d, Num=%d, Flags=0x%02X",
-		(uint8_t) protocolType, messageId, fragmentNum, flags);
+	DEBUG("Fragment received: ProtocolType=%d, ID=%d, Num=%d, Flags=0x%02X", (uint8_t) protocolType, messageId,
+	      fragmentNum, flags);
 
 	// CRITICAL: Lock fragmentBuffers_ for thread-safe access (GATTS callback vs loop task)
 	if (xSemaphoreTake(fragmentBuffersMutex_, portMAX_DELAY) != pdTRUE) {
@@ -595,15 +600,15 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	}
 
 	// Memory safety: Limit concurrent messages to prevent memory exhaustion
-	if (fragmentBuffers_.size() >= MAX_CONCURRENT_MESSAGES && fragmentBuffers_.find(messageId) == fragmentBuffers_.end()) {
-		WARN("Max concurrent messages reached (%d), rejecting message ID %d",
-			MAX_CONCURRENT_MESSAGES, messageId);
+	if (fragmentBuffers_.size() >= MAX_CONCURRENT_MESSAGES &&
+	    fragmentBuffers_.find(messageId) == fragmentBuffers_.end()) {
+		WARN("Max concurrent messages reached (%d), rejecting message ID %d", MAX_CONCURRENT_MESSAGES, messageId);
 		xSemaphoreGive(fragmentBuffersMutex_);
 		sendControlMessage(ControlMessageType::BUFFER_FULL, messageId);
 		return;
 	}
 
-	auto &buffer = fragmentBuffers_[messageId];
+	auto& buffer = fragmentBuffers_[messageId];
 
 	if (fragmentNum == 0) {
 		buffer.data.clear();
@@ -622,7 +627,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 
 	buffer.lastFragmentTime = millis();
 
-	const uint8_t *payload = data + FRAGMENT_HEADER_SIZE;
+	const uint8_t* payload = data + FRAGMENT_HEADER_SIZE;
 	size_t payloadSize = length - FRAGMENT_HEADER_SIZE;
 
 	if (buffer.data.size() + payloadSize > MAX_BUFFER_SIZE) {
@@ -638,10 +643,10 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	try {
 		buffer.data.insert(buffer.data.end(), payload, payload + payloadSize);
 		buffer.receivedFragments++;
-	} catch (const std::bad_alloc &e) {
+	} catch (const std::bad_alloc& e) {
 		ERROR("Out of memory inserting %d bytes into fragment buffer (message ID %d)", payloadSize, messageId);
-		ERROR("Heap free: %d bytes, largest block: %d bytes",
-			esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+		ERROR("Heap free: %d bytes, largest block: %d bytes", esp_get_free_heap_size(),
+		      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 		fragmentBuffers_.erase(messageId);
 		xSemaphoreGive(fragmentBuffersMutex_);
 		sendControlMessage(ControlMessageType::NACK, messageId);
@@ -649,8 +654,7 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	}
 
 	if (flags & FLAG_LAST_FRAGMENT) {
-		DEBUG("Complete message received: ID=%d, Size=%d",
-			messageId, buffer.data.size());
+		DEBUG("Complete message received: ID=%d, Size=%d", messageId, buffer.data.size());
 
 		// CRITICAL: Queue request for processing in separate task to prevent deadlock
 		// (callback must not block waiting for indication ACK)
@@ -661,17 +665,16 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 			if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 				ERROR("Message processor queue full, dropping request");
 				// CRITICAL: Free allocated memory on queue send failure to prevent memory leak
-				delete static_cast<IncomingRequest *>(item.dataPtr);
+				delete static_cast<IncomingRequest*>(item.dataPtr);
 				sendControlMessage(ControlMessageType::NACK, messageId);
 			} else {
 				DEBUG("Request queued for processing in background task");
 				sendControlMessage(ControlMessageType::ACK, messageId);
 			}
-		} catch (const std::bad_alloc &e) {
-			ERROR("Out of memory creating request for message ID %d (%d bytes)",
-				messageId, buffer.data.size());
-			ERROR("Heap free: %d bytes, largest block: %d bytes",
-				esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+		} catch (const std::bad_alloc& e) {
+			ERROR("Out of memory creating request for message ID %d (%d bytes)", messageId, buffer.data.size());
+			ERROR("Heap free: %d bytes, largest block: %d bytes", esp_get_free_heap_size(),
+			      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 			sendControlMessage(ControlMessageType::NACK, messageId);
 		}
 
@@ -681,13 +684,13 @@ void BTRemote::handleFragment(const uint8_t *data, size_t length) {
 	xSemaphoreGive(fragmentBuffersMutex_);
 }
 
-void BTRemote::processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId, const std::vector<uint8_t> &data) {
+void BTRemote::processCompleteMessage(ProtocolMessageType protocolType, uint8_t messageId,
+                                      const std::vector<uint8_t>& data) {
 	if (protocolType == ProtocolMessageType::REQUEST && data.size() > 0) {
 		uint8_t appRequestType = data[0];
 		std::vector<uint8_t> payload(data.begin() + 1, data.end());
 
-		DEBUG("Processing request AppRequestType=%d, Payload-Size=%d",
-			appRequestType, payload.size());
+		DEBUG("Processing request AppRequestType=%d, Payload-Size=%d", appRequestType, payload.size());
 
 		if (onRequestCallback_) {
 			onRequestCallback_(appRequestType, messageId, payload);
@@ -695,7 +698,7 @@ void BTRemote::processCompleteMessage(ProtocolMessageType protocolType, uint8_t 
 	}
 }
 
-void BTRemote::handleControlMessage(const uint8_t *data, size_t length) {
+void BTRemote::handleControlMessage(const uint8_t* data, size_t length) {
 	if (length < 2) {
 		return;
 	}
@@ -725,7 +728,7 @@ void BTRemote::handleControlMessage(const uint8_t *data, size_t length) {
 // Streaming File Transfer Handlers
 // ============================================================================
 
-void BTRemote::handleStreamStart(const uint8_t *data, size_t length) {
+void BTRemote::handleStreamStart(const uint8_t* data, size_t length) {
 	// Minimum header: ProtocolType(1) + StreamId(1) + TotalSize(4) + ChunkCount(2) + Flags(1) = 9 bytes
 	if (length < 9) {
 		WARN("STREAM_START too short: %d bytes", length);
@@ -739,7 +742,7 @@ void BTRemote::handleStreamStart(const uint8_t *data, size_t length) {
 	uint8_t flags = data[8];
 
 	// Parse metadata JSON (starts at byte 9) - fast operation, OK in callback
-	const char *metadataJson = (const char *) &data[9];
+	const char* metadataJson = (const char*) &data[9];
 	size_t metadataLen = length - 9;
 
 	JsonDocument metaDoc;
@@ -759,21 +762,21 @@ void BTRemote::handleStreamStart(const uint8_t *data, size_t length) {
 		return;
 	}
 
-	DEBUG("STREAM_START received: id=%d, project=%s, file=%s, size=%d, chunks=%d - queueing for processing",
-		streamId, projectId.c_str(), filename.c_str(), totalSize, chunkCount);
+	DEBUG("STREAM_START received: id=%d, project=%s, file=%s, size=%d, chunks=%d - queueing for processing", streamId,
+	      projectId.c_str(), filename.c_str(), totalSize, chunkCount);
 
 	// Queue for task processing to avoid blocking BLE callback
-	MessageProcessorItem item = MessageProcessorItem::createStreamStart(
-		streamId, totalSize, chunkCount, flags, projectId, filename);
+	MessageProcessorItem item =
+	    MessageProcessorItem::createStreamStart(streamId, totalSize, chunkCount, flags, projectId, filename);
 
 	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 		WARN("STREAM_START queue full, dropping");
-		delete static_cast<StreamStartData *>(item.dataPtr);
+		delete static_cast<StreamStartData*>(item.dataPtr);
 		sendStreamError(streamId, 0x04);
 	}
 }
 
-void BTRemote::handleStreamData(const uint8_t *data, size_t length) {
+void BTRemote::handleStreamData(const uint8_t* data, size_t length) {
 	// Header: ProtocolType(1) + StreamId(1) + ChunkIndex(2) + Flags(1) = 5 bytes
 	if (length < 5) {
 		return;
@@ -783,21 +786,21 @@ void BTRemote::handleStreamData(const uint8_t *data, size_t length) {
 	uint16_t chunkIndex = data[2] | (data[3] << 8);
 	uint8_t flags = data[4];
 
-	const uint8_t *payload = data + 5;
+	const uint8_t* payload = data + 5;
 	size_t payloadLen = length - 5;
 
 	// Queue for task processing - SD card I/O must NOT block BLE callback
-	MessageProcessorItem item = MessageProcessorItem::createStreamData(
-		streamId, chunkIndex, flags, payload, payloadLen);
+	MessageProcessorItem item =
+	    MessageProcessorItem::createStreamData(streamId, chunkIndex, flags, payload, payloadLen);
 
 	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 		WARN("STREAM_DATA queue full, dropping chunk %d for stream %d", chunkIndex, streamId);
-		delete static_cast<StreamChunkData *>(item.dataPtr);
+		delete static_cast<StreamChunkData*>(item.dataPtr);
 		// Don't send error here - client will timeout and retry
 	}
 }
 
-void BTRemote::handleStreamEnd(const uint8_t *data, size_t length) {
+void BTRemote::handleStreamEnd(const uint8_t* data, size_t length) {
 	// Header: ProtocolType(1) + StreamId(1) + BytesWritten(4) = 6 bytes
 	if (length < 6) {
 		return;
@@ -811,7 +814,7 @@ void BTRemote::handleStreamEnd(const uint8_t *data, size_t length) {
 
 	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 		WARN("STREAM_END queue full for stream %d", streamId);
-		delete static_cast<StreamEndData *>(item.dataPtr);
+		delete static_cast<StreamEndData*>(item.dataPtr);
 	}
 }
 
@@ -827,8 +830,8 @@ void BTRemote::sendStreamAck(uint8_t streamId, uint16_t chunkIndex) {
 	ackData[2] = chunkIndex & 0xFF;
 	ackData[3] = (chunkIndex >> 8) & 0xFF;
 
-	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_handle, sizeof(ackData), ackData, false);
+	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, handles_.control_char_handle, sizeof(ackData), ackData,
+	                            false);
 }
 
 void BTRemote::sendStreamError(uint8_t streamId, uint8_t errorCode) {
@@ -842,8 +845,8 @@ void BTRemote::sendStreamError(uint8_t streamId, uint8_t errorCode) {
 	errData[1] = streamId;
 	errData[2] = errorCode;
 
-	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_handle, sizeof(errData), errData, false);
+	esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, handles_.control_char_handle, sizeof(errData), errData,
+	                            false);
 
 	WARN("Stream %d error sent: code=0x%02X", streamId, errorCode);
 }
@@ -856,12 +859,12 @@ void BTRemote::cleanupTimedOutStreams() {
 	uint32_t now = millis();
 	std::vector<uint8_t> toRemove;
 
-	for (auto &pair : activeStreams_) {
+	for (auto& pair : activeStreams_) {
 		if (now - pair.second.lastActivityTime > STREAM_TIMEOUT_MS) {
 			// Note: Incomplete file remains on SD card but will be overwritten on next upload
 			// (writeFileChunkToProject with position=0 truncates existing file)
-			WARN("Stream %d timed out (%s/%s), cleaning up",
-				pair.first, pair.second.projectId.c_str(), pair.second.filename.c_str());
+			WARN("Stream %d timed out (%s/%s), cleaning up", pair.first, pair.second.projectId.c_str(),
+			     pair.second.filename.c_str());
 			toRemove.push_back(pair.first);
 		}
 	}
@@ -875,7 +878,9 @@ void BTRemote::cleanupTimedOutStreams() {
 
 // ============================================================================
 
-bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer)> chunkProvider) {
+bool BTRemote::sendLargeResponse(
+    uint8_t messageId, size_t totalSize,
+    std::function<int(const int index, const size_t maxChunkSize, std::vector<uint8_t>& dataContainer)> chunkProvider) {
 	if (!deviceConnected_) {
 		WARN("No client connected");
 		return false;
@@ -888,8 +893,7 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 		totalFragments = 1;
 	}
 
-	DEBUG("Sending fragmented: ID=%d, Size=%d, Fragments=%d",
-		messageId, totalSize, totalFragments);
+	DEBUG("Sending fragmented: ID=%d, Size=%d, Fragments=%d", messageId, totalSize, totalFragments);
 
 	size_t remaining = totalSize;
 	for (int i = 0; i < totalFragments; i++) {
@@ -906,13 +910,14 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 		fragment.push_back(flags);
 
 		int read = chunkProvider(i, payloadSize, fragment);
-		DEBUG("Read %d bytes for chunk with index %d, fragment size is %d, flags is %d", read, i, fragment.size(), flags);
+		DEBUG("Read %d bytes for chunk with index %d, fragment size is %d, flags is %d", read, i, fragment.size(),
+		      flags);
 
 		// Clear semaphore before sending to handle race (confirmation may arrive before xSemaphoreTake)
 		xSemaphoreTake(indicationConfirmSemaphore_, 0);
 
-		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-			handles_.response_char_handle, fragment.size(), fragment.data(), true);
+		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, handles_.response_char_handle,
+		                                            fragment.size(), fragment.data(), true);
 
 		if (ret != ESP_OK) {
 			ERROR("Failed to indicate fragment %d of %d: %s", i + 1, totalFragments, esp_err_to_name(ret));
@@ -933,8 +938,8 @@ bool BTRemote::sendLargeResponse(uint8_t messageId, size_t totalSize, std::funct
 	return true;
 }
 
-bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType,
-	uint8_t messageId, const std::vector<uint8_t> &data) {
+bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocolType, uint8_t messageId,
+                              const std::vector<uint8_t>& data) {
 	if (!deviceConnected_) {
 		WARN("No client connected");
 		return false;
@@ -947,8 +952,8 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 		totalFragments = 1;
 	}
 
-	DEBUG("Sending fragmented: ProtocolType=%d, ID=%d, Size=%d, Fragments=%d",
-		(uint8_t) protocolType, messageId, data.size(), totalFragments);
+	DEBUG("Sending fragmented: ProtocolType=%d, ID=%d, Size=%d, Fragments=%d", (uint8_t) protocolType, messageId,
+	      data.size(), totalFragments);
 
 	for (size_t i = 0; i < totalFragments; i++) {
 		DEBUG("Sending fragment %d with MTU %d and payload size %d", i, mtu_, payloadSize);
@@ -973,11 +978,11 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 		// Clear semaphore before sending to handle race (confirmation may arrive before xSemaphoreTake)
 		xSemaphoreTake(indicationConfirmSemaphore_, 0);
 
-		DEBUG("Sending indicate: gatts_if=%d, conn_id=%d, handle=%d, len=%d, protocolType=%d, msgId=%d",
-			gatts_if_, connState_.conn_id, char_handle, fragment.size(), (uint8_t) protocolType, messageId);
+		DEBUG("Sending indicate: gatts_if=%d, conn_id=%d, handle=%d, len=%d, protocolType=%d, msgId=%d", gatts_if_,
+		      connState_.conn_id, char_handle, fragment.size(), (uint8_t) protocolType, messageId);
 
-		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-			char_handle, fragment.size(), fragment.data(), true);
+		esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, char_handle, fragment.size(),
+		                                            fragment.data(), true);
 
 		if (ret != ESP_OK) {
 			ERROR("Failed to indicate fragment %d of %d: %s", i + 1, totalFragments, esp_err_to_name(ret));
@@ -998,14 +1003,14 @@ bool BTRemote::sendFragmented(uint16_t char_handle, ProtocolMessageType protocol
 	return true;
 }
 
-bool BTRemote::sendResponse(uint8_t messageId, const std::vector<uint8_t> &data) {
-	DEBUG("sendResponse: msgId=%d, handle=%d (response=%d, event=%d)",
-		messageId, handles_.response_char_handle, handles_.response_char_handle, handles_.event_char_handle);
+bool BTRemote::sendResponse(uint8_t messageId, const std::vector<uint8_t>& data) {
+	DEBUG("sendResponse: msgId=%d, handle=%d (response=%d, event=%d)", messageId, handles_.response_char_handle,
+	      handles_.response_char_handle, handles_.event_char_handle);
 	return sendFragmented(handles_.response_char_handle, ProtocolMessageType::RESPONSE, messageId, data);
 }
 
 // Called from background task context (publishLogMessages/publishCommands/publishPortstatus), not ISR
-bool BTRemote::sendEvent(uint8_t appEventType, const std::vector<uint8_t> &data) {
+bool BTRemote::sendEvent(uint8_t appEventType, const std::vector<uint8_t>& data) {
 	std::vector<uint8_t> eventData;
 	eventData.reserve(data.size() + 1);
 	eventData.push_back(appEventType);
@@ -1020,8 +1025,8 @@ void BTRemote::sendControlMessage(ControlMessageType type, uint8_t messageId) {
 	}
 
 	uint8_t data[2] = {(uint8_t) type, messageId};
-	esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_handle, 2, data, false);
+	esp_err_t ret =
+	    esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, handles_.control_char_handle, 2, data, false);
 
 	if (ret != ESP_OK) {
 		ERROR("Failed to send control message type %d: %s", (uint8_t) type, esp_err_to_name(ret));
@@ -1039,8 +1044,8 @@ void BTRemote::sendMTUNotification() {
 	data[2] = (mtu_ >> 8) & 0xFF;
 	data[3] = mtu_ & 0xFF;
 
-	esp_err_t ret = esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id,
-		handles_.control_char_handle, 4, data, false);
+	esp_err_t ret =
+	    esp_ble_gatts_send_indicate(gatts_if_, connState_.conn_id, handles_.control_char_handle, 4, data, false);
 
 	if (ret != ESP_OK) {
 		ERROR("Failed to send MTU notification: %s", esp_err_to_name(ret));
@@ -1049,7 +1054,7 @@ void BTRemote::sendMTUNotification() {
 	}
 }
 
-void BTRemote::onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t> &)> callback) {
+void BTRemote::onRequest(std::function<void(uint8_t, uint8_t, const std::vector<uint8_t>&)> callback) {
 	onRequestCallback_ = callback;
 }
 
@@ -1145,11 +1150,11 @@ void BTRemote::publishBTClassicDevices() {
 
 	// Create JSON array of discovered devices
 	std::vector<uint8_t> response;
-	createJsonResponse(response, [this](JsonDocument &responseDoc) {
+	createJsonResponse(response, [this](JsonDocument& responseDoc) {
 		JsonArray devices = responseDoc["devices"].to<JsonArray>();
 
-		for (const auto &pair : discoveredDevices_) {
-			const BTClassicDevice &device = pair.second;
+		for (const auto& pair : discoveredDevices_) {
+			const BTClassicDevice& device = pair.second;
 
 			JsonObject deviceObj = devices.add<JsonObject>();
 			deviceObj["mac"] = bdAddrToString(device.address);
@@ -1173,11 +1178,11 @@ void BTRemote::publishBTClassicDevices() {
 	lastDeviceListPublishTime_ = now;
 }
 
-bool BTRemote::reqStopProgram(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqStopProgram(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	return hub_->stopLUACode();
 }
 
-bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestDoc) {
+bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument& requestDoc) {
 	String project = requestDoc["project"].as<String>();
 	String filename = requestDoc["filename"].as<String>();
 
@@ -1187,7 +1192,7 @@ bool BTRemote::reqGetProjectFile(uint8_t messageId, const JsonDocument &requestD
 	if (xQueueSend(responseQueue_, &item, 0) != pdTRUE) {
 		WARN("Message processor queue full, dropping file transfer request");
 		// CRITICAL: Free allocated memory on queue send failure to prevent memory leak
-		delete static_cast<PendingFileTransfer *>(item.dataPtr);
+		delete static_cast<PendingFileTransfer*>(item.dataPtr);
 		return false;
 	}
 
@@ -1200,9 +1205,9 @@ void BTRemote::processMessageQueue() {
 	if (xQueueReceive(responseQueue_, &item, 0) == pdTRUE) {
 
 		if (item.type == MessageProcessorItemType::INCOMING_REQUEST) {
-			IncomingRequest *req = static_cast<IncomingRequest *>(item.dataPtr);
-			DEBUG("Processing incoming request: msgId=%d, protocolType=%d, size=%d",
-				req->messageId, (int) req->protocolType, req->data.size());
+			IncomingRequest* req = static_cast<IncomingRequest*>(item.dataPtr);
+			DEBUG("Processing incoming request: msgId=%d, protocolType=%d, size=%d", req->messageId,
+			      (int) req->protocolType, req->data.size());
 
 			processCompleteMessage(req->protocolType, req->messageId, req->data);
 
@@ -1210,25 +1215,27 @@ void BTRemote::processMessageQueue() {
 			delete req;
 
 		} else if (item.type == MessageProcessorItemType::FILE_TRANSFER) {
-			PendingFileTransfer *transfer = static_cast<PendingFileTransfer *>(item.dataPtr);
-			DEBUG("Processing queued file transfer for %s of project %s",
-				transfer->filename.c_str(), transfer->project.c_str());
+			PendingFileTransfer* transfer = static_cast<PendingFileTransfer*>(item.dataPtr);
+			DEBUG("Processing queued file transfer for %s of project %s", transfer->filename.c_str(),
+			      transfer->project.c_str());
 
 			File projectFile = configuration_->getProjectFile(transfer->project, transfer->filename);
 			if (projectFile) {
 				size_t projectSize = projectFile.size();
 				DEBUG("Response has size %d", projectSize);
 
-				sendLargeResponse(transfer->messageId, projectSize, [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t> &dataContainer) {
-					DEBUG("Reading chunk with index %d from file", index);
-					char buffer[maxChunkSize];
-					size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
-					for (int i = 0; i < read; i++) {
-						dataContainer.push_back(buffer[i]);
-					}
-					DEBUG("Read %d bytes from file for chunk %d", read, index);
-					return read;
-				});
+				sendLargeResponse(
+				    transfer->messageId, projectSize,
+				    [&projectFile](const int index, const size_t maxChunkSize, std::vector<uint8_t>& dataContainer) {
+					    DEBUG("Reading chunk with index %d from file", index);
+					    char buffer[maxChunkSize];
+					    size_t read = projectFile.readBytes(&buffer[0], maxChunkSize);
+					    for (int i = 0; i < read; i++) {
+						    dataContainer.push_back(buffer[i]);
+					    }
+					    DEBUG("Read %d bytes from file for chunk %d", read, index);
+					    return read;
+				    });
 
 				projectFile.close();
 			} else {
@@ -1243,9 +1250,9 @@ void BTRemote::processMessageQueue() {
 			sendMTUNotification();
 
 		} else if (item.type == MessageProcessorItemType::STREAM_START) {
-			StreamStartData *startData = static_cast<StreamStartData *>(item.dataPtr);
-			DEBUG("Processing STREAM_START: id=%d, project=%s, file=%s",
-				startData->streamId, startData->projectId.c_str(), startData->filename.c_str());
+			StreamStartData* startData = static_cast<StreamStartData*>(item.dataPtr);
+			DEBUG("Processing STREAM_START: id=%d, project=%s, file=%s", startData->streamId,
+			      startData->projectId.c_str(), startData->filename.c_str());
 
 			if (xSemaphoreTake(streamsMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 				// Check concurrent stream limit
@@ -1271,9 +1278,8 @@ void BTRemote::processMessageQueue() {
 
 					// Send ACK for stream start (0xFFFF indicates start ACK)
 					sendStreamAck(startData->streamId, 0xFFFF);
-					INFO("Stream %d started: %s/%s (%d bytes expected)",
-						startData->streamId, startData->projectId.c_str(),
-						startData->filename.c_str(), startData->totalSize);
+					INFO("Stream %d started: %s/%s (%d bytes expected)", startData->streamId,
+					     startData->projectId.c_str(), startData->filename.c_str(), startData->totalSize);
 				}
 			} else {
 				WARN("STREAM_START failed to take streamsMutex_");
@@ -1283,7 +1289,7 @@ void BTRemote::processMessageQueue() {
 			delete startData;
 
 		} else if (item.type == MessageProcessorItemType::STREAM_DATA) {
-			StreamChunkData *chunkData = static_cast<StreamChunkData *>(item.dataPtr);
+			StreamChunkData* chunkData = static_cast<StreamChunkData*>(item.dataPtr);
 
 			if (xSemaphoreTake(streamsMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 				auto it = activeStreams_.find(chunkData->streamId);
@@ -1292,16 +1298,13 @@ void BTRemote::processMessageQueue() {
 					WARN("STREAM_DATA unknown stream ID: %d", chunkData->streamId);
 					sendStreamError(chunkData->streamId, 0x06);
 				} else {
-					ActiveStreamTransfer &stream = it->second;
+					ActiveStreamTransfer& stream = it->second;
 					stream.lastActivityTime = millis();
 
 					// SD card I/O - safe in task context
 					bool success = configuration_->writeFileChunkToProject(
-						stream.projectId,
-						stream.filename,
-						stream.bytesReceived,
-						(uint8_t *) chunkData->payload.data(),
-						chunkData->payload.size());
+					    stream.projectId, stream.filename, stream.bytesReceived, (uint8_t*) chunkData->payload.data(),
+					    chunkData->payload.size());
 
 					if (!success) {
 						stream.state = StreamState::ERROR;
@@ -1328,7 +1331,7 @@ void BTRemote::processMessageQueue() {
 			delete chunkData;
 
 		} else if (item.type == MessageProcessorItemType::STREAM_END) {
-			StreamEndData *endData = static_cast<StreamEndData *>(item.dataPtr);
+			StreamEndData* endData = static_cast<StreamEndData*>(item.dataPtr);
 
 			if (xSemaphoreTake(streamsMutex_, portMAX_DELAY) == pdTRUE) {
 				auto it = activeStreams_.find(endData->streamId);
@@ -1336,17 +1339,16 @@ void BTRemote::processMessageQueue() {
 					xSemaphoreGive(streamsMutex_);
 					WARN("STREAM_END unknown stream ID: %d", endData->streamId);
 				} else {
-					ActiveStreamTransfer &stream = it->second;
+					ActiveStreamTransfer& stream = it->second;
 
 					// Verify bytes received match
 					if (stream.bytesReceived != endData->reportedBytes) {
-						WARN("Stream %d: byte mismatch! Expected %d, received %d",
-							endData->streamId, endData->reportedBytes, stream.bytesReceived);
+						WARN("Stream %d: byte mismatch! Expected %d, received %d", endData->streamId,
+						     endData->reportedBytes, stream.bytesReceived);
 					}
 
-					INFO("Stream %d complete: %s/%s (%d bytes written)",
-						endData->streamId, stream.projectId.c_str(),
-						stream.filename.c_str(), stream.bytesReceived);
+					INFO("Stream %d complete: %s/%s (%d bytes written)", endData->streamId, stream.projectId.c_str(),
+					     stream.filename.c_str(), stream.bytesReceived);
 
 					// Clean up
 					activeStreams_.erase(it);
@@ -1370,7 +1372,7 @@ void BTRemote::processMessageQueue() {
 	}
 }
 
-bool BTRemote::reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqPutProjectFile(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String project = requestDoc["project"].as<String>();
 	String filename = requestDoc["filename"].as<String>();
 	String content = requestDoc["content"].as<String>();
@@ -1379,7 +1381,7 @@ bool BTRemote::reqPutProjectFile(const JsonDocument &requestDoc, JsonDocument &r
 	return configuration_->writeProjectFileContent(project, filename, content);
 }
 
-bool BTRemote::reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqDeleteProject(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String project = requestDoc["project"].as<String>();
 
 	configuration_->deleteProject(project);
@@ -1387,7 +1389,7 @@ bool BTRemote::reqDeleteProject(const JsonDocument &requestDoc, JsonDocument &re
 	return true;
 }
 
-bool BTRemote::reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqSyntaxCheck(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String luaScript = requestDoc["luaScript"].as<String>();
 
 	LuaCheckResult result = hub_->checkLUACode(luaScript);
@@ -1397,14 +1399,14 @@ bool BTRemote::reqSyntaxCheck(const JsonDocument &requestDoc, JsonDocument &resp
 	return result.success;
 }
 
-bool BTRemote::reqRun(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqRun(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String luaScript = requestDoc["luaScript"].as<String>();
 
 	hub_->executeLUACode(luaScript);
 	return true;
 }
 
-bool BTRemote::reqGetProjects(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqGetProjects(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	JsonArray projectList = responseDoc["projects"].to<JsonArray>();
 
 	std::vector<String> foundProjects = configuration_->getProjects();
@@ -1417,7 +1419,7 @@ bool BTRemote::reqGetProjects(const JsonDocument &requestDoc, JsonDocument &resp
 	return true;
 }
 
-bool BTRemote::reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqGetAutostart(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String autostartProject = configuration_->getAutostartProject();
 	if (autostartProject.length() > 0) {
 		responseDoc["project"] = autostartProject;
@@ -1427,7 +1429,7 @@ bool BTRemote::reqGetAutostart(const JsonDocument &requestDoc, JsonDocument &res
 	return false;
 }
 
-bool BTRemote::reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqPutAutostart(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	if (configuration_->setAutostartProject(requestDoc["project"].as<String>())) {
 		return true;
 	}
@@ -1436,13 +1438,13 @@ bool BTRemote::reqPutAutostart(const JsonDocument &requestDoc, JsonDocument &res
 	return false;
 }
 
-bool BTRemote::reqReadyForEvents(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqReadyForEvents(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	INFO("Client notified that it is ready to receive events!");
 	readyForEvents_ = true;
 	return true;
 }
 
-bool BTRemote::reqRequestPairing(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqRequestPairing(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String macId = requestDoc["mac"].as<String>();
 	INFO("Client requested a pairing for MAC %s", macId.c_str());
 
@@ -1451,7 +1453,7 @@ bool BTRemote::reqRequestPairing(const JsonDocument &requestDoc, JsonDocument &r
 	return true;
 }
 
-bool BTRemote::reqRemovePairing(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqRemovePairing(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	String macId = requestDoc["mac"].as<String>();
 	INFO("Client wans to remove pairing for MAC %s", macId.c_str());
 
@@ -1460,7 +1462,7 @@ bool BTRemote::reqRemovePairing(const JsonDocument &requestDoc, JsonDocument &re
 	return true;
 }
 
-bool BTRemote::reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &responseDoc) {
+bool BTRemote::reqStartDiscovery(const JsonDocument& requestDoc, JsonDocument& responseDoc) {
 	if (discoveryInProgress_) {
 		WARN("Discovery already in progress, skipping");
 		return false;
@@ -1487,16 +1489,15 @@ bool BTRemote::reqStartDiscovery(const JsonDocument &requestDoc, JsonDocument &r
 
 std::string BTRemote::bdAddrToString(const esp_bd_addr_t address) {
 	char addr_str[18];
-	snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X",
-		address[0], address[1], address[2], address[3], address[4], address[5]);
+	snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X", address[0], address[1], address[2],
+	         address[3], address[4], address[5]);
 	return std::string(addr_str);
 }
 
-void BTRemote::stringToBdAddr(const std::string &str, esp_bd_addr_t address) {
+void BTRemote::stringToBdAddr(const std::string& str, esp_bd_addr_t address) {
 	unsigned int addr[6];
-	if (sscanf(str.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X",
-			&addr[0], &addr[1], &addr[2], &addr[3], &addr[4], &addr[5])
-		== 6) {
+	if (sscanf(str.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X", &addr[0], &addr[1], &addr[2], &addr[3], &addr[4],
+	           &addr[5]) == 6) {
 		for (int i = 0; i < 6; i++) {
 			address[i] = (uint8_t) addr[i];
 		}
@@ -1574,7 +1575,7 @@ std::vector<BTClassicDevice> BTRemote::getDiscoveredDevices() {
 
 	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 		INFO("Retrieving %d discovered Bluetooth Classic devices", discoveredDevices_.size());
-		for (const auto &pair : discoveredDevices_) {
+		for (const auto& pair : discoveredDevices_) {
 			devices.push_back(pair.second);
 		}
 		xSemaphoreGive(discoveredDevicesMutex_);
@@ -1603,7 +1604,7 @@ void BTRemote::clearDiscoveredDevices() {
 // Public API Methods - Pairing Management
 // ============================================================================
 
-bool BTRemote::removePairing(const char *macAddress) {
+bool BTRemote::removePairing(const char* macAddress) {
 	esp_bd_addr_t address;
 	stringToBdAddr(std::string(macAddress), address);
 
@@ -1614,7 +1615,8 @@ bool BTRemote::removePairing(const char *macAddress) {
 	INFO("Attempting virtual cable unplug for device: %s", macAddress);
 	esp_err_t hid_ret = esp_bt_hid_host_virtual_cable_unplug(address);
 	if (hid_ret != ESP_OK) {
-		WARN("Virtual cable unplug failed: %s (device may not be HID or already disconnected)", esp_err_to_name(hid_ret));
+		WARN("Virtual cable unplug failed: %s (device may not be HID or already disconnected)",
+		     esp_err_to_name(hid_ret));
 	} else {
 		INFO("Virtual cable unplug initiated successfully");
 		// Give some time for the disconnect to complete
@@ -1632,7 +1634,7 @@ bool BTRemote::removePairing(const char *macAddress) {
 	return true;
 }
 
-bool BTRemote::startPairing(const char *macAddress) {
+bool BTRemote::startPairing(const char* macAddress) {
 	if (pairingInProgress_) {
 		WARN("Pairing already in progress with another device");
 		//		return false;
@@ -1689,7 +1691,7 @@ bool BTRemote::isPairingInProgress() const {
 // Public API Methods - HID Host
 // ============================================================================
 
-bool BTRemote::hidConnect(const char *macAddress) {
+bool BTRemote::hidConnect(const char* macAddress) {
 	esp_bd_addr_t address;
 	stringToBdAddr(std::string(macAddress), address);
 
@@ -1733,7 +1735,7 @@ bool BTRemote::hidConnect(const char *macAddress) {
 	return true;
 }
 
-bool BTRemote::hidDisconnect(const char *macAddress) {
+bool BTRemote::hidDisconnect(const char* macAddress) {
 	esp_bd_addr_t address;
 	stringToBdAddr(std::string(macAddress), address);
 
@@ -1757,7 +1759,7 @@ std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
 
 	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 		INFO("Retrieving %d connected HID devices", hidDevices_.size());
-		for (const auto &pair : hidDevices_) {
+		for (const auto& pair : hidDevices_) {
 			devices.push_back(pair.second);
 		}
 		xSemaphoreGive(hidDevicesMutex_);
@@ -1772,7 +1774,7 @@ std::vector<HIDDevice> BTRemote::getConnectedHIDDevices() {
 // Bluetooth Classic GAP Event Handlers
 // ============================================================================
 
-void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t* param) {
 	// Access discovery result from param union
 	// In ESP-IDF 4.4, disc_res contains: bda, num_prop, prop
 	esp_bd_addr_t bda;
@@ -1781,23 +1783,23 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 	// Extract COD and RSSI from properties
 	uint32_t cod = 0;
 	int rssi = 0;
-	uint8_t *eir_data = nullptr;
+	uint8_t* eir_data = nullptr;
 
 	for (int i = 0; i < param->disc_res.num_prop; i++) {
-		esp_bt_gap_dev_prop_t *prop = &param->disc_res.prop[i];
+		esp_bt_gap_dev_prop_t* prop = &param->disc_res.prop[i];
 		switch (prop->type) {
 			case ESP_BT_GAP_DEV_PROP_COD:
 				if (prop->len == sizeof(uint32_t)) {
-					cod = *(uint32_t *) prop->val;
+					cod = *(uint32_t*) prop->val;
 				}
 				break;
 			case ESP_BT_GAP_DEV_PROP_RSSI:
 				if (prop->len == sizeof(int8_t)) {
-					rssi = *(int8_t *) prop->val;
+					rssi = *(int8_t*) prop->val;
 				}
 				break;
 			case ESP_BT_GAP_DEV_PROP_EIR:
-				eir_data = (uint8_t *) prop->val;
+				eir_data = (uint8_t*) prop->val;
 				break;
 			default:
 				break;
@@ -1807,8 +1809,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 	std::string addrStr = bdAddrToString(bda);
 	BTClassicDeviceType deviceType = classifyDevice(cod);
 
-	DEBUG("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d",
-		addrStr.c_str(), rssi, cod, (int) deviceType);
+	DEBUG("BT Discovery result: MAC=%s, RSSI=%d, CoD=0x%06X, Type=%d", addrStr.c_str(), rssi, cod, (int) deviceType);
 
 	// Store or update device in discovered devices map (thread-safe)
 	if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -1821,7 +1822,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 
 		// Try to get device name from EIR data
 		uint8_t eir_len = 0;
-		uint8_t *name_ptr = nullptr;
+		uint8_t* name_ptr = nullptr;
 
 		if (eir_data != nullptr) {
 			// Parse EIR data for device name (type 0x09 = complete local name)
@@ -1857,8 +1858,7 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 		}
 
 		discoveredDevices_[addrStr] = device;
-		DEBUG("Device added/updated in discovered list: %s (total: %d)",
-			addrStr.c_str(), discoveredDevices_.size());
+		DEBUG("Device added/updated in discovered list: %s (total: %d)", addrStr.c_str(), discoveredDevices_.size());
 
 		xSemaphoreGive(discoveredDevicesMutex_);
 	} else {
@@ -1866,12 +1866,12 @@ void BTRemote::handleGapBTDiscoveryResult(esp_bt_gap_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t* param) {
 	esp_bt_gap_discovery_state_t state = param->disc_st_chg.state;
 
-	INFO("BT Discovery state changed: %s",
-		state == ESP_BT_GAP_DISCOVERY_STOPPED ? "STOPPED" : state == ESP_BT_GAP_DISCOVERY_STARTED ? "STARTED"
-																								  : "UNKNOWN");
+	INFO("BT Discovery state changed: %s", state == ESP_BT_GAP_DISCOVERY_STOPPED   ? "STOPPED"
+	                                       : state == ESP_BT_GAP_DISCOVERY_STARTED ? "STARTED"
+	                                                                               : "UNKNOWN");
 
 	if (state == ESP_BT_GAP_DISCOVERY_STOPPED) {
 		discoveryInProgress_ = false;
@@ -1883,13 +1883,12 @@ void BTRemote::handleGapBTDiscoveryStateChanged(esp_bt_gap_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->auth_cmpl.bda);
 
 	// Enhanced debugging for authentication results
-	INFO("BT Authentication complete for device: %s, status: %d (%s)",
-		addrStr.c_str(), param->auth_cmpl.stat,
-		param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "SUCCESS" : "FAILED");
+	INFO("BT Authentication complete for device: %s, status: %d (%s)", addrStr.c_str(), param->auth_cmpl.stat,
+	     param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "SUCCESS" : "FAILED");
 
 	if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
 		INFO("BT Authentication successful for device: %s", addrStr.c_str());
@@ -1907,8 +1906,7 @@ void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 		pairingInProgress_ = false;
 		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
 	} else {
-		ERROR("BT Authentication failed for device: %s, status: %d",
-			addrStr.c_str(), param->auth_cmpl.stat);
+		ERROR("BT Authentication failed for device: %s, status: %d", addrStr.c_str(), param->auth_cmpl.stat);
 		ERROR("Check if device is already paired or if there's a security mismatch");
 		pairingInProgress_ = false;
 		memset(&pairingDeviceAddress_, 0, sizeof(pairingDeviceAddress_));
@@ -1919,8 +1917,7 @@ void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 			auto it = discoveredDevices_.find(addrStr);
 			if (it != discoveredDevices_.end()) {
-				strncpy(it->second.name, (char *) param->auth_cmpl.device_name,
-					ESP_BT_GAP_MAX_BDNAME_LEN);
+				strncpy(it->second.name, (char*) param->auth_cmpl.device_name, ESP_BT_GAP_MAX_BDNAME_LEN);
 				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				INFO("Device name updated: %s -> %s", addrStr.c_str(), it->second.name);
 			}
@@ -1929,7 +1926,7 @@ void BTRemote::handleGapBTAuthComplete(esp_bt_gap_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGapBTPinRequest(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTPinRequest(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->pin_req.bda);
 	INFO("BT PIN request from device: %s (auto-responding with default PIN)", addrStr.c_str());
 
@@ -1938,22 +1935,21 @@ void BTRemote::handleGapBTPinRequest(esp_bt_gap_cb_param_t *param) {
 	esp_bt_gap_pin_reply(param->pin_req.bda, true, 4, pin_code);
 }
 
-void BTRemote::handleGapBTCfmRequest(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTCfmRequest(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->cfm_req.bda);
-	INFO("BT SSP confirmation request from device: %s, passkey: %d (auto-accepting)",
-		addrStr.c_str(), param->cfm_req.num_val);
+	INFO("BT SSP confirmation request from device: %s, passkey: %d (auto-accepting)", addrStr.c_str(),
+	     param->cfm_req.num_val);
 
 	// Auto-accept confirmation request
 	esp_bt_gap_ssp_confirm_reply(param->cfm_req.bda, true);
 }
 
-void BTRemote::handleGapBTKeyNotify(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTKeyNotify(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->key_notif.bda);
-	INFO("BT SSP key notification from device: %s, passkey: %d",
-		addrStr.c_str(), param->key_notif.passkey);
+	INFO("BT SSP key notification from device: %s, passkey: %d", addrStr.c_str(), param->key_notif.passkey);
 }
 
-void BTRemote::handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTKeyRequest(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->key_req.bda);
 	INFO("BT SSP key request from device: %s (auto-accepting)", addrStr.c_str());
 
@@ -1961,52 +1957,48 @@ void BTRemote::handleGapBTKeyRequest(esp_bt_gap_cb_param_t *param) {
 	esp_bt_gap_ssp_passkey_reply(param->key_req.bda, true, 0);
 }
 
-void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTReadRemoteName(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->read_rmt_name.bda);
 
 	if (param->read_rmt_name.stat == ESP_BT_STATUS_SUCCESS) {
-		INFO("BT Remote name read successful: %s -> %s",
-			addrStr.c_str(), param->read_rmt_name.rmt_name);
+		INFO("BT Remote name read successful: %s -> %s", addrStr.c_str(), param->read_rmt_name.rmt_name);
 
 		// Update device name in discovered devices
 		if (xSemaphoreTake(discoveredDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 			auto it = discoveredDevices_.find(addrStr);
 			if (it != discoveredDevices_.end()) {
-				strncpy(it->second.name, (char *) param->read_rmt_name.rmt_name,
-					ESP_BT_GAP_MAX_BDNAME_LEN);
+				strncpy(it->second.name, (char*) param->read_rmt_name.rmt_name, ESP_BT_GAP_MAX_BDNAME_LEN);
 				it->second.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				INFO("Device name updated: %s", it->second.name);
 			}
 			xSemaphoreGive(discoveredDevicesMutex_);
 		}
 	} else {
-		WARN("BT Remote name read failed for device: %s, status: %d",
-			addrStr.c_str(), param->read_rmt_name.stat);
+		WARN("BT Remote name read failed for device: %s, status: %d", addrStr.c_str(), param->read_rmt_name.stat);
 	}
 }
 
-void BTRemote::handleGapBTAclConnComplete(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTAclConnComplete(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->acl_conn_cmpl_stat.bda);
 
-	INFO("BT ACL connection complete: %s, status: %d, handle: 0x%04x",
-		addrStr.c_str(), param->acl_conn_cmpl_stat.stat, param->acl_conn_cmpl_stat.handle);
+	INFO("BT ACL connection complete: %s, status: %d, handle: 0x%04x", addrStr.c_str(), param->acl_conn_cmpl_stat.stat,
+	     param->acl_conn_cmpl_stat.handle);
 
 	if (param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS) {
 		INFO("ACL connection established successfully for: %s", addrStr.c_str());
 	} else {
-		ERROR("ACL connection failed for device: %s, status: %d",
-			addrStr.c_str(), param->acl_conn_cmpl_stat.stat);
+		ERROR("ACL connection failed for device: %s, status: %d", addrStr.c_str(), param->acl_conn_cmpl_stat.stat);
 	}
 }
 
-void BTRemote::handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t *param) {
+void BTRemote::handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->acl_disconn_cmpl_stat.bda);
 
-	INFO("BT ACL disconnection complete: %s, reason: %d, handle: 0x%04x",
-		addrStr.c_str(), param->acl_disconn_cmpl_stat.reason, param->acl_disconn_cmpl_stat.handle);
+	INFO("BT ACL disconnection complete: %s, reason: %d, handle: 0x%04x", addrStr.c_str(),
+	     param->acl_disconn_cmpl_stat.reason, param->acl_disconn_cmpl_stat.handle);
 
 	// Log human-readable disconnect reason
-	const char *reason_str = "Unknown";
+	const char* reason_str = "Unknown";
 	switch (param->acl_disconn_cmpl_stat.reason) {
 		case 0x05:
 			reason_str = "Authentication Failure";
@@ -2042,7 +2034,7 @@ void BTRemote::handleGapBTAclDisconnComplete(esp_bt_gap_cb_param_t *param) {
 // HID Host Event Handlers
 // ============================================================================
 
-void BTRemote::handleHIDHostInit(esp_hidh_cb_param_t *param) {
+void BTRemote::handleHIDHostInit(esp_hidh_cb_param_t* param) {
 	if (param->init.status == ESP_HIDH_OK) {
 		INFO("HID Host initialized successfully (ESP_HIDH_INIT_EVT received)");
 	} else {
@@ -2050,9 +2042,9 @@ void BTRemote::handleHIDHostInit(esp_hidh_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
+void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t* param) {
 	std::string addrStr = bdAddrToString(param->open.bd_addr);
-	const char *conn_state_str = "UNKNOWN";
+	const char* conn_state_str = "UNKNOWN";
 	switch (param->open.conn_status) {
 		case ESP_HIDH_CONN_STATE_CONNECTED:
 			conn_state_str = "CONNECTED";
@@ -2070,9 +2062,8 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 			break;
 	}
 
-	INFO("HID OPEN event: %s, handle: %d, status: %d, conn_status: %d (%s), is_orig: %d",
-		addrStr.c_str(), param->open.handle, param->open.status,
-		param->open.conn_status, conn_state_str, param->open.is_orig);
+	INFO("HID OPEN event: %s, handle: %d, status: %d, conn_status: %d (%s), is_orig: %d", addrStr.c_str(),
+	     param->open.handle, param->open.status, param->open.conn_status, conn_state_str, param->open.is_orig);
 
 	// Add debugging to identify who initiated the connection
 	if (param->open.is_orig == 0) {
@@ -2115,7 +2106,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 				memcpy(device.address, param->open.bd_addr, sizeof(esp_bd_addr_t));
 
 				// Try to get device name from HID device list (may have been set earlier)
-				const char *deviceName = addrStr.c_str();
+				const char* deviceName = addrStr.c_str();
 				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 					auto hidIt = hidDevices_.find(addrStr);
 					if (hidIt != hidDevices_.end() && strlen(hidIt->second.name) > 0) {
@@ -2131,12 +2122,11 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 				// CoD for HID gamepad: Major=0x05 (Peripheral), Minor=0x08 (Joystick/Gamepad)
 				device.deviceType = BTClassicDeviceType::GAMEPAD;
 				device.cod = 0x000508; // Peripheral + Joystick/Gamepad
-				device.paired = true; // Device successfully connected, so it must be paired
-				device.rssi = 0; // RSSI not available during auto-connect, use 0 as placeholder
+				device.paired = true;  // Device successfully connected, so it must be paired
+				device.rssi = 0;       // RSSI not available during auto-connect, use 0 as placeholder
 
 				discoveredDevices_[addrStr] = device;
-				INFO("Auto-connected device added to discovered list: %s (%s)",
-					addrStr.c_str(), device.name);
+				INFO("Auto-connected device added to discovered list: %s (%s)", addrStr.c_str(), device.name);
 
 				// Force immediate publish to update frontend (bypass 30-second timer)
 				lastDeviceListPublishTime_ = 0;
@@ -2181,8 +2171,7 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 		INFO("BLE advertising remains paused to allow HID connection to complete...");
 	} else {
 		std::string addrStr = bdAddrToString(param->open.bd_addr);
-		ERROR("HID device connection failed: %s, status: %d",
-			addrStr.c_str(), param->open.status);
+		ERROR("HID device connection failed: %s, status: %d", addrStr.c_str(), param->open.status);
 
 		// Resume BLE advertising even if HID connection failed
 		INFO("Resuming BLE advertising after failed HID connection...");
@@ -2193,18 +2182,18 @@ void BTRemote::handleHIDHostOpen(esp_hidh_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
-	INFO("HID device disconnected: handle=%d, reason=%d, conn_status=%d",
-		param->close.handle, param->close.reason, param->close.conn_status);
+void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t* param) {
+	INFO("HID device disconnected: handle=%d, reason=%d, conn_status=%d", param->close.handle, param->close.reason,
+	     param->close.conn_status);
 
 	// Find device by handle and update state
 	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-		for (auto &pair : hidDevices_) {
+		for (auto& pair : hidDevices_) {
 			if (pair.second.handle == param->close.handle) {
 				pair.second.state = HIDConnectionState::DISCONNECTED;
 				INFO("HID device state updated to DISCONNECTED: %s", pair.first.c_str());
 
-				inputDevices_->updateGamepad(pair.first, [](std::string &macAddress, GamepadState &state) {
+				inputDevices_->updateGamepad(pair.first, [](std::string& macAddress, GamepadState& state) {
 					state.connected = false;
 					state.timestamp = millis();
 					INFO("Gamepad marked as disconnected: %s", macAddress.c_str());
@@ -2224,13 +2213,13 @@ void BTRemote::handleHIDHostClose(esp_hidh_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleHIDHostData(esp_hidh_cb_param_t *param) {
-	DEBUG("HID data received: handle=%d, length=%d, proto_mode=%d",
-		param->data_ind.handle, param->data_ind.len, param->data_ind.proto_mode);
+void BTRemote::handleHIDHostData(esp_hidh_cb_param_t* param) {
+	DEBUG("HID data received: handle=%d, length=%d, proto_mode=%d", param->data_ind.handle, param->data_ind.len,
+	      param->data_ind.proto_mode);
 
 	// Find device by handle to get address
 	if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(10)) == pdTRUE) {
-		for (const auto &pair : hidDevices_) {
+		for (const auto& pair : hidDevices_) {
 			if (pair.second.handle == param->data_ind.handle) {
 				// Process gamepad report data (proto_mode: ESP_HIDH_REPORT_MODE = 0x01)
 				if (param->data_ind.len > 0) {
@@ -2243,14 +2232,13 @@ void BTRemote::handleHIDHostData(esp_hidh_cb_param_t *param) {
 	}
 }
 
-void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *data, uint16_t length) {
+void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t* data, uint16_t length) {
 	std::string addrStr = bdAddrToString(address);
 
-	inputDevices_->updateGamepad(addrStr, [data, length](std::string &macAddress, GamepadState &state) {
+	inputDevices_->updateGamepad(addrStr, [data, length](std::string& macAddress, GamepadState& state) {
 		INFO("Got report with length %d", length);
 		for (int i = 0; i < length; i++) {
-			DEBUG("Byte[%d]: dec=%3d bin=%s hex=0x%02X", i, data[i],
-				String(data[i], BIN).c_str(), data[i]);
+			DEBUG("Byte[%d]: dec=%3d bin=%s hex=0x%02X", i, data[i], String(data[i], BIN).c_str(), data[i]);
 		}
 
 		state.timestamp = millis();
@@ -2272,9 +2260,8 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 				state.buttons = ((int16_t) data[13] * 256 + data[14]);
 
 				INFO("Standard Gamepad: Buttons=0x%02X, DPad=%d, Left Stick=(%d,%d), Right Stick=(%d,%d)",
-					state.buttons, state.dpad,
-					state.leftStickX, state.leftStickY,
-					state.rightStickX, state.rightStickY);
+				     state.buttons, state.dpad, state.leftStickX, state.leftStickY, state.rightStickX,
+				     state.rightStickY);
 
 			} else {
 				WARN("Ignoring Page %d of report with size %d", data[0], length);
@@ -2289,7 +2276,7 @@ void BTRemote::processGamepadReport(const esp_bd_addr_t address, const uint8_t *
 // Static Callback Dispatchers
 // ============================================================================
 
-void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t *param) {
+void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_t* param) {
 	if (!g_btremote_instance) {
 		return;
 	}
@@ -2307,7 +2294,7 @@ void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_
 	if (event == ESP_HIDH_DATA_IND_EVT && param->data_ind.len > 0 && param->data_ind.data != nullptr) {
 		// Deep copy HID input report data
 		item.data_len = param->data_ind.len;
-		item.data_copy = (uint8_t *) malloc(item.data_len);
+		item.data_copy = (uint8_t*) malloc(item.data_len);
 		if (item.data_copy != nullptr) {
 			memcpy(item.data_copy, param->data_ind.data, item.data_len);
 			// Update param to point to our copy
@@ -2319,7 +2306,7 @@ void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_
 	} else if (event == ESP_HIDH_GET_RPT_EVT && param->get_rpt.len > 0 && param->get_rpt.data != nullptr) {
 		// Deep copy HID get report response data
 		item.data_len = param->get_rpt.len;
-		item.data_copy = (uint8_t *) malloc(item.data_len);
+		item.data_copy = (uint8_t*) malloc(item.data_len);
 		if (item.data_copy != nullptr) {
 			memcpy(item.data_copy, param->get_rpt.data, item.data_len);
 			// Update param to point to our copy
@@ -2341,8 +2328,8 @@ void BTRemote::hidHostEventHandler(esp_hidh_cb_event_t event, esp_hidh_cb_param_
 }
 
 // HID event processing task - runs independently from Bluedroid callbacks
-void BTRemote::hidEventTask(void *pvParameters) {
-	BTRemote *instance = static_cast<BTRemote *>(pvParameters);
+void BTRemote::hidEventTask(void* pvParameters) {
+	BTRemote* instance = static_cast<BTRemote*>(pvParameters);
 	HIDEventItem item;
 
 	INFO("HID event task started");
@@ -2363,7 +2350,7 @@ void BTRemote::hidEventTask(void *pvParameters) {
 }
 
 // Process HID event (called from dedicated task, not callback)
-void BTRemote::processHIDEvent(const HIDEventItem &item) {
+void BTRemote::processHIDEvent(const HIDEventItem& item) {
 	// Make a non-const copy of param so we can pass pointer to handlers
 	esp_hidh_cb_param_t param = item.param;
 
@@ -2384,8 +2371,7 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 			INFO("HID data sent confirmation");
 			break;
 		case ESP_HIDH_SET_PROTO_EVT:
-			INFO("HID Set Protocol complete: handle=%d, status=%d",
-				param.set_proto.handle, param.set_proto.status);
+			INFO("HID Set Protocol complete: handle=%d, status=%d", param.set_proto.handle, param.set_proto.status);
 			if (param.set_proto.status == ESP_HIDH_OK) {
 				INFO("Protocol mode successfully set - device should now send reports");
 
@@ -2408,52 +2394,44 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 			}
 			break;
 		case ESP_HIDH_GET_IDLE_EVT:
-			INFO("HID Get Idle: handle=%d, status=%d, idle_rate=%d",
-				param.get_idle.handle, param.get_idle.status, param.get_idle.idle_rate);
+			INFO("HID Get Idle: handle=%d, status=%d, idle_rate=%d", param.get_idle.handle, param.get_idle.status,
+			     param.get_idle.idle_rate);
 			break;
 		case ESP_HIDH_SET_IDLE_EVT:
-			INFO("HID Set Idle: handle=%d, status=%d",
-				param.set_idle.handle, param.set_idle.status);
+			INFO("HID Set Idle: handle=%d, status=%d", param.set_idle.handle, param.set_idle.status);
 			break;
 		case ESP_HIDH_ADD_DEV_EVT:
-			INFO("HID Add Device event: handle=%d, status=%d",
-				param.add_dev.handle, param.add_dev.status);
+			INFO("HID Add Device event: handle=%d, status=%d", param.add_dev.handle, param.add_dev.status);
 			if (param.add_dev.status == ESP_HIDH_OK) {
 				INFO("Device added successfully to HID Host database");
 			}
 			break;
 		case ESP_HIDH_RMV_DEV_EVT:
-			INFO("HID Remove Device event: handle=%d, status=%d",
-				param.rmv_dev.handle, param.rmv_dev.status);
+			INFO("HID Remove Device event: handle=%d, status=%d", param.rmv_dev.handle, param.rmv_dev.status);
 			break;
 		case ESP_HIDH_VC_UNPLUG_EVT:
-			INFO("HID Virtual Cable Unplug: handle=%d, status=%d",
-				param.unplug.handle, param.unplug.status);
+			INFO("HID Virtual Cable Unplug: handle=%d, status=%d", param.unplug.handle, param.unplug.status);
 			break;
 		case ESP_HIDH_SET_INFO_EVT:
-			INFO("HID Set Info: handle=%d, status=%d",
-				param.set_info.handle, param.set_info.status);
+			INFO("HID Set Info: handle=%d, status=%d", param.set_info.handle, param.set_info.status);
 			break;
 		case ESP_HIDH_GET_PROTO_EVT:
-			INFO("HID Get Protocol: handle=%d, proto_mode=%d",
-				param.get_proto.handle, param.get_proto.proto_mode);
+			INFO("HID Get Protocol: handle=%d, proto_mode=%d", param.get_proto.handle, param.get_proto.proto_mode);
 			break;
 		case ESP_HIDH_GET_RPT_EVT:
-			INFO("HID Get Report complete: handle=%d, len=%d",
-				param.get_rpt.handle, param.get_rpt.len);
+			INFO("HID Get Report complete: handle=%d, len=%d", param.get_rpt.handle, param.get_rpt.len);
 			break;
 		case ESP_HIDH_GET_DSCP_EVT:
-			INFO("HID Descriptor received: handle=%d, status=%d, added=%d, VID=0x%04x, PID=0x%04x",
-				param.dscp.handle, param.dscp.status, param.dscp.added,
-				param.dscp.vendor_id, param.dscp.product_id);
+			INFO("HID Descriptor received: handle=%d, status=%d, added=%d, VID=0x%04x, PID=0x%04x", param.dscp.handle,
+			     param.dscp.status, param.dscp.added, param.dscp.vendor_id, param.dscp.product_id);
 
 			if (param.dscp.status == ESP_HIDH_OK) {
 				// Note: param.dscp.dsc_list contains SDP attribute data, not the raw HID descriptor
 				// The actual HID report descriptor is embedded within the SDP data and would
 				// require complex SDP parsing to extract. For now, we'll use device-specific
 				// parsing based on VID/PID instead.
-				INFO("Device VID=0x%04X PID=0x%04X - use device-specific report parsing",
-					param.dscp.vendor_id, param.dscp.product_id);
+				INFO("Device VID=0x%04X PID=0x%04X - use device-specific report parsing", param.dscp.vendor_id,
+				     param.dscp.product_id);
 
 				// CRITICAL: SDP query complete! L2CAP security handshake is now done.
 				// Remote device features are cached, so it's safe to set protocol mode.
@@ -2461,17 +2439,18 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 
 				// Find the device by handle to get its address and store VID/PID
 				if (xSemaphoreTake(hidDevicesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-					for (auto &entry : hidDevices_) {
+					for (auto& entry : hidDevices_) {
 						if (entry.second.handle == param.dscp.handle) {
 							INFO("Found device %s for handle %d", entry.first.c_str(), param.dscp.handle);
 
 							// Store VID/PID in gamepad state for device-specific parsing
-							inputDevices_->updateGamepad(entry.first, [param](std::string &macAddress, GamepadState &state) {
-								state.vendorId = param.dscp.vendor_id;
-								state.productId = param.dscp.product_id;
-								INFO("Stored VID/PID for gamepad %s: VID=0x%04X PID=0x%04X",
-									macAddress.c_str(), state.vendorId, state.productId);
-							});
+							inputDevices_->updateGamepad(
+							    entry.first, [param](std::string& macAddress, GamepadState& state) {
+								    state.vendorId = param.dscp.vendor_id;
+								    state.productId = param.dscp.product_id;
+								    INFO("Stored VID/PID for gamepad %s: VID=0x%04X PID=0x%04X", macAddress.c_str(),
+								         state.vendorId, state.productId);
+							    });
 
 							// Set protocol mode - this should succeed now that SDP is complete
 							INFO("Setting protocol mode to REPORT_MODE for %s", entry.first.c_str());
@@ -2498,7 +2477,7 @@ void BTRemote::processHIDEvent(const HIDEventItem &item) {
 	}
 }
 
-void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
+void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param) {
 	if (!g_btremote_instance) {
 		return;
 	}
@@ -2546,8 +2525,7 @@ void BTRemote::gapBTEventHandler(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_para
 // BLE Event Handlers (existing code)
 // ============================================================================
 
-void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
-	esp_ble_gatts_cb_param_t *param) {
+void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
 	if (g_btremote_instance) {
 		switch (event) {
 			case ESP_GATTS_REG_EVT:
@@ -2583,7 +2561,7 @@ void BTRemote::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 	}
 }
 
-void BTRemote::gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void BTRemote::gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
 	switch (event) {
 		case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
 			INFO("Advertising data set (standard), starting advertising");
@@ -2609,7 +2587,7 @@ void BTRemote::gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_para
 	}
 }
 
-void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
 	if (param->reg.status != ESP_GATT_OK) {
 		ERROR("GATTS register failed, status=%d", param->reg.status);
 		return;
@@ -2619,11 +2597,12 @@ void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_para
 	gatts_if_ = gatts_if;
 
 	esp_gatt_srvc_id_t service_id = {
-		.id = {
-			   .uuid = stringToUUID128(SERVICE_UUID),
-			   .inst_id = 0,
-			   },
-		.is_primary = true,
+	    .id =
+	        {
+	             .uuid = stringToUUID128(SERVICE_UUID),
+	             .inst_id = 0,
+	             },
+	    .is_primary = true,
 	};
 
 	esp_err_t ret = esp_ble_gatts_create_service(gatts_if, &service_id, 20);
@@ -2632,7 +2611,7 @@ void BTRemote::handleGattsRegister(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_para
 	}
 }
 
-void BTRemote::handleGattsCreate(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsCreate(esp_ble_gatts_cb_param_t* param) {
 	if (param->create.status != ESP_GATT_OK) {
 		ERROR("Create service failed, status=%d", param->create.status);
 		return;
@@ -2649,39 +2628,36 @@ void BTRemote::handleGattsCreate(esp_ble_gatts_cb_param_t *param) {
 
 	esp_bt_uuid_t char_uuid = stringToUUID128(REQUEST_CHAR_UUID);
 	esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_WRITE;
-	ret = esp_ble_gatts_add_char(handles_.service_handle, &char_uuid,
-		ESP_GATT_PERM_WRITE, prop, nullptr, nullptr);
+	ret = esp_ble_gatts_add_char(handles_.service_handle, &char_uuid, ESP_GATT_PERM_WRITE, prop, nullptr, nullptr);
 	if (ret) {
 		ERROR("Add request char failed: %s", esp_err_to_name(ret));
 	}
 }
 
-void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t* param) {
 	if (param->add_char.status != ESP_GATT_OK) {
 		ERROR("Add char failed, status=%d", param->add_char.status);
 		return;
 	}
 
-	INFO("Characteristic added, handle=%d, uuid[0]=0x%02x",
-		param->add_char.attr_handle, param->add_char.char_uuid.uuid.uuid128[0]);
+	INFO("Characteristic added, handle=%d, uuid[0]=0x%02x", param->add_char.attr_handle,
+	     param->add_char.char_uuid.uuid.uuid128[0]);
 
 	esp_bt_uuid_t req_uuid = stringToUUID128(REQUEST_CHAR_UUID);
 	esp_bt_uuid_t resp_uuid = stringToUUID128(RESPONSE_CHAR_UUID);
 	esp_bt_uuid_t evt_uuid = stringToUUID128(EVENT_CHAR_UUID);
 	esp_bt_uuid_t ctrl_uuid = stringToUUID128(CONTROL_CHAR_UUID);
 
-	esp_bt_uuid_t *added_uuid = &param->add_char.char_uuid;
+	esp_bt_uuid_t* added_uuid = &param->add_char.char_uuid;
 
 	char uuid_str[64];
 	snprintf(uuid_str, sizeof(uuid_str), "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-		added_uuid->uuid.uuid128[15], added_uuid->uuid.uuid128[14],
-		added_uuid->uuid.uuid128[13], added_uuid->uuid.uuid128[12],
-		added_uuid->uuid.uuid128[11], added_uuid->uuid.uuid128[10],
-		added_uuid->uuid.uuid128[9], added_uuid->uuid.uuid128[8],
-		added_uuid->uuid.uuid128[7], added_uuid->uuid.uuid128[6],
-		added_uuid->uuid.uuid128[5], added_uuid->uuid.uuid128[4],
-		added_uuid->uuid.uuid128[3], added_uuid->uuid.uuid128[2],
-		added_uuid->uuid.uuid128[1], added_uuid->uuid.uuid128[0]);
+	         added_uuid->uuid.uuid128[15], added_uuid->uuid.uuid128[14], added_uuid->uuid.uuid128[13],
+	         added_uuid->uuid.uuid128[12], added_uuid->uuid.uuid128[11], added_uuid->uuid.uuid128[10],
+	         added_uuid->uuid.uuid128[9], added_uuid->uuid.uuid128[8], added_uuid->uuid.uuid128[7],
+	         added_uuid->uuid.uuid128[6], added_uuid->uuid.uuid128[5], added_uuid->uuid.uuid128[4],
+	         added_uuid->uuid.uuid128[3], added_uuid->uuid.uuid128[2], added_uuid->uuid.uuid128[1],
+	         added_uuid->uuid.uuid128[0]);
 	INFO("Characteristic UUID added: %s", uuid_str);
 
 	if (memcmp(added_uuid->uuid.uuid128, req_uuid.uuid.uuid128, 16) == 0) {
@@ -2689,8 +2665,7 @@ void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
 		INFO("Request char handle=%d (UUID: %s)", handles_.request_char_handle, REQUEST_CHAR_UUID);
 
 		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_INDICATE;
-		esp_ble_gatts_add_char(handles_.service_handle, &resp_uuid,
-			ESP_GATT_PERM_READ, prop, nullptr, nullptr);
+		esp_ble_gatts_add_char(handles_.service_handle, &resp_uuid, ESP_GATT_PERM_READ, prop, nullptr, nullptr);
 
 	} else if (memcmp(added_uuid->uuid.uuid128, resp_uuid.uuid.uuid128, 16) == 0) {
 		handles_.response_char_handle = param->add_char.attr_handle;
@@ -2699,8 +2674,8 @@ void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
 		esp_bt_uuid_t descr_uuid;
 		descr_uuid.len = ESP_UUID_LEN_16;
 		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
-			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+		                             nullptr, nullptr);
 
 	} else if (memcmp(added_uuid->uuid.uuid128, evt_uuid.uuid.uuid128, 16) == 0) {
 		handles_.event_char_handle = param->add_char.attr_handle;
@@ -2709,8 +2684,8 @@ void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
 		esp_bt_uuid_t descr_uuid;
 		descr_uuid.len = ESP_UUID_LEN_16;
 		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
-			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+		                             nullptr, nullptr);
 
 	} else if (memcmp(added_uuid->uuid.uuid128, ctrl_uuid.uuid.uuid128, 16) == 0) {
 		handles_.control_char_handle = param->add_char.attr_handle;
@@ -2719,12 +2694,12 @@ void BTRemote::handleGattsAddChar(esp_ble_gatts_cb_param_t *param) {
 		esp_bt_uuid_t descr_uuid;
 		descr_uuid.len = ESP_UUID_LEN_16;
 		descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid,
-			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, nullptr, nullptr);
+		esp_ble_gatts_add_char_descr(handles_.service_handle, &descr_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+		                             nullptr, nullptr);
 	}
 }
 
-void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t* param) {
 	if (param->add_char_descr.status != ESP_GATT_OK) {
 		ERROR("Add char descriptor failed, status=%d", param->add_char_descr.status);
 		return;
@@ -2738,8 +2713,7 @@ void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
 
 		esp_bt_uuid_t evt_uuid = stringToUUID128(EVENT_CHAR_UUID);
 		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_INDICATE;
-		esp_ble_gatts_add_char(handles_.service_handle, &evt_uuid,
-			ESP_GATT_PERM_READ, prop, nullptr, nullptr);
+		esp_ble_gatts_add_char(handles_.service_handle, &evt_uuid, ESP_GATT_PERM_READ, prop, nullptr, nullptr);
 
 	} else if (handles_.event_cccd_handle == 0 && handles_.event_char_handle != 0) {
 		handles_.event_cccd_handle = param->add_char_descr.attr_handle;
@@ -2747,8 +2721,8 @@ void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
 
 		esp_bt_uuid_t ctrl_uuid = stringToUUID128(CONTROL_CHAR_UUID);
 		esp_gatt_char_prop_t prop = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
-		esp_ble_gatts_add_char(handles_.service_handle, &ctrl_uuid,
-			ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, prop, nullptr, nullptr);
+		esp_ble_gatts_add_char(handles_.service_handle, &ctrl_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, prop,
+		                       nullptr, nullptr);
 
 	} else if (handles_.control_cccd_handle == 0 && handles_.control_char_handle != 0) {
 		handles_.control_cccd_handle = param->add_char_descr.attr_handle;
@@ -2785,19 +2759,19 @@ void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
 		}
 
 		esp_ble_adv_data_t scan_rsp_data = {
-			.set_scan_rsp = true,
-			.include_name = true,
-			.include_txpower = false,
-			.min_interval = 0,
-			.max_interval = 0,
-			.appearance = 0,
-			.manufacturer_len = 0,
-			.p_manufacturer_data = nullptr,
-			.service_data_len = 0,
-			.p_service_data = nullptr,
-			.service_uuid_len = 0,
-			.p_service_uuid = nullptr,
-			.flag = 0,
+		    .set_scan_rsp = true,
+		    .include_name = true,
+		    .include_txpower = false,
+		    .min_interval = 0,
+		    .max_interval = 0,
+		    .appearance = 0,
+		    .manufacturer_len = 0,
+		    .p_manufacturer_data = nullptr,
+		    .service_data_len = 0,
+		    .p_service_data = nullptr,
+		    .service_uuid_len = 0,
+		    .p_service_uuid = nullptr,
+		    .flag = 0,
 		};
 		ret = esp_ble_gap_config_adv_data(&scan_rsp_data);
 		if (ret != ESP_OK) {
@@ -2806,7 +2780,7 @@ void BTRemote::handleGattsAddCharDescr(esp_ble_gatts_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t* param) {
 	readyForEvents_ = false;
 	deviceConnected_ = true;
 	connState_.connected = true;
@@ -2817,11 +2791,9 @@ void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t *param) {
 
 	mtu_ = 23;
 
-	INFO("Client connected, conn_id=%d, remote_addr=%02x:%02x:%02x:%02x:%02x:%02x",
-		connState_.conn_id,
-		connState_.remote_addr[0], connState_.remote_addr[1],
-		connState_.remote_addr[2], connState_.remote_addr[3],
-		connState_.remote_addr[4], connState_.remote_addr[5]);
+	INFO("Client connected, conn_id=%d, remote_addr=%02x:%02x:%02x:%02x:%02x:%02x", connState_.conn_id,
+	     connState_.remote_addr[0], connState_.remote_addr[1], connState_.remote_addr[2], connState_.remote_addr[3],
+	     connState_.remote_addr[4], connState_.remote_addr[5]);
 
 	// CRITICAL: Queue MTU notification for task context to avoid calling vTaskDelay from ISR
 	MessageProcessorItem item = MessageProcessorItem::createMTUNotification();
@@ -2830,7 +2802,7 @@ void BTRemote::handleGattsConnect(esp_ble_gatts_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t* param) {
 	readyForEvents_ = false;
 	deviceConnected_ = false;
 	connState_.connected = false;
@@ -2846,7 +2818,7 @@ void BTRemote::handleGattsDisconnect(esp_ble_gatts_cb_param_t *param) {
 	esp_ble_gap_start_advertising(&g_adv_params);
 }
 
-void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t* param) {
 	mtu_ = param->mtu.mtu - 3;
 	connState_.mtu = mtu_;
 	INFO("MTU changed to: %d (notified with %d)", mtu_, param->mtu.mtu);
@@ -2858,7 +2830,7 @@ void BTRemote::handleGattsMTU(esp_ble_gatts_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGattsConfirm(esp_ble_gatts_cb_param_t *param) {
+void BTRemote::handleGattsConfirm(esp_ble_gatts_cb_param_t* param) {
 	DEBUG("Indication confirmed: status=%d, handle=%d", param->conf.status, param->conf.handle);
 
 	if (param->conf.status == ESP_GATT_OK) {
@@ -2878,15 +2850,16 @@ void BTRemote::handleGattsConfirm(esp_ble_gatts_cb_param_t *param) {
 	}
 }
 
-void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
-	const uint8_t *data = param->write.value;
+void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t* param) {
+	const uint8_t* data = param->write.value;
 	size_t length = param->write.len;
 
-	if (param->write.handle == handles_.response_cccd_handle || param->write.handle == handles_.event_cccd_handle || param->write.handle == handles_.control_cccd_handle) {
+	if (param->write.handle == handles_.response_cccd_handle || param->write.handle == handles_.event_cccd_handle ||
+	    param->write.handle == handles_.control_cccd_handle) {
 
 		if (length == 2) {
 			uint16_t descr_value = data[0] | (data[1] << 8);
-			const char *char_name = "Unknown";
+			const char* char_name = "Unknown";
 			if (param->write.handle == handles_.response_cccd_handle) {
 				char_name = "Response";
 			} else if (param->write.handle == handles_.event_cccd_handle) {
@@ -2895,15 +2868,12 @@ void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
 				char_name = "Control";
 			}
 
-			INFO("CCCD write for %s characteristic: 0x%04x (Notify=%s, Indicate=%s)",
-				char_name, descr_value,
-				(descr_value & 0x0001) ? "YES" : "NO",
-				(descr_value & 0x0002) ? "YES" : "NO");
+			INFO("CCCD write for %s characteristic: 0x%04x (Notify=%s, Indicate=%s)", char_name, descr_value,
+			     (descr_value & 0x0001) ? "YES" : "NO", (descr_value & 0x0002) ? "YES" : "NO");
 		}
 
 		if (param->write.need_rsp) {
-			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
-				param->write.trans_id, ESP_GATT_OK, nullptr);
+			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
 		}
 		return;
 	}
@@ -2911,8 +2881,7 @@ void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
 	if (param->write.len < FRAGMENT_HEADER_SIZE) {
 		sendControlMessage(ControlMessageType::NACK, 0);
 		if (param->write.need_rsp) {
-			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
-				param->write.trans_id, ESP_GATT_OK, nullptr);
+			esp_ble_gatts_send_response(gatts_if_, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
 		}
 		return;
 	}
@@ -2924,7 +2893,6 @@ void BTRemote::handleGattsWrite(esp_ble_gatts_cb_param_t *param) {
 	}
 
 	if (param->write.need_rsp) {
-		esp_ble_gatts_send_response(gatts_if_, param->write.conn_id,
-			param->write.trans_id, ESP_GATT_OK, nullptr);
+		esp_ble_gatts_send_response(gatts_if_, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
 	}
 }

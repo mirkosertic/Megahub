@@ -2,11 +2,7 @@
 
 #include "logging.h"
 
-Mode::Mode()
-	: pctMin_(0.0f)
-	, pctMax_(100.0f)
-	, siMin_(0.0f)
-	, siMax_(1023.0f) {
+Mode::Mode() : pctMin_(0.0f), pctMax_(100.0f), siMin_(0.0f), siMax_(1023.0f) {
 	name_ = "";
 	units_ = "";
 	for (int i = 0; i < 5; i++) {
@@ -15,8 +11,7 @@ Mode::Mode()
 	}
 }
 
-Mode::~Mode() {
-}
+Mode::~Mode() {}
 
 void Mode::reset() {
 	format_.reset();
@@ -42,11 +37,11 @@ void Mode::registerOutputType(InputOutputType outputType) {
 	outputTypes_[static_cast<int>(outputType)] = true;
 }
 
-void Mode::setName(const std::string &name) {
+void Mode::setName(const std::string& name) {
 	this->name_ = name;
 }
 
-void Mode::setUnits(const std::string &units) {
+void Mode::setUnits(const std::string& units) {
 	this->units_ = units;
 }
 
@@ -89,7 +84,7 @@ float Mode::getSiMax() {
 	return siMax_;
 }
 
-void Mode::processDataPacket(const uint8_t *payload, int payloadSize) {
+void Mode::processDataPacket(const uint8_t* payload, int payloadSize) {
 
 	if (format_ == nullptr) {
 		WARN("Not fully initialized yet!");
@@ -132,26 +127,29 @@ void Mode::processDataPacket(const uint8_t *payload, int payloadSize) {
 			return;
 	}
 
-	DEBUG("Got data %s, expecting %d datasets of type %d", payloadHex.c_str(), format_->getDatasets(), format_->getFormatType());
+	DEBUG("Got data %s, expecting %d datasets of type %d", payloadHex.c_str(), format_->getDatasets(),
+	      format_->getFormatType());
 
 	int expectedSize = format_->getDatasets() * datasetSize;
 	if (expectedSize != payloadSize) {
-		WARN("Got data %s, expecting %d datasets of type %d, but wrong size. Expected %d, got %d", payloadHex.c_str(), format_->getDatasets(), format_->getFormatType(), expectedSize, datasetSize);
+		WARN("Got data %s, expecting %d datasets of type %d, but wrong size. Expected %d, got %d", payloadHex.c_str(),
+		     format_->getDatasets(), format_->getFormatType(), expectedSize, datasetSize);
 		return;
 	}
 
-	const uint8_t *startPtr = payload;
+	const uint8_t* startPtr = payload;
 	for (int i = 0; i < format_->getDatasets(); i++) {
-		DEBUG("Got data %s, expecting %d datasets of type %d, parsing dataset %d", payloadHex.c_str(), format_->getDatasets(), format_->getFormatType(), i);
+		DEBUG("Got data %s, expecting %d datasets of type %d, parsing dataset %d", payloadHex.c_str(),
+		      format_->getDatasets(), format_->getFormatType(), i);
 		datasets_[i].readData(format_->getFormatType(), startPtr);
 		startPtr += datasetSize;
 	}
 }
 
-Dataset *Mode::getDataset(int index) {
+Dataset* Mode::getDataset(int index) {
 	return &datasets_[index];
 }
 
-Format *Mode::getFormat() {
+Format* Mode::getFormat() {
 	return format_.get();
 }

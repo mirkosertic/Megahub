@@ -32,12 +32,12 @@ let _disconnectHandlerRegistered = false;
 // ─── Connection progress modal ───────────────────────────────────────────────
 
 const ConnectionStepDefs = [
-    { id: 'requesting',    label: 'Requesting device...' },
-    { id: 'connecting',    label: 'Connecting to GATT server...' },
-    { id: 'services',      label: 'Discovering services...' },
+    { id: 'requesting', label: 'Requesting device...' },
+    { id: 'connecting', label: 'Connecting to GATT server...' },
+    { id: 'services', label: 'Discovering services...' },
     { id: 'notifications', label: 'Enabling notifications...' },
-    { id: 'mtu',           label: 'Negotiating MTU...' },
-    { id: 'ready',         label: 'Connection established!' },
+    { id: 'mtu', label: 'Negotiating MTU...' },
+    { id: 'ready', label: 'Connection established!' },
 ];
 
 const ConnectionModal = {
@@ -48,7 +48,8 @@ const ConnectionModal = {
         this._rendered = true;
         const stepsEl = document.getElementById('connectionSteps');
         if (!stepsEl) return;
-        stepsEl.innerHTML = ConnectionStepDefs.map(s => `
+        stepsEl.innerHTML = ConnectionStepDefs.map(
+            (s) => `
             <div class="connection-step pending" id="cstep-${s.id}">
                 <div class="connection-step-indicator">
                     <div class="connection-step-spinner"></div>
@@ -57,17 +58,21 @@ const ConnectionModal = {
                 </div>
                 <span class="connection-step-label">${s.label}</span>
             </div>
-        `).join('');
+        `
+        ).join('');
     },
 
     show() {
         this._render();
-        ConnectionStepDefs.forEach(s => {
+        ConnectionStepDefs.forEach((s) => {
             const el = document.getElementById('cstep-' + s.id);
             if (el) el.className = 'connection-step pending';
         });
         const errEl = document.getElementById('connectionModalError');
-        if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+        if (errEl) {
+            errEl.textContent = '';
+            errEl.classList.remove('visible');
+        }
         const overlay = document.getElementById('connectionModal');
         if (overlay) overlay.setAttribute('aria-hidden', 'false');
     },
@@ -80,17 +85,22 @@ const ConnectionModal = {
     setStep(stepId) {
         // Mark all previous steps as done, current as active, rest as pending
         let found = false;
-        ConnectionStepDefs.forEach(s => {
+        ConnectionStepDefs.forEach((s) => {
             const el = document.getElementById('cstep-' + s.id);
             if (!el) return;
-            if (s.id === stepId)      { el.className = 'connection-step active'; found = true; }
-            else if (!found)          { el.className = 'connection-step done'; }
-            else                      { el.className = 'connection-step pending'; }
+            if (s.id === stepId) {
+                el.className = 'connection-step active';
+                found = true;
+            } else if (!found) {
+                el.className = 'connection-step done';
+            } else {
+                el.className = 'connection-step pending';
+            }
         });
     },
 
     setAllDone() {
-        ConnectionStepDefs.forEach(s => {
+        ConnectionStepDefs.forEach((s) => {
             const el = document.getElementById('cstep-' + s.id);
             if (el) el.className = 'connection-step done';
         });
@@ -101,7 +111,10 @@ const ConnectionModal = {
         const el = document.getElementById('cstep-' + stepId);
         if (el) el.className = 'connection-step error';
         const errEl = document.getElementById('connectionModalError');
-        if (errEl) { errEl.textContent = message; errEl.classList.add('visible'); }
+        if (errEl) {
+            errEl.textContent = message;
+            errEl.classList.add('visible');
+        }
     },
 };
 
@@ -163,18 +176,18 @@ export const Progress = {
 function setupEventListeners({ logger, uiComponents, blocklyEditor }) {
     bleClient.removeAllEventListeners();
 
-    bleClient.addEventListener(APP_EVENT_TYPE_LOG, data => {
+    bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
         logger.addToLog(new TextDecoder().decode(data));
     });
 
-    bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, data => {
+    bleClient.addEventListener(APP_EVENT_TYPE_PORTSTATUS, (data) => {
         const status = JSON.parse(new TextDecoder().decode(data));
         console.log('Got Portstatus : ' + JSON.stringify(status));
         // Update state — portstatus component subscribes and re-renders automatically
         setState({ portStatuses: status.ports });
     });
 
-    bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, data => {
+    bleClient.addEventListener(APP_EVENT_TYPE_COMMAND, (data) => {
         const command = JSON.parse(new TextDecoder().decode(data));
         if (command.type === 'thread_statistics') {
             blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
@@ -183,7 +196,7 @@ function setupEventListeners({ logger, uiComponents, blocklyEditor }) {
         }
     });
 
-    bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, data => {
+    bleClient.addEventListener(APP_EVENT_TYPE_BTCLASSICDEVICES, (data) => {
         console.debug('Got Bluetooth Device List:', new TextDecoder().decode(data));
         // Update state — btdevicelist component subscribes and re-renders automatically
         setState({ deviceList: JSON.parse(new TextDecoder().decode(data)) });
@@ -200,7 +213,12 @@ async function handleDisconnect() {
     console.log('Connection terminated!');
     setState({ isConnected: false });
     StatusBar.setDisconnected();
-    _connectionLostNotification = window.showNotification('warning', 'Connection Lost', 'Attempting to reconnect...', 0);
+    _connectionLostNotification = window.showNotification(
+        'warning',
+        'Connection Lost',
+        'Attempting to reconnect...',
+        0
+    );
     attemptReconnection();
 }
 
@@ -221,11 +239,14 @@ async function attemptReconnection() {
 
         console.log(`Reconnection attempt ${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delayMs / 1000}s...`);
         // Notification duration proportional to delay time (90% of delay)
-        window.showNotification('info', 'Reconnecting',
+        window.showNotification(
+            'info',
+            'Reconnecting',
             `Attempt ${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delayMs / 1000}s...`,
-            Math.floor(delayMs * 0.9));
+            Math.floor(delayMs * 0.9)
+        );
 
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
 
         try {
             // _elements reference is stashed in module scope by initBLEConnection
@@ -246,8 +267,12 @@ async function attemptReconnection() {
     }
 
     _isReconnecting = false;
-    window.showNotification('error', 'Reconnection Failed',
-        'Could not reconnect. Please refresh and connect manually.', 0);
+    window.showNotification(
+        'error',
+        'Reconnection Failed',
+        'Could not reconnect. Please refresh and connect manually.',
+        0
+    );
     // Return to connect screen
     setInitState();
 }
@@ -263,7 +288,7 @@ async function _doConnect(reconnecting) {
     if (reconnecting) {
         await bleClient.reconnect();
     } else {
-        await bleClient.connect(stepId => ConnectionModal.setStep(stepId));
+        await bleClient.connect((stepId) => ConnectionModal.setStep(stepId));
     }
 
     setState({ isConnected: true });

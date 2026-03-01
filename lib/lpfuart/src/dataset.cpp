@@ -5,13 +5,9 @@
 #include <cstdint>
 #include <cstring>
 
-Dataset::Dataset()
-	: formatType_(Format::FormatType::UNKNOWN)
-	, intValue_(0)
-	, floatValue_(0.0f) {
-}
+Dataset::Dataset() : formatType_(Format::FormatType::UNKNOWN), intValue_(0), floatValue_(0.0f) {}
 
-void Dataset::readData(Format::FormatType type, const uint8_t *payload) {
+void Dataset::readData(Format::FormatType type, const uint8_t* payload) {
 	formatType_ = type;
 	switch (type) {
 		case Format::FormatType::DATA8: {

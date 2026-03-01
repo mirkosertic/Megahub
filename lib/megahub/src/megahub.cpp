@@ -14,7 +14,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#define MEGAHUBREF_NAME		 "MEGAHUBTHISREF"
+#define MEGAHUBREF_NAME      "MEGAHUBTHISREF"
 #define INPUTDEVICESREF_NAME "MEGAHUBINPUTDEVICESREF"
 
 SemaphoreHandle_t lua_global_mutex = nullptr;
@@ -23,7 +23,7 @@ TaskHandle_t statusReporterTaskHandle = NULL;
 
 // Snapshot structures for status reporting - uses fixed-size arrays to avoid heap allocations
 // during lock-held section for minimal i2c lock time
-#define SNAPSHOT_MAX_MODES	   16
+#define SNAPSHOT_MAX_MODES     16
 #define SNAPSHOT_NAME_MAX_LEN  32
 #define SNAPSHOT_UNITS_MAX_LEN 16
 
@@ -52,7 +52,7 @@ struct HubSnapshot {
 
 // Capture device state into snapshot (call with i2c lock held)
 // Uses only stack operations - no heap allocations for minimal lock time
-static void captureDeviceSnapshot(LegoDevice *device, DeviceSnapshot &snap) {
+static void captureDeviceSnapshot(LegoDevice* device, DeviceSnapshot& snap) {
 	snap.connected = device->fullyInitialized();
 	if (!snap.connected) {
 		snap.numModes = 0;
@@ -67,15 +67,15 @@ static void captureDeviceSnapshot(LegoDevice *device, DeviceSnapshot &snap) {
 	snap.numModes = (numModes > SNAPSHOT_MAX_MODES) ? SNAPSHOT_MAX_MODES : numModes;
 
 	for (int i = 0; i < snap.numModes; i++) {
-		Mode *mode = device->getMode(i);
-		ModeSnapshot &m = snap.modes[i];
+		Mode* mode = device->getMode(i);
+		ModeSnapshot& m = snap.modes[i];
 		m.id = i;
 		strncpy(m.name, mode->getName().c_str(), SNAPSHOT_NAME_MAX_LEN - 1);
 		m.name[SNAPSHOT_NAME_MAX_LEN - 1] = '\0';
 		strncpy(m.units, mode->getUnits().c_str(), SNAPSHOT_UNITS_MAX_LEN - 1);
 		m.units[SNAPSHOT_UNITS_MAX_LEN - 1] = '\0';
 
-		Format *format = mode->getFormat();
+		Format* format = mode->getFormat();
 		m.hasFormat = (format != nullptr);
 		if (m.hasFormat) {
 			m.datasets = format->getDatasets();
@@ -87,7 +87,7 @@ static void captureDeviceSnapshot(LegoDevice *device, DeviceSnapshot &snap) {
 }
 
 // Convert format type enum to string
-static const char *formatTypeToString(Format::FormatType type) {
+static const char* formatTypeToString(Format::FormatType type) {
 	switch (type) {
 		case Format::FormatType::DATA8:
 			return "DATA8";
@@ -103,7 +103,7 @@ static const char *formatTypeToString(Format::FormatType type) {
 }
 
 // Convert device snapshot to JSON (call without i2c lock)
-static void deviceSnapshotToJson(const DeviceSnapshot &snap, int portId, JsonArray &ports) {
+static void deviceSnapshotToJson(const DeviceSnapshot& snap, int portId, JsonArray& ports) {
 	JsonObject port = ports.add<JsonObject>();
 	port["id"] = portId;
 
@@ -120,7 +120,7 @@ static void deviceSnapshotToJson(const DeviceSnapshot &snap, int portId, JsonArr
 
 	JsonArray modes = device["modes"].to<JsonArray>();
 	for (int i = 0; i < snap.numModes; i++) {
-		const ModeSnapshot &m = snap.modes[i];
+		const ModeSnapshot& m = snap.modes[i];
 		JsonObject singleMode = modes.add<JsonObject>();
 		singleMode["id"] = m.id;
 		singleMode["name"] = m.name;
@@ -130,7 +130,7 @@ static void deviceSnapshotToJson(const DeviceSnapshot &snap, int portId, JsonArr
 			singleMode["datasets"] = m.datasets;
 			singleMode["figures"] = m.figures;
 			singleMode["decimals"] = m.decimals;
-			const char *typeStr = formatTypeToString(m.formatType);
+			const char* typeStr = formatTypeToString(m.formatType);
 			if (typeStr) {
 				singleMode["type"] = typeStr;
 			}
@@ -138,22 +138,22 @@ static void deviceSnapshotToJson(const DeviceSnapshot &snap, int portId, JsonArr
 	}
 }
 
-Megahub *getMegaHubRef(lua_State *L) {
+Megahub* getMegaHubRef(lua_State* L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
-	void **userdata = (void **) lua_touserdata(L, -1);
+	void** userdata = (void**) lua_touserdata(L, -1);
 	lua_pop(L, 1); // Clean up stack
-	return (Megahub *) (userdata ? *userdata : NULL);
+	return (Megahub*) (userdata ? *userdata : NULL);
 }
 
-InputDevices *getInputDevicesRef(lua_State *L) {
+InputDevices* getInputDevicesRef(lua_State* L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, INPUTDEVICESREF_NAME);
-	void **userdata = (void **) lua_touserdata(L, -1);
+	void** userdata = (void**) lua_touserdata(L, -1);
 	lua_pop(L, 1); // Clean up stack
-	return (InputDevices *) (userdata ? *userdata : NULL);
+	return (InputDevices*) (userdata ? *userdata : NULL);
 }
 
-void status_reporter_task(void *parameters) {
-	Megahub *hub = (Megahub *) parameters;
+void status_reporter_task(void* parameters) {
+	Megahub* hub = (Megahub*) parameters;
 	INFO("Starting task reporter task");
 
 	// Static to avoid stack overflow - HubSnapshot is ~4.5KB with fixed arrays
@@ -194,23 +194,23 @@ void status_reporter_task(void *parameters) {
 	vTaskDelete(NULL);
 }
 
-extern int hub_library(lua_State *luaState);
+extern int hub_library(lua_State* luaState);
 
-extern int fastled_library(lua_State *luaState);
+extern int fastled_library(lua_State* luaState);
 
-extern int imu_library(lua_State *luaState);
+extern int imu_library(lua_State* luaState);
 
-extern int debug_library(lua_State *luaState);
+extern int debug_library(lua_State* luaState);
 
-extern int ui_library(lua_State *luaState);
+extern int ui_library(lua_State* luaState);
 
-extern int lego_library(lua_State *luaState);
+extern int lego_library(lua_State* luaState);
 
-extern int gamepad_library(lua_State *luaState);
+extern int gamepad_library(lua_State* luaState);
 
-extern int alg_library(lua_State *luaState);
+extern int alg_library(lua_State* luaState);
 
-int global_wait(lua_State *luaState) {
+int global_wait(lua_State* luaState) {
 	int delay = lua_tointeger(luaState, 1);
 
 	DEBUG("Waiting for %d milliseconds", delay);
@@ -229,8 +229,8 @@ int global_wait(lua_State *luaState) {
 	return 0;
 }
 
-int global_print(lua_State *luaState) {
-	const char *str = lua_tostring(luaState, 1);
+int global_print(lua_State* luaState) {
+	const char* str = lua_tostring(luaState, 1);
 
 	DEBUG("Printing data %s", str);
 
@@ -239,7 +239,7 @@ int global_print(lua_State *luaState) {
 	return 0;
 }
 
-int global_millis(lua_State *luaState) {
+int global_millis(lua_State* luaState) {
 	long ms = millis();
 
 	DEBUG("Current time is %ld milliseconds", ms);
@@ -251,7 +251,8 @@ int global_millis(lua_State *luaState) {
 
 #ifdef BOARD_HAS_PSRAM
 static void* psram_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize) {
-	(void)ud; (void)osize;
+	(void) ud;
+	(void) osize;
 	if (nsize == 0) {
 		heap_caps_free(ptr);
 		return nullptr;
@@ -260,9 +261,9 @@ static void* psram_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize) {
 }
 #endif
 
-lua_State *Megahub::newLuaState() {
+lua_State* Megahub::newLuaState() {
 	INFO("Creating new Lua state");
-	lua_State *ls;
+	lua_State* ls;
 #ifdef BOARD_HAS_PSRAM
 	if (ESP.getPsramSize() > 0) {
 		ls = lua_newstate(psram_lua_alloc, nullptr);
@@ -304,12 +305,12 @@ lua_State *Megahub::newLuaState() {
 	lua_register(ls, "millis", global_millis);
 
 	// The self reference
-	void **userdata = (void **) lua_newuserdata(ls, sizeof(void *));
+	void** userdata = (void**) lua_newuserdata(ls, sizeof(void*));
 	*userdata = this;
 	lua_setfield(ls, LUA_REGISTRYINDEX, MEGAHUBREF_NAME);
 
 	// Input devices reference
-	void **inputdevicesuserdata = (void **) lua_newuserdata(ls, sizeof(void *));
+	void** inputdevicesuserdata = (void**) lua_newuserdata(ls, sizeof(void*));
 	*inputdevicesuserdata = inputdevices_.get();
 	lua_setfield(ls, LUA_REGISTRYINDEX, INPUTDEVICESREF_NAME);
 
@@ -449,13 +450,10 @@ lua_State *Megahub::newLuaState() {
 	return ls;
 }
 
-Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu)
-	: inputdevices_(inputDevices)
-	, device1_(device1)
-	, device2_(device2)
-	, device3_(device3)
-	, device4_(device4)
-	, imu_(imu) {
+Megahub::Megahub(InputDevices* inputDevices, LegoDevice* device1, LegoDevice* device2, LegoDevice* device3,
+                 LegoDevice* device4, IMU* imu)
+    : inputdevices_(inputDevices), device1_(device1), device2_(device2), device3_(device3), device4_(device4),
+      imu_(imu) {
 
 	// Initialize lua_global_mutex (global, created once per application lifetime)
 	lua_global_mutex = xSemaphoreCreateMutex();
@@ -480,24 +478,18 @@ Megahub::Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *de
 	// Cache device UID so we don't re-read the MAC on every call
 	uint8_t chipId[6];
 	esp_read_mac(chipId, ESP_MAC_WIFI_STA);
-	uint32_t serialNumber = 0;
+	uint64_t serialNumber = 0;
 	for (int i = 0; i < 6; i++) {
-		serialNumber += (chipId[i] << (8 * i));
+		serialNumber += (static_cast<uint64_t>(chipId[i]) << (8 * i));
 	}
 	char serialStr[13];
-	snprintf(serialStr, sizeof(serialStr), "%012X", serialNumber);
+	snprintf(serialStr, sizeof(serialStr), "%012llX", static_cast<unsigned long long>(serialNumber));
 	deviceUid_ = String(serialStr);
 
 	reinitializeDevices();
 
 	// Create the task
-	xTaskCreate(
-		status_reporter_task,
-		"PortStatus",
-		4096,
-		(void *) this,
-		1,
-		&statusReporterTaskHandle);
+	xTaskCreate(status_reporter_task, "PortStatus", 4096, (void*) this, 1, &statusReporterTaskHandle);
 }
 
 Megahub::~Megahub() {
@@ -522,7 +514,7 @@ void Megahub::loop() {
 	i2c_unlock();
 }
 
-LegoDevice *Megahub::port(int num) {
+LegoDevice* Megahub::port(int num) {
 	if (num == PORT1) {
 		return device1_.get();
 	}
@@ -539,7 +531,7 @@ LegoDevice *Megahub::port(int num) {
 	return nullptr;
 }
 
-IMU *Megahub::imu() {
+IMU* Megahub::imu() {
 	return imu_.get();
 }
 
@@ -574,7 +566,7 @@ LuaCheckResult Megahub::checkLUACode(String luaCode) {
 	long startTime = millis();
 
 	INFO("Creating temporary Lua state for syntax check");
-	lua_State *tempState = lua_newthread(globalLuaState_);
+	lua_State* tempState = lua_newthread(globalLuaState_);
 
 	INFO("Starting to parse Lua code (just compile, no execution)");
 	int luaResult = luaL_loadstring(tempState, luaCode.c_str());
@@ -584,7 +576,7 @@ LuaCheckResult Megahub::checkLUACode(String luaCode) {
 	result.parseTime = endTime - startTime;
 
 	if (luaResult != LUA_OK) {
-		const char *error_msg = lua_tostring(tempState, -1);
+		const char* error_msg = lua_tostring(tempState, -1);
 		result.success = false;
 		result.errorMessage = String(error_msg);
 		lua_pop(tempState, 1);
@@ -596,7 +588,8 @@ LuaCheckResult Megahub::checkLUACode(String luaCode) {
 	INFO("Closing temporary Lua state for syntax check");
 	lua_closethread(tempState, globalLuaState_);
 
-	INFO("Syntax check completed in %ld milliseconds with result %s", result.parseTime, result.success ? "success" : "failure");
+	INFO("Syntax check completed in %ld milliseconds with result %s", result.parseTime,
+	     result.success ? "success" : "failure");
 
 	return result;
 }
@@ -765,7 +758,7 @@ void Megahub::registerThread(TaskHandle_t handle) {
 
 void Megahub::stopRunningThreads() {
 	xSemaphoreTake(runningThreadsMutex_, portMAX_DELAY);
-	for (int i = 0; i < (int)runningThreads_.size(); i++) {
+	for (int i = 0; i < (int) runningThreads_.size(); i++) {
 		INFO("Stopping thread #%d", i);
 		xTaskNotify(runningThreads_[i], 1, eSetValueWithOverwrite);
 	}

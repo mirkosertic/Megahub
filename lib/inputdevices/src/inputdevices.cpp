@@ -9,7 +9,7 @@ InputDevices::InputDevices() {
 	}
 }
 
-bool InputDevices::getGamepadState(const char *macAddress, GamepadState &state) {
+bool InputDevices::getGamepadState(const char* macAddress, GamepadState& state) {
 	std::string key(macAddress);
 	bool found = false;
 
@@ -31,7 +31,7 @@ std::vector<GamepadState> InputDevices::getAllGamepadStates() {
 	std::vector<GamepadState> states;
 
 	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
-		for (const auto &pair : gamepadStates_) {
+		for (const auto& pair : gamepadStates_) {
 			states.push_back(pair.second);
 		}
 		xSemaphoreGive(gamepadStatesMutex_);
@@ -50,7 +50,8 @@ void InputDevices::registerGamepadState(std::string macAddress, GamepadState sta
 	}
 }
 
-void InputDevices::updateGamepad(std::string macAddress, std::function<void(std::string &macAddress, GamepadState &)> callback) {
+void InputDevices::updateGamepad(std::string macAddress,
+                                 std::function<void(std::string& macAddress, GamepadState&)> callback) {
 	if (xSemaphoreTake(gamepadStatesMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
 		auto it = gamepadStates_.find(macAddress);
 		if (it != gamepadStates_.end()) {

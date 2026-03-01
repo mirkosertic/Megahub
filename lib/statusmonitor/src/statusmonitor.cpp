@@ -4,12 +4,12 @@
 
 #include "logging.h"
 
-Statusmonitor *GLOBAL_STATUS_INSTANCE = nullptr;
+Statusmonitor* GLOBAL_STATUS_INSTANCE = nullptr;
 
 #define STATUS_LED_PIN 2
 
-void statusMonitorTask(void *parameter) {
-	Statusmonitor *monitor = (Statusmonitor *) parameter;
+void statusMonitorTask(void* parameter) {
+	Statusmonitor* monitor = (Statusmonitor*) parameter;
 	pinMode(STATUS_LED_PIN, OUTPUT);
 	while (true) {
 
@@ -47,13 +47,8 @@ Statusmonitor::Statusmonitor() {
 	taskHandle_ = nullptr;
 	status_ = BOOTING;
 
-	xTaskCreate(
-		statusMonitorTask,
-		"StatusMonitor",
-		3000,
-		(void *) this,
-		1,
-		&taskHandle_ // Store task handle for cancellation
+	xTaskCreate(statusMonitorTask, "StatusMonitor", 3000, (void*) this, 1,
+	            &taskHandle_ // Store task handle for cancellation
 	);
 }
 
@@ -64,7 +59,7 @@ Statusmonitor::~Statusmonitor() {
 	}
 }
 
-Statusmonitor *Statusmonitor::instance() {
+Statusmonitor* Statusmonitor::instance() {
 	if (GLOBAL_STATUS_INSTANCE == nullptr) {
 		GLOBAL_STATUS_INSTANCE = new Statusmonitor();
 	}

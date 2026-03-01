@@ -1,11 +1,12 @@
 #include "SC16IS752serialadapter.h"
 
-#include <Wire.h>
-
 #include "logging.h"
 #include "megahub.h"
 
-SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS752SerialAdapterChannel channel, int m1pin, int m2pin, uint8_t i2cAddress) {
+#include <Wire.h>
+
+SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752* hardwareserial, SC16IS752SerialAdapterChannel channel,
+                                               int m1pin, int m2pin, uint8_t i2cAddress) {
 	hardwareserial_ = hardwareserial;
 	channel_ = channel;
 	m1pin_ = m1pin;
@@ -21,8 +22,7 @@ SC16IS752SerialAdapter::SC16IS752SerialAdapter(SC16IS752 *hardwareserial, SC16IS
 	INFO("Motor M1 %d + M2 %d set to low", m1pin, m2pin);
 }
 
-SC16IS752SerialAdapter::~SC16IS752SerialAdapter() {
-}
+SC16IS752SerialAdapter::~SC16IS752SerialAdapter() {}
 
 void SC16IS752SerialAdapter::setM1(bool status) {
 	hardwareserial_->digitalWrite(m1pin_, status ? HIGH : LOW);
@@ -59,7 +59,7 @@ uint8_t SC16IS752SerialAdapter::readRegisterDirect(uint8_t channel, uint8_t reg_
 	Wire.beginTransmission(i2cAddress_);
 	Wire.write((reg_addr << 3 | channel << 1));
 	Wire.endTransmission(0);
-	Wire.requestFrom(i2cAddress_, (uint8_t)1);
+	Wire.requestFrom(i2cAddress_, (uint8_t) 1);
 	result = Wire.read();
 
 	return result;

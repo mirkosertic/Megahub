@@ -4,25 +4,11 @@
 #include "logging.h"
 #include "motorpwmcontroller.h"
 
-LegoDevice::LegoDevice(SerialIO *serialIO, uint8_t deviceIndex)
-	: serialSpeed_(2400)
-	, numModes_(-1)
-	, deviceId_(-1)
-	, fwVersion_("")
-	, hwVersion_("")
-	, parser_(this)
-	, serialIO_(serialIO)
-	, handshakeComplete_(false)
-	, lastKeepAliveCheck_(0)
-	, inDataMode_(false)
-	, firstDataFrameReceived_(false)
-	, lastReceivedDataInMillis_(0)
-	, selectedMode_(-1)
-	, lastParserStatsLog_(0)
-	, deviceIndex_(deviceIndex)
-	, pwmController_(nullptr) {
-
-}
+LegoDevice::LegoDevice(SerialIO* serialIO, uint8_t deviceIndex)
+    : serialSpeed_(2400), numModes_(-1), deviceId_(-1), fwVersion_(""), hwVersion_(""), parser_(this),
+      serialIO_(serialIO), handshakeComplete_(false), lastKeepAliveCheck_(0), inDataMode_(false),
+      firstDataFrameReceived_(false), lastReceivedDataInMillis_(0), selectedMode_(-1), lastParserStatsLog_(0),
+      deviceIndex_(deviceIndex), pwmController_(nullptr) {}
 
 void LegoDevice::reset() {
 	INFO("Performing a device reset");
@@ -57,8 +43,7 @@ void LegoDevice::reset() {
 	}
 }
 
-LegoDevice::~LegoDevice() {
-}
+LegoDevice::~LegoDevice() {}
 
 bool LegoDevice::fullyInitialized() {
 	return deviceId_ != -1 && numModes_ != -1;
@@ -81,11 +66,11 @@ void LegoDevice::parseIncomingData() {
 	// when motor noise generates spurious bytes.
 	while (serialIO_->available() > 0 && count++ < 64) {
 		lastReceivedDataInMillis_ = millis();
-		parser_.feedByte((uint8_t)serialIO_->readByte());
+		parser_.feedByte((uint8_t) serialIO_->readByte());
 	}
 }
 
-void LegoDevice::setDeviceIdAndName(int deviceId, std::string &name) {
+void LegoDevice::setDeviceIdAndName(int deviceId, std::string& name) {
 	this->deviceId_ = deviceId;
 	this->name_ = name;
 	INFO("Connected to device ID %d with name '%s'", deviceId, name.c_str());
@@ -101,14 +86,14 @@ void LegoDevice::setSerialSpeed(long serialSpeed) {
 	INFO("Device requests serial speed %ld", serialSpeed);
 }
 
-void LegoDevice::setVersions(std::string &fwVersion, std::string &hwVersion) {
+void LegoDevice::setVersions(std::string& fwVersion, std::string& hwVersion) {
 	this->fwVersion_ = fwVersion;
 	this->hwVersion_ = hwVersion;
 	INFO("Device firmware version: %s", fwVersion.c_str());
 	INFO("Device hardware version: %s", hwVersion.c_str());
 }
 
-Mode *LegoDevice::getMode(int index) {
+Mode* LegoDevice::getMode(int index) {
 	if (index < 0 || index >= 16) {
 		return nullptr;
 	}
@@ -122,7 +107,7 @@ void LegoDevice::finishHandshake() {
 	delay(10);
 	serialIO_->switchToBaudrate(serialSpeed_);
 	delay(10);
-	parser_.clearBuffer();  // discard stale bytes from 2400-baud phase
+	parser_.clearBuffer(); // discard stale bytes from 2400-baud phase
 }
 
 void LegoDevice::sendAck() {
@@ -240,7 +225,7 @@ bool LegoDevice::isInDataMode() {
 void LegoDevice::switchToDataMode() {
 	inDataMode_ = true;
 	firstDataFrameReceived_ = false;
-	lastReceivedDataInMillis_ = millis();  // reset timeout clock so startup window starts from data-mode entry
+	lastReceivedDataInMillis_ = millis(); // reset timeout clock so startup window starts from data-mode entry
 
 	// Send an immediate NACK to kick-start streaming.
 	// Without this, lastKeepAliveCheck_ stays 0, the emergency-NACK guard
@@ -270,14 +255,14 @@ void LegoDevice::setMotorSpeed(int speed) {
 
 	// Check if PWM controller is injected
 	if (pwmController_ == nullptr) {
-		WARN("PWM controller not injected - cannot control motor speed");
-		return;
+	    WARN("PWM controller not injected - cannot control motor speed");
+	    return;
 	}
 
 	// Check if this device has a valid index
 	if (deviceIndex_ == 255) {
-		WARN("Device not registered for PWM control (deviceIndex not set)");
-		return;
+	    WARN("Device not registered for PWM control (deviceIndex not set)");
+	    return;
 	}
 
 	// Clamp speed to valid range (-127 to +127)
@@ -321,12 +306,11 @@ int LegoDevice::getDefaultMode() {
 }
 
 void LegoDevice::logParserStats() {
-	const LumpParserStats &s = parser_.stats();
-	INFO("Parser: ok=%lu csErr=%lu discarded=%lu recoveries=%lu overflow=%lu unknownSys=%lu invalidSize=%lu uartOvr=%lu",
-	     s.framesOk, s.checksumErrors, s.bytesDiscarded,
-	     s.syncRecoveries, s.bufferOverflows,
-	     s.unknownSysBytes, s.invalidSizeBytes,
-	     serialIO_->uartOverrunCount());
+	const LumpParserStats& s = parser_.stats();
+	INFO(
+	    "Parser: ok=%lu csErr=%lu discarded=%lu recoveries=%lu overflow=%lu unknownSys=%lu invalidSize=%lu uartOvr=%lu",
+	    s.framesOk, s.checksumErrors, s.bytesDiscarded, s.syncRecoveries, s.bufferOverflows, s.unknownSysBytes,
+	    s.invalidSizeBytes, serialIO_->uartOverrunCount());
 }
 
 void LegoDevice::loop() {
@@ -351,8 +335,8 @@ void LegoDevice::loop() {
 		// Safety valve: force-send at 80 ms even if data is still flowing, to stay
 		// within the device's ~100 ms keep-alive window.
 		if (now - lastKeepAliveCheck_ >= 50) {
-			bool inGap    = (now - lastReceivedDataInMillis_ >= 4);
-			bool mustSend = (now - lastKeepAliveCheck_       >= 80);
+			bool inGap = (now - lastReceivedDataInMillis_ >= 4);
+			bool mustSend = (now - lastKeepAliveCheck_ >= 80);
 			if (inGap || mustSend) {
 				sendNack();
 				lastKeepAliveCheck_ = now;
@@ -382,8 +366,8 @@ void LegoDevice::loop() {
 		static uint32_t lastLoggedOverrunCount = 0;
 		uint32_t currentOverruns = serialIO_->uartOverrunCount();
 		if (currentOverruns != lastLoggedOverrunCount) {
-			DEBUG("UART FIFO overruns detected: total=%lu (delta=+%lu since last check)",
-			     currentOverruns, currentOverruns - lastLoggedOverrunCount);
+			DEBUG("UART FIFO overruns detected: total=%lu (delta=+%lu since last check)", currentOverruns,
+			      currentOverruns - lastLoggedOverrunCount);
 			lastLoggedOverrunCount = currentOverruns;
 		}
 	}
@@ -428,8 +412,8 @@ SerialIO* LegoDevice::getSerialIO() {
 	return serialIO_.get();
 }
 
-void LegoDevice::onDataFrame(int mode, const uint8_t *payload, int payloadSize) {
-	Mode *m = getMode(mode);
+void LegoDevice::onDataFrame(int mode, const uint8_t* payload, int payloadSize) {
+	Mode* m = getMode(mode);
 	if (m == nullptr) {
 		WARN("onDataFrame: invalid mode %d", mode);
 		return;
@@ -437,7 +421,7 @@ void LegoDevice::onDataFrame(int mode, const uint8_t *payload, int payloadSize) 
 	m->processDataPacket(payload, payloadSize);
 }
 
-void LegoDevice::onCombiDataFrame(int mode, const uint8_t *payload, int payloadSize) {
+void LegoDevice::onCombiDataFrame(int mode, const uint8_t* payload, int payloadSize) {
 	onDataFrame(mode, payload, payloadSize);
 }
 

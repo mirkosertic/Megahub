@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 
-extern Megahub *getMegaHubRef(lua_State *L);
+extern Megahub* getMegaHubRef(lua_State* L);
 
 // PID controller state structure
 struct PIDState {
@@ -34,9 +34,9 @@ static std::map<std::string, PIDState> pidStates;
  * Returns:
  *   Control output value (clamped to outMin..outMax range)
  */
-int alg_pid(lua_State *luaState) {
+int alg_pid(lua_State* luaState) {
 	// Get parameters from Lua stack
-	const char *blockId = luaL_checkstring(luaState, 1);
+	const char* blockId = luaL_checkstring(luaState, 1);
 	double setpoint = luaL_checknumber(luaState, 2);
 	double pv = luaL_checknumber(luaState, 3);
 	double kp = luaL_checknumber(luaState, 4);
@@ -48,12 +48,12 @@ int alg_pid(lua_State *luaState) {
 	double now = millis() / 1000.0; // Convert to seconds
 
 	// Initialize state for this PID controller if it doesn't exist
-	if (pidStates.find(blockId) == pidStates.end()) {
-		pidStates[blockId] = {0.0, 0.0, now};
+	auto [it, inserted] = pidStates.try_emplace(blockId, PIDState{0.0, 0.0, now});
+	if (inserted) {
 		DEBUG("PID controller '%s' initialized", blockId);
 	}
 
-	PIDState &state = pidStates[blockId];
+	PIDState& state = it->second;
 	double dt = now - state.prevTime;
 
 	// Prevent division by zero or negative dt
@@ -104,8 +104,8 @@ int alg_pid(lua_State *luaState) {
 	state.prevError = error;
 	state.prevTime = now;
 
-	DEBUG("PID '%s': SP=%.2f PV=%.2f Err=%.2f P=%.2f I=%.2f D=%.2f Out=%.2f",
-		blockId, setpoint, pv, error, pTerm, iTerm, dTerm, output);
+	DEBUG("PID '%s': SP=%.2f PV=%.2f Err=%.2f P=%.2f I=%.2f D=%.2f Out=%.2f", blockId, setpoint, pv, error, pTerm,
+	      iTerm, dTerm, output);
 
 	// Push result to Lua
 	lua_pushnumber(luaState, output);
@@ -120,8 +120,8 @@ int alg_pid(lua_State *luaState) {
  * Parameters:
  *   blockId - Unique identifier for the PID controller to reset
  */
-int alg_reset_pid(lua_State *luaState) {
-	const char *blockId = luaL_checkstring(luaState, 1);
+int alg_reset_pid(lua_State* luaState) {
+	const char* blockId = luaL_checkstring(luaState, 1);
 
 	auto it = pidStates.find(blockId);
 	if (it != pidStates.end()) {
@@ -141,7 +141,7 @@ int alg_reset_pid(lua_State *luaState) {
  *
  * Lua signature: alg.clearAllPID()
  */
-int alg_clear_all_pid(lua_State *luaState) {
+int alg_clear_all_pid(lua_State* luaState) {
 	size_t count = pidStates.size();
 	pidStates.clear();
 	DEBUG("Cleared %d PID controller states", count);
@@ -152,13 +152,13 @@ int alg_clear_all_pid(lua_State *luaState) {
  * Algorithm library registration
  * Exports the library as "alg" to Lua
  */
-int alg_library(lua_State *luaState) {
+int alg_library(lua_State* luaState) {
 	const luaL_Reg algfunctions[] = {
-		{			"PID",			alg_pid},
-		{	   "resetPID",	  alg_reset_pid},
-		{	"clearAllPID", alg_clear_all_pid},
-		{			 NULL,			   NULL}
-	};
+	    {        "PID",           alg_pid},
+        {   "resetPID",     alg_reset_pid},
+        {"clearAllPID", alg_clear_all_pid},
+        {         NULL,              NULL}
+    };
 	luaL_newlib(luaState, algfunctions);
 	return 1;
 }

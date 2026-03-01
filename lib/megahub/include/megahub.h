@@ -29,12 +29,12 @@
 
 #define FORMAT_SIMPLE 2000
 
-#define PINMODE_INPUT		   3000
+#define PINMODE_INPUT          3000
 #define PINMODE_INPUT_PULLUP   3001
 #define PINMODE_INPUT_PULLDOWN 3002
-#define PINMODE_OUTPUT		   3003
+#define PINMODE_OUTPUT         3003
 
-#define GAMEPAD1		  4000
+#define GAMEPAD1          4000
 #define GAMEPAD_BUTTON_1  5000
 #define GAMEPAD_BUTTON_2  5001
 #define GAMEPAD_BUTTON_3  5002
@@ -51,15 +51,15 @@
 #define GAMEPAD_BUTTON_14 5013
 #define GAMEPAD_BUTTON_15 5014
 #define GAMEPAD_BUTTON_16 5015
-#define GAMEPAD_LEFT_X	  6000
-#define GAMEPAD_LEFT_Y	  6001
-#define GAMEPAD_RIGHT_X	  6002
-#define GAMEPAD_RIGHT_Y	  6003
-#define GAMEPAD_DPAD	  6004
+#define GAMEPAD_LEFT_X    6000
+#define GAMEPAD_LEFT_Y    6001
+#define GAMEPAD_RIGHT_X   6002
+#define GAMEPAD_RIGHT_Y   6003
+#define GAMEPAD_DPAD      6004
 
-#define YAW			   7000
-#define PITCH		   7001
-#define ROLL		   7002
+#define YAW            7000
+#define PITCH          7001
+#define ROLL           7002
 #define ACCELERATION_X 7003
 #define ACCELERATION_Y 7004
 #define ACCELERATION_Z 7005
@@ -71,14 +71,15 @@ struct LuaCheckResult {
 };
 
 class Megahub {
-public:
-	Megahub(InputDevices *inputDevices, LegoDevice *device1, LegoDevice *device2, LegoDevice *device3, LegoDevice *device4, IMU *imu);
+  public:
+	Megahub(InputDevices* inputDevices, LegoDevice* device1, LegoDevice* device2, LegoDevice* device3,
+	        LegoDevice* device4, IMU* imu);
 	virtual ~Megahub();
 
 	void loop();
 
-	LegoDevice *port(int num);
-	IMU *imu();
+	LegoDevice* port(int num);
+	IMU* imu();
 
 	String deviceUid();
 	String name();
@@ -100,7 +101,7 @@ public:
 	void stopThread(TaskHandle_t handle);
 	void notifyThreadExitedAbnormally();
 
-private:
+  private:
 	void reinitializeDevices();
 	std::unique_ptr<InputDevices> inputdevices_;
 	std::unique_ptr<LegoDevice> device1_;
@@ -109,10 +110,10 @@ private:
 	std::unique_ptr<LegoDevice> device4_;
 	std::unique_ptr<IMU> imu_;
 
-	lua_State *globalLuaState_;
-	lua_State *currentprogramstate_;
+	lua_State* globalLuaState_;
+	lua_State* currentprogramstate_;
 
-	lua_State *newLuaState();
+	lua_State* newLuaState();
 
 	std::vector<TaskHandle_t> runningThreads_;
 	SemaphoreHandle_t runningThreadsMutex_{nullptr};

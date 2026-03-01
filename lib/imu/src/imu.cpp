@@ -6,8 +6,8 @@
 #include <I2Cdev.h>
 
 #define EARTH_GRAVITY_MS2 9.80665 // m/s2
-#define DEG_TO_RAD		  0.017453292519943295769236907684886
-#define RAD_TO_DEG		  57.295779513082320876798154814105
+#define DEG_TO_RAD        0.017453292519943295769236907684886
+#define RAD_TO_DEG        57.295779513082320876798154814105
 
 IMU::IMU() {
 	lastchecktime_ = -1;
@@ -49,8 +49,7 @@ IMU::IMU() {
 	}
 }
 
-IMU::~IMU() {
-}
+IMU::~IMU() {}
 
 float IMU::getAccelerationX() {
 	i2c_lock();

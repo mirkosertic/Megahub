@@ -1,13 +1,20 @@
 ---
-BasedOnStyle: WebKit
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: ForIndentation
+TabWidth: 4
+ColumnLimit: 120
+PointerAlignment: Left
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Inline
+SpaceBeforeParens: ControlStatements
 AlignArrayOfStructures: Right
 AlignConsecutiveBitFields:
   Enabled: true
 AlignConsecutiveMacros:
   Enabled: true
 AllowShortEnumsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: InlineOnly
-BreakBeforeBraces: Attach
 Cpp11BracedListStyle: true
 FixNamespaceComments: true
 IncludeBlocks: Regroup
@@ -34,8 +41,5 @@ IndentPPDirectives: BeforeHash
 InsertBraces: true
 InsertNewlineAtEOF: true
 NamespaceIndentation: None
-PointerAlignment: Right
 SpaceAfterCStyleCast: true
 Standard: Auto
-TabWidth: 4
-UseTab: Always

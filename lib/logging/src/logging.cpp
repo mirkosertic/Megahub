@@ -3,16 +3,13 @@
 #define LOGGING_MESSAGE_SIZE 512
 #define LOGGING_QUEUE_LENGTH 10
 
-LoggingOutput::~LoggingOutput() {
-}
+LoggingOutput::~LoggingOutput() {}
 
-NoopLoggingOutput::~NoopLoggingOutput() {
-}
+NoopLoggingOutput::~NoopLoggingOutput() {}
 
-void NoopLoggingOutput::log(const char *msg, va_list args) {
-}
+void NoopLoggingOutput::log(const char* msg, va_list args) {}
 
-SerialLoggingOutput::SerialLoggingOutput(Print *serial) {
+SerialLoggingOutput::SerialLoggingOutput(Print* serial) {
 	serial_ = serial;
 	logQueue_ = xQueueCreate(LOGGING_QUEUE_LENGTH, LOGGING_MESSAGE_SIZE);
 }
@@ -21,7 +18,7 @@ SerialLoggingOutput::~SerialLoggingOutput() {
 	vQueueDelete(logQueue_);
 }
 
-void SerialLoggingOutput::log(const char *msg, va_list args) {
+void SerialLoggingOutput::log(const char* msg, va_list args) {
 	char buffer[LOGGING_MESSAGE_SIZE];
 	vsnprintf(buffer, sizeof(buffer), msg, args);
 
@@ -41,7 +38,7 @@ String SerialLoggingOutput::waitForLogMessage(TickType_t ticksToWait) {
 	return String();
 }
 
-Logging *Logging::instance() {
+Logging* Logging::instance() {
 	static Logging instance(std::make_unique<NoopLoggingOutput>());
 	return &instance;
 }
@@ -50,13 +47,13 @@ Logging::Logging(std::unique_ptr<LoggingOutput> output) {
 	output_ = std::move(output);
 }
 
-void Logging::genericLog(const char *msg, ...) {
+void Logging::genericLog(const char* msg, ...) {
 	va_list arg;
 	va_start(arg, msg);
 	output_->log(msg, arg);
 	va_end(arg);
 }
 
-void Logging::routeLoggingTo(LoggingOutput *output) {
+void Logging::routeLoggingTo(LoggingOutput* output) {
 	output_.reset(output);
 }

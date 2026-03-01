@@ -8,13 +8,13 @@ import { definition } from '../../src/components/blockly/lego_get_mode_dataset.j
 
 function makeBlock(fields = {}) {
     return {
-        getFieldValue: key => fields[key] ?? null,
+        getFieldValue: (key) => fields[key] ?? null,
     };
 }
 
 function makeGenerator(values = {}) {
     return {
-        valueToCode: (_block, name, _order) => values[name] ?? '0',
+        valueToCode: (_block, name) => values[name] ?? '0',
     };
 }
 
@@ -41,7 +41,7 @@ describe('lego_get_mode_dataset block definition', () => {
 describe('lego_get_mode_dataset generator', () => {
     it('returns an array [code, order] — not a string', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
+        const gen = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
 
         const result = definition.generator(block, gen);
 
@@ -51,7 +51,7 @@ describe('lego_get_mode_dataset generator', () => {
 
     it('generates lego.getmodedataset(port, dataset) expression', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
+        const gen = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
 
         const [code] = definition.generator(block, gen);
 
@@ -62,7 +62,7 @@ describe('lego_get_mode_dataset generator', () => {
 
     it('has operator precedence 0 in the returned pair', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'PORT2', DATASET: '1' });
+        const gen = makeGenerator({ PORT: 'PORT2', DATASET: '1' });
 
         const [, order] = definition.generator(block, gen);
 
@@ -71,7 +71,7 @@ describe('lego_get_mode_dataset generator', () => {
 
     it('embeds both PORT and DATASET in the code', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'myPort', DATASET: 'idx + 1' });
+        const gen = makeGenerator({ PORT: 'myPort', DATASET: 'idx + 1' });
 
         const [code] = definition.generator(block, gen);
 
@@ -81,7 +81,7 @@ describe('lego_get_mode_dataset generator', () => {
 
     it('produces exactly lego.getmodedataset(p,d) as the code string', () => {
         const block = makeBlock();
-        const gen   = makeGenerator({ PORT: 'p', DATASET: 'd' });
+        const gen = makeGenerator({ PORT: 'p', DATASET: 'd' });
 
         const [code, order] = definition.generator(block, gen);
 

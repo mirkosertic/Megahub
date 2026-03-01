@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 class SerialIO {
-public:
-	virtual ~SerialIO() { }
+  public:
+	virtual ~SerialIO() {}
 
 	virtual int available() = 0;
 	virtual int readByte() = 0;
@@ -13,7 +13,7 @@ public:
 	virtual void switchToBaudrate(long serialSpeed) = 0;
 	virtual void flush() = 0;
 	virtual uint32_t uartOverrunCount() { return 0; }
-	virtual void pollDiagnostics() { }
+	virtual void pollDiagnostics() {}
 
 	virtual void setM1(bool status) = 0;
 	virtual void setM2(bool status) = 0;

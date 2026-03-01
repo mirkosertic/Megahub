@@ -7,12 +7,12 @@
 #include <freertos/queue.h>
 
 class Commands {
-private:
+  private:
 	QueueHandle_t commandQueue_;
 	Commands();
 
-public:
-	static Commands *instance();
+  public:
+	static Commands* instance();
 
 	String waitForCommand(TickType_t ticksToWait);
 	void queue(String message);

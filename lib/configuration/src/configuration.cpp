@@ -7,12 +7,8 @@
 #include <WiFi.h>
 // #include <IotWebConf.h>
 
-Configuration::Configuration(FS *fs, Megahub *hub)
-	: hub_(hub)
-	, wifiEnabled_(false)
-	, btEnabled_(true)
-	, ssid_("")
-	, pwd_("") {
+Configuration::Configuration(FS* fs, Megahub* hub)
+    : hub_(hub), wifiEnabled_(false), btEnabled_(true), ssid_(""), pwd_("") {
 	fs_ = fs;
 }
 
@@ -34,13 +30,14 @@ void Configuration::enterWiFiConfiguration() {
 
 	// Callback when entering config mode
 	/*wm.setAPCallback([](WiFiManager *myWiFiManager) {
-		INFO("Entered config mode SSID %s IP %s", myWiFiManager->getConfigPortalSSID().c_str(), WiFi.softAPIP().toString().c_str());
+	    INFO("Entered config mode SSID %s IP %s", myWiFiManager->getConfigPortalSSID().c_str(),
+	WiFi.softAPIP().toString().c_str());
 	});
 
 	// Callback when WiFi is configured
 	wm.setSaveConfigCallback([]() {
-		INFO("Configuration saved!");
-		Statusmonitor::instance()->setStatus(IDLE);
+	    INFO("Configuration saved!");
+	    Statusmonitor::instance()->setStatus(IDLE);
 	});
 
 	wm.setTitle(String("Megahub Configuration"));
@@ -48,26 +45,26 @@ void Configuration::enterWiFiConfiguration() {
 	// Start portal with custom name
 	String apName = String("Megahub_") + hub_->deviceUid();
 	if (wm.autoConnect(apName.c_str(), "12345678")) {
-		INFO("Connected wo WiFi, my IP is %s", WiFi.localIP().toString().c_str());
+	    INFO("Connected wo WiFi, my IP is %s", WiFi.localIP().toString().c_str());
 
-		Statusmonitor::instance()->setStatus(IDLE);
+	    Statusmonitor::instance()->setStatus(IDLE);
 
-		// Save credentials to SD card
-		JsonDocument doc;
-		doc["ssid"] = WiFi.SSID().c_str();
-		doc["pwd"] = WiFi.psk().c_str();
+	    // Save credentials to SD card
+	    JsonDocument doc;
+	    doc["ssid"] = WiFi.SSID().c_str();
+	    doc["pwd"] = WiFi.psk().c_str();
 
-		File configFile = fs_->open("/config.json", FILE_WRITE, true);
-		if (!configFile) {
-			WARN("Could not create config file!");
-		} else {
-			serializeJson(doc, configFile);
-			configFile.close();
-		}
+	    File configFile = fs_->open("/config.json", FILE_WRITE, true);
+	    if (!configFile) {
+	        WARN("Could not create config file!");
+	    } else {
+	        serializeJson(doc, configFile);
+	        configFile.close();
+	    }
 
 	} else {
-		Serial.println("Failed to configure WiFi");
-		ESP.restart();
+	    Serial.println("Failed to configure WiFi");
+	    ESP.restart();
 	}*/
 }
 
@@ -124,8 +121,7 @@ void Configuration::connectToWiFiOrShowConfigPortal() {
 	}
 }
 
-Configuration::~Configuration() {
-}
+Configuration::~Configuration() {}
 
 String Configuration::getAutostartProject() {
 	String result = "";
@@ -186,7 +182,8 @@ std::vector<String> Configuration::getProjects() {
 	return result;
 }
 
-bool Configuration::writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t *data, size_t length) {
+bool Configuration::writeFileChunkToProject(String projectId, String fileName, uint64_t position, uint8_t* data,
+                                            size_t length) {
 	fs_->mkdir("/project");
 	fs_->mkdir("/project/" + projectId);
 
@@ -226,7 +223,8 @@ File Configuration::getProjectFile(String projectId, String fileName) {
 	return fs_->open(path, FILE_READ);
 }
 
-void Configuration::streamProjectFileTo(String projectId, String fileName, const Configuration_StreamTarget &streamTarget) {
+void Configuration::streamProjectFileTo(String projectId, String fileName,
+                                        const Configuration_StreamTarget& streamTarget) {
 	INFO("webserver() - start sending data to client");
 
 	String path = "/project/" + projectId + "/" + fileName;
@@ -299,7 +297,7 @@ void Configuration::deleteProject(String projectId) {
 	deleteDirectory(path);
 }
 
-bool Configuration::writeProjectFileContent(String project, String filename, String &strContent) {
+bool Configuration::writeProjectFileContent(String project, String filename, String& strContent) {
 
 	String path = "/project/" + project + "/" + filename;
 

@@ -3,6 +3,42 @@ on:
   push:
     branches: [ main ]
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+      - name: Prettier check
+        working-directory: frontend
+        run: npm run format:check
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+      - name: cppcheck
+        run: |
+          cppcheck --enable=warning,performance,portability \
+                   --suppress=missingInclude \
+                   --suppress=unusedFunction \
+                   --suppress=ctuOneDefinitionRuleViolation \
+                   --inline-suppr \
+                   --error-exitcode=1 \
+                   --quiet \
+                   lib/btremote lib/commands lib/configuration lib/hubwebserver \
+                   lib/i2csync lib/imu lib/inputdevices lib/logging lib/lpfuart \
+                   lib/megahub lib/portstatus lib/statusmonitor \
+                   src/
+      - name: clang-format check
+        run: |
+          find lib src -name "*.cpp" -o -name "*.h" -o -name "*.c" \
+            | grep -v "lib/lua/" | grep -v "lib/ydlidar/" \
+            | xargs clang-format --dry-run --Werror
   build:
     runs-on: ubuntu-latest
     steps:

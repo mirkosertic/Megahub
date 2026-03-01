@@ -3,9 +3,9 @@
 
 #include <ArduinoJson.h>
 
-extern Megahub *getMegaHubRef(lua_State *L);
+extern Megahub* getMegaHubRef(lua_State* L);
 
-int ui_show_value(lua_State *luaState) {
+int ui_show_value(lua_State* luaState) {
 
 	DEBUG("UI show value called");
 	JsonDocument doc;
@@ -26,7 +26,7 @@ int ui_show_value(lua_State *luaState) {
 		double numvalue = lua_tonumber(luaState, 3);
 		doc["value"] = numvalue;
 	} else if (lua_isstring(luaState, 3)) {
-		const char *strvalue = lua_tostring(luaState, 3);
+		const char* strvalue = lua_tostring(luaState, 3);
 		doc["value"] = strvalue;
 	} else {
 		WARN("ui_show_value called with unsupported value type");
@@ -44,11 +44,11 @@ int ui_show_value(lua_State *luaState) {
 	return 0;
 }
 
-int ui_library(lua_State *luaState) {
+int ui_library(lua_State* luaState) {
 	const luaL_Reg hubfunctions[] = {
-		{"showvalue", ui_show_value},
-		{		 NULL,		   NULL}
-	};
+	    {"showvalue", ui_show_value},
+        {       NULL,          NULL}
+    };
 	luaL_newlib(luaState, hubfunctions);
 	return 1;
 }

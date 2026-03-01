@@ -49,7 +49,7 @@ describe('subscribe', () => {
 
     it('calls subscriber with each successive value', () => {
         const received = [];
-        subscribe('activeProject', v => received.push(v));
+        subscribe('activeProject', (v) => received.push(v));
 
         setState({ activeProject: 'project-a' });
         setState({ activeProject: 'project-b' });

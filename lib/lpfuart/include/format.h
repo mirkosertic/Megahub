@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 class Format {
-public:
+  public:
 	enum class FormatType {
 		DATA8 = 0x00,
 		DATA16 = 0x01,
@@ -21,7 +21,7 @@ public:
 	int getFigures() const { return figures; }
 	int getDecimals() const { return decimals; }
 
-private:
+  private:
 	int datasets;
 	FormatType formatType;
 	int figures;
