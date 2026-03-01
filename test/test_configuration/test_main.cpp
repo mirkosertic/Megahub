@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdbool>
+#include <string>
 
 // ---------------------------------------------------------------------------
 // Logging stubs
@@ -33,8 +34,8 @@
 struct ConfigValues {
     bool btEnabled    = true;   // default: BT on
     bool wifiEnabled  = false;  // default: WiFi off
-    const char *ssid  = "";
-    const char *pwd   = "";
+    std::string ssid  = "";
+    std::string pwd   = "";
 };
 
 static bool parseConfig(const char *json, ConfigValues &out) {
@@ -75,8 +76,8 @@ static void test_CFG01_full_valid_json() {
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_TRUE(cfg.btEnabled);
     TEST_ASSERT_TRUE(cfg.wifiEnabled);
-    TEST_ASSERT_EQUAL_STRING("mynet",   cfg.ssid);
-    TEST_ASSERT_EQUAL_STRING("pass123", cfg.pwd);
+    TEST_ASSERT_EQUAL_STRING("mynet",   cfg.ssid.c_str());
+    TEST_ASSERT_EQUAL_STRING("pass123", cfg.pwd.c_str());
 }
 
 // CFG-02: Only bluetoothEnabled present — other keys stay at defaults
@@ -88,8 +89,8 @@ static void test_CFG02_partial_json_defaults_retained() {
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_FALSE(cfg.btEnabled);
     TEST_ASSERT_FALSE(cfg.wifiEnabled);   // default
-    TEST_ASSERT_EQUAL_STRING("", cfg.ssid); // default
-    TEST_ASSERT_EQUAL_STRING("", cfg.pwd);  // default
+    TEST_ASSERT_EQUAL_STRING("", cfg.ssid.c_str()); // default
+    TEST_ASSERT_EQUAL_STRING("", cfg.pwd.c_str());  // default
 }
 
 // CFG-03: Wrong type for "bluetoothEnabled" (string instead of bool) → ignored, default kept
@@ -115,8 +116,8 @@ static void test_CFG04_empty_json_object() {
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_TRUE(cfg.btEnabled);     // default
     TEST_ASSERT_FALSE(cfg.wifiEnabled);  // default
-    TEST_ASSERT_EQUAL_STRING("", cfg.ssid);
-    TEST_ASSERT_EQUAL_STRING("", cfg.pwd);
+    TEST_ASSERT_EQUAL_STRING("", cfg.ssid.c_str());
+    TEST_ASSERT_EQUAL_STRING("", cfg.pwd.c_str());
 }
 
 // CFG-05: Invalid JSON — deserialisation fails, function returns false
@@ -136,8 +137,8 @@ static void test_CFG06_wifi_disabled_explicitly() {
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_TRUE(cfg.btEnabled);
     TEST_ASSERT_FALSE(cfg.wifiEnabled);
-    TEST_ASSERT_EQUAL_STRING("net", cfg.ssid);
-    TEST_ASSERT_EQUAL_STRING("pw",  cfg.pwd);
+    TEST_ASSERT_EQUAL_STRING("net", cfg.ssid.c_str());
+    TEST_ASSERT_EQUAL_STRING("pw",  cfg.pwd.c_str());
 }
 
 // CFG-07: bluetoothEnabled false — BT is disabled

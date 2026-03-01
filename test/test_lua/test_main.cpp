@@ -83,10 +83,12 @@ static void test_LUA04_valid_complex_lua() {
 // LUA-05: Syntax error — error message must contain line number "3"
 // ---------------------------------------------------------------------------
 static void test_LUA05_error_message_contains_line_number() {
+    // Lua 5.4 reports "incomplete 'if'" at line 3 directly — use a clear
+    // mid-statement error so the line number is unambiguous.
     const char *code =
         "x = 1\n"
         "y = 2\n"
-        "if x < y\n";    // missing 'then' — error on or after line 3
+        "local = 3\n";   // 'local' used as a statement without a name: error on line 3
 
     lua_State *L = luaL_newstate();
     int result = luaL_loadstring(L, code);
@@ -94,8 +96,8 @@ static void test_LUA05_error_message_contains_line_number() {
 
     const char *msg = lua_tostring(L, -1);
     TEST_ASSERT_NOT_NULL(msg);
-    // Error message must contain "3" (the line with the syntax error)
-    TEST_ASSERT_NOT_NULL(strstr(msg, "3"));
+    // Error message format: [string "..."]:3: <description>
+    TEST_ASSERT_NOT_NULL(strstr(msg, ":3:"));
 
     lua_close(L);
 }

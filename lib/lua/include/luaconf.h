@@ -795,7 +795,9 @@
 */
 
 // Lua Thread Safety!!!!
-
+// On ESP32 (ESP-IDF), use a FreeRTOS mutex so Lua is safe across RTOS tasks.
+// On native/host (unit-test builds), no locking is needed — tests are single-threaded.
+#if defined(ESP_PLATFORM)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -803,6 +805,10 @@ extern SemaphoreHandle_t lua_global_mutex;
 
 #define lua_lock(L)    xSemaphoreTake(lua_global_mutex, portMAX_DELAY)
 #define lua_unlock(L)  xSemaphoreGive(lua_global_mutex)
+#else
+#define lua_lock(L)    ((void)(L))
+#define lua_unlock(L)  ((void)(L))
+#endif
 
 #endif
 

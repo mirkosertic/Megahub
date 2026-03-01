@@ -89,7 +89,7 @@ int fastled_addleds(lua_State *luaState) {
 				break;
 			default:
 				WARN("Unsupported pin %d for FastLED!");
-				delete leds;
+				delete[] leds;
 				return 0;
 		}
 
