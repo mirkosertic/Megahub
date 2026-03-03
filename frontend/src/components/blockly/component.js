@@ -34,7 +34,16 @@ import { definition as gamepad_buttonsraw } from './mh_gamepad_buttonsraw.js';
 import { definition as gamepad_value } from './mh_gamepad_value.js';
 import { definition as gamepad_connected } from './mh_gamepad_connected.js';
 import { definition as mh_debug_millis } from './mh_debug_millis.js';
-import { definition as mh_alg_pid } from './mh_alg_pid.js';
+import { definition as mh_alg_pid_init } from './mh_alg_pid_init.js';
+import { definition as mh_alg_pid_compute } from './mh_alg_pid_compute.js';
+import { definition as mh_alg_pid_reset } from './mh_alg_pid_reset.js';
+import { definition as mh_alg_dr_init } from './mh_alg_dr_init.js';
+import { definition as mh_alg_dr_update } from './mh_alg_dr_update.js';
+import { definition as mh_alg_dr_get } from './mh_alg_dr_get.js';
+import { definition as mh_alg_dr_reset } from './mh_alg_dr_reset.js';
+import { definition as mh_alg_dr_set_pose } from './mh_alg_dr_set_pose.js';
+import { definition as ui_map_update } from './ui_map_update.js';
+import { definition as ui_map_clear } from './ui_map_clear.js';
 
 import { colorLogic, colorMath, colorText, colorLists } from './colors.js';
 
@@ -284,7 +293,25 @@ const customBlocks = {
 
     mh_stopthread: mh_stopthread,
 
-    mh_alg_pid: mh_alg_pid,
+    mh_alg_pid_init: mh_alg_pid_init,
+
+    mh_alg_pid_compute: mh_alg_pid_compute,
+
+    mh_alg_pid_reset: mh_alg_pid_reset,
+
+    mh_alg_dr_init: mh_alg_dr_init,
+
+    mh_alg_dr_update: mh_alg_dr_update,
+
+    mh_alg_dr_get: mh_alg_dr_get,
+
+    mh_alg_dr_reset: mh_alg_dr_reset,
+
+    mh_alg_dr_set_pose: mh_alg_dr_set_pose,
+
+    ui_map_update: ui_map_update,
+
+    ui_map_clear: ui_map_clear,
 };
 
 function generateToolbox(definitions) {

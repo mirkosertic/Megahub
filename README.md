@@ -176,8 +176,8 @@ The toolbox is divided into these categories:
 | **Gamepad** | Button pressed, analog axis values, connection check |
 | **FastLED** | Initialize LED strip, set individual LED colour, show, clear |
 | **IMU** | Read yaw, pitch, roll, or acceleration from the on-board sensor |
-| **UI** | Display a labelled value in the IDE Logger panel |
-| **Algorithms** | PID controller |
+| **UI** | Display a labelled value in the IDE Logger panel, map visualization (plot position, clear) |
+| **Algorithms** | PID controller (init/compute/reset), dead reckoning (init/update/get/reset/set pose) |
 | **Debug** | Free heap memory, milliseconds since boot |
 
 > **Common gotcha:** The **Set motor speed** block is in the **I/O** category — not **LEGO©**. The **LEGO©** category only contains sensor blocks (selecting a measurement mode and reading the sensor dataset). If you want to drive a motor, open **I/O**.
@@ -310,6 +310,40 @@ The on-board MPU6050 provides 6-axis motion data, updated every 100 ms. Read it 
 | ACCELERATION_Y  | m/s²  | Acceleration along Y axis      |
 | ACCELERATION_Z  | m/s²  | Acceleration along Z axis      |
 
+### Algorithm Blocks — PID and Dead Reckoning
+
+The **Algorithms** category provides blocks for closed-loop control and position tracking.
+
+**PID controller:** A proportional-integral-derivative controller for motor speed regulation, line following, or any closed-loop control. Uses an explicit lifecycle:
+1. **Init PID** — creates a new controller instance, returns a handle
+2. **PID compute** — computes control output using the handle, setpoint, process variable, and gains
+3. **PID reset** — clears the state of an existing controller (e.g., when switching setpoints)
+
+Store the handle from `Init PID` in a variable and pass it to `PID compute` in your control loop.
+
+**Dead reckoning (DR):** Estimates the robot's (x, y, heading) pose by integrating wheel encoder ticks and IMU yaw. The following blocks are available:
+
+| Block | Description |
+|-------|-------------|
+| `Init DR` | Creates a new dead reckoning instance and returns a handle. Call once before your main loop. |
+| `DR update` | Updates pose from left/right encoder ticks and IMU yaw. Takes 7 inputs: handle, left ticks, right ticks, yaw (deg), m/tick, wheelbase (m), IMU weight. Does not return a value. |
+| `DR pose X/Y/HEADING of` | Reads one component of the pose from a handle — X and Y in meters, HEADING in degrees. |
+| `Reset DR pose of` | Resets pose to origin (0, 0, 0°). Re-bootstraps encoder baselines so the next update produces zero delta. |
+| `Set DR pose of` | Injects a known (x, y, heading) position for landmark-based drift correction. |
+
+**LEGO motor POS mode prerequisite:** DR reads absolute encoder positions. Before using DR blocks, call `lego select mode` with mode **2** (POS) on the motor ports in `hub.init()`, then wait briefly for the sensor to settle.
+
+For a full explanation including the math, calibration procedure, coordinate conventions, and example programs, see [DEADRECKONING.md](DEADRECKONING.md).
+
+### Map Visualization
+
+The IDE sidebar includes a **live map panel** that renders the robot's trail as it moves. Use the **UI** category blocks to drive it:
+
+| Block | Description |
+|-------|-------------|
+| `Map: plot position` | Sends an (x, y, heading) pose to the map panel. Wire in DR get blocks for x, y, and heading. The firmware rate-limits sends to 5 Hz — call at any rate in your loop. |
+| `Map: clear` | Clears the trail from the map panel. Call this at the start of each run alongside `Reset DR pose`. |
+
 ### SD Card Storage
 
 Projects created in the IDE are saved to the SD card. The SD card connects over SPI (CLK=18, MOSI=23, MISO=19, CS=4). Use a standard microSD card formatted as FAT32. Configuration files (`config.json`, `autostart.json`) also live in the root of the SD card.
@@ -401,3 +435,4 @@ The log (115200 baud) shows boot messages, port detection results, BLE connectio
 | [HUBAPI.md](HUBAPI.md) | REST API and Server-Sent Events reference for WiFi mode |
 | [LUMP.md](LUMP.md) | LEGO Powered Up UART protocol technical specification |
 | [MEGAHUBIDE.md](MEGAHUBIDE.md) | Frontend IDE architecture — module structure, state, events, components, testing |
+| [DEADRECKONING.md](DEADRECKONING.md) | Dead reckoning guide — intuition, kinematics, math, coordinate conventions, Blockly usage, and calibration |

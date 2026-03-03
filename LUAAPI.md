@@ -635,29 +635,46 @@ ui.showvalue("Sensor", FORMAT_SIMPLE, lego.getmodedataset(PORT1, 0))
 
 ## Module: `alg` — Algorithms
 
-Mathematical algorithms for control applications.
+Mathematical algorithms for control applications: PID control and dead reckoning.
 
 ---
 
-### `alg.PID(blockId, setpoint, pv, kp, ki, kd, outMin, outMax)`
+### PID Controller
 
-Compute one step of a PID controller. Each unique `blockId` string maintains its own independent controller state (integral accumulator, previous error, and timestamp). The first call initialises the state; subsequent calls update it.
-
-The implementation uses:
+The PID controller uses:
 - **Derivative on measurement** (not on error) to avoid setpoint kick
 - **Anti-windup** via back-calculation clamping of the integral term
 
+#### `alg.initPID()`
+
+Create a new PID controller instance and return a unique handle. Store the handle in a variable for use with `alg.computePID()` and `alg.resetPID()`.
+
+```lua
+local myPID = alg.initPID()
+```
+
+**Returns:** string — unique handle (e.g., "pid_0", "pid_1", ...)
+
+---
+
+#### `alg.computePID(handle, setpoint, pv, kp, ki, kd, outMin, outMax)`
+
+Compute one step of a PID controller using an explicit handle. The handle must be obtained from `alg.initPID()`.
+
 ```lua
 -- Follow a target distance of 30 cm using a distance sensor
+local myPID = alg.initPID()
+
+-- In control loop:
 local setpoint = 30
 local pv = lego.getmodedataset(PORT1, 0)
-local output = alg.PID("distance_ctrl", setpoint, pv, 2.0, 0.1, 0.05, -127, 127)
+local output = alg.computePID(myPID, setpoint, pv, 2.0, 0.1, 0.05, -127, 127)
 hub.setmotorspeed(PORT2, math.floor(output))
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `blockId` | string | Unique ID for this controller instance |
+| `handle` | string | Handle from `alg.initPID()` |
 | `setpoint` | number | Target (desired) value |
 | `pv` | number | Process variable (current measured value) |
 | `kp` | number | Proportional gain |
@@ -666,30 +683,150 @@ hub.setmotorspeed(PORT2, math.floor(output))
 | `outMin` | number | Lower clamp on the output |
 | `outMax` | number | Upper clamp on the output |
 
-**Returns:** number — control output, clamped to [`outMin`, `outMax`]. Returns `0` on the first call (dt is zero on the first iteration).
+**Returns:** number — control output, clamped to [`outMin`, `outMax`]. Returns `0` on the first call (dt is zero on the first iteration) or if the handle is not found.
 
 ---
 
-### `alg.resetPID(blockId)`
+#### `alg.resetPID(handle)`
 
 Reset the state (integral, previous error, and timestamp) of a specific PID controller.
 
 ```lua
-alg.resetPID("distance_ctrl")
+local myPID = alg.initPID()
+-- ... use the controller ...
+alg.resetPID(myPID)  -- Reset when switching setpoints
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `blockId` | string | ID of the controller to reset |
+| `handle` | string | Handle from `alg.initPID()` |
 
 ---
 
-### `alg.clearAllPID()`
+#### `alg.clearAllPID()`
 
 Clear the state of all PID controller instances.
 
 ```lua
 alg.clearAllPID()
+```
+
+---
+
+### Dead Reckoning
+
+Dead reckoning estimates a robot's position and heading by integrating wheel encoder and IMU sensor readings over time. The implementation:
+- Fuses differential drive kinematics with IMU yaw measurements
+- Uses the ROS REP 103/105 coordinate system (+X forward, +Y left, heading counterclockwise from +X)
+- Requires motors in POS mode (use `lego.selectmode(port, 2)` for standard LEGO motors)
+
+See [DEADRECKONING.md](DEADRECKONING.md) for algorithm details.
+
+#### `alg.initDR()`
+
+Create a new dead reckoning instance and return a unique handle. Store the handle in a variable for use with other DR functions.
+
+```lua
+local myRobot = alg.initDR()
+```
+
+**Returns:** string — unique handle (e.g., "dr_0", "dr_1", ...)
+
+---
+
+#### `alg.updateDR(handle, leftTicks, rightTicks, yawDeg, wheelbase, mPerTick, imuWeight)`
+
+Update the dead reckoning state with new encoder and IMU readings. Call this regularly (e.g., every 50–100 ms) in your control loop.
+
+```lua
+local myRobot = alg.initDR()
+
+-- In control loop:
+local leftTicks = lego.getmodedataset(PORT1, 0)
+local rightTicks = lego.getmodedataset(PORT2, 0)
+local yaw = imu.value(YAW)
+alg.updateDR(myRobot, leftTicks, rightTicks, yaw, 0.12, 0.0005, 0.8)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `handle` | string | Handle from `alg.initDR()` |
+| `leftTicks` | number | Current left encoder reading (absolute position) |
+| `rightTicks` | number | Current right encoder reading (absolute position) |
+| `yawDeg` | number | Current IMU yaw reading in degrees (0–360) |
+| `wheelbase` | number | Distance between left and right wheels in meters |
+| `mPerTick` | number | Meters of travel per encoder tick |
+| `imuWeight` | number | IMU fusion weight (0.0 = pure odometry, 1.0 = pure IMU, 0.8 recommended) |
+
+**Note:** The first call to `updateDR()` initializes the state and does not update the pose (it just records the initial sensor readings). Position updates begin on the second call.
+
+---
+
+#### `alg.drGet(handle, field)`
+
+Get a component of the current estimated pose.
+
+```lua
+local x = alg.drGet(myRobot, "x")           -- meters, +X forward
+local y = alg.drGet(myRobot, "y")           -- meters, +Y left
+local heading = alg.drGet(myRobot, "heading")  -- degrees, CCW from +X
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `handle` | string | Handle from `alg.initDR()` |
+| `field` | string | Field name: `"x"`, `"y"`, or `"heading"` |
+
+**Returns:** number
+- `"x"` and `"y"`: position in meters (ROS REP 103 convention)
+- `"heading"`: orientation in degrees (counterclockwise from +X axis)
+
+Returns `0` if the handle is not found or the field name is invalid.
+
+---
+
+#### `alg.drReset(handle)`
+
+Reset the dead reckoning state to the origin (x=0, y=0, heading=0) and mark it uninitialized. The next `updateDR()` call will re-bootstrap from current sensor readings.
+
+```lua
+alg.drReset(myRobot)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `handle` | string | Handle from `alg.initDR()` |
+
+---
+
+#### `alg.drSetPose(handle, x, y, headingDeg)`
+
+Inject a known pose into the dead reckoning state. Use this to:
+- Set an initial pose before starting the control loop
+- Correct drift using external localization (e.g., detected landmarks)
+
+```lua
+-- Set initial position at (1.5, 0.5) facing 45 degrees
+alg.drSetPose(myRobot, 1.5, 0.5, 45)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `handle` | string | Handle from `alg.initDR()` |
+| `x` | number | X position in meters |
+| `y` | number | Y position in meters |
+| `headingDeg` | number | Heading in degrees (counterclockwise from +X) |
+
+**Note:** This updates the pose but does not reset the encoder/IMU baselines. The next `updateDR()` call will compute deltas from the current sensor readings.
+
+---
+
+#### `alg.clearAllDR()`
+
+Clear the state of all dead reckoning instances.
+
+```lua
+alg.clearAllDR()
 ```
 
 ---

@@ -1,6 +1,7 @@
 #include "imu.h"
 
 #include "i2csync.h"
+#include "imu_config.h"
 #include "logging.h"
 
 #include <I2Cdev.h>
@@ -51,44 +52,72 @@ IMU::IMU() {
 
 IMU::~IMU() {}
 
+// Apply imuAxisMap to remap a 3-vector [x, y, z] from physical to logical frame.
+// raw[0]=X, raw[1]=Y, raw[2]=Z; result[i] = sum_j(imuAxisMap[i][j] * raw[j])
+std::array<float, 3> IMU::applyAxisMapping(const std::array<float, 3>& raw) {
+	std::array<float, 3> result = {};
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			result[static_cast<size_t>(i)] +=
+			    imuAxisMap[static_cast<size_t>(i)][static_cast<size_t>(j)] * raw[static_cast<size_t>(j)];
+		}
+	}
+	return result;
+}
+
 float IMU::getAccelerationX() {
 	i2c_lock();
-	float result = aaWorld_.x * mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2;
+	const auto scale = static_cast<float>(mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2);
+	const std::array<float, 3> raw = {static_cast<float>(aaWorld_.x) * scale, static_cast<float>(aaWorld_.y) * scale,
+	                                  static_cast<float>(aaWorld_.z) * scale};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return corrected[0];
 }
 
 float IMU::getAccelerationY() {
 	i2c_lock();
-	float result = aaWorld_.y * mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2;
+	const auto scale = static_cast<float>(mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2);
+	const std::array<float, 3> raw = {static_cast<float>(aaWorld_.x) * scale, static_cast<float>(aaWorld_.y) * scale,
+	                                  static_cast<float>(aaWorld_.z) * scale};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return corrected[1];
 }
 
 float IMU::getAccelerationZ() {
 	i2c_lock();
-	float result = aaWorld_.z * mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2;
+	const auto scale = static_cast<float>(mpu_.get_acce_resolution() * EARTH_GRAVITY_MS2);
+	const std::array<float, 3> raw = {static_cast<float>(aaWorld_.x) * scale, static_cast<float>(aaWorld_.y) * scale,
+	                                  static_cast<float>(aaWorld_.z) * scale};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return corrected[2];
 }
 
 float IMU::getYaw() {
 	i2c_lock();
-	float result = ypr_[0] * RAD_TO_DEG;
+	// ypr_[0]=yaw (Z), ypr_[1]=pitch (Y), ypr_[2]=roll (X) → map to [X, Y, Z]
+	const std::array<float, 3> raw = {ypr_[2], ypr_[1], ypr_[0]};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return static_cast<float>(corrected[2] * RAD_TO_DEG);
 }
+
 float IMU::getPitch() {
 	i2c_lock();
-	float result = ypr_[1] * RAD_TO_DEG;
+	const std::array<float, 3> raw = {ypr_[2], ypr_[1], ypr_[0]};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return static_cast<float>(corrected[1] * RAD_TO_DEG);
 }
+
 float IMU::getRoll() {
 	i2c_lock();
-	float result = ypr_[2] * RAD_TO_DEG;
+	const std::array<float, 3> raw = {ypr_[2], ypr_[1], ypr_[0]};
+	const auto corrected = applyAxisMapping(raw);
 	i2c_unlock();
-	return result;
+	return static_cast<float>(corrected[0] * RAD_TO_DEG);
 }
 
 void IMU::loop() {

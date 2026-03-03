@@ -168,12 +168,12 @@ export const Progress = {
 /**
  * Register BLE event listeners.
  * Translates BLE events into state updates or direct component calls.
- * logger, uiComponents, and blocklyEditor are passed in from index.js
+ * logger, uiComponents, mapComponent, and blocklyEditor are passed in from index.js
  * since they are DOM elements managed at the top level.
  *
- * @param {{ logger: HTMLElement, uiComponents: HTMLElement, blocklyEditor: HTMLElement }} elements
+ * @param {{ logger: HTMLElement, uiComponents: HTMLElement, mapComponent: HTMLElement, blocklyEditor: HTMLElement }} elements
  */
-function setupEventListeners({ logger, uiComponents, blocklyEditor }) {
+function setupEventListeners({ logger, uiComponents, mapComponent, blocklyEditor }) {
     bleClient.removeAllEventListeners();
 
     bleClient.addEventListener(APP_EVENT_TYPE_LOG, (data) => {
@@ -191,6 +191,8 @@ function setupEventListeners({ logger, uiComponents, blocklyEditor }) {
         const command = JSON.parse(new TextDecoder().decode(data));
         if (command.type === 'thread_statistics') {
             blocklyEditor.addProfilingOverlay(command.blockid, command.min, command.avg, command.max);
+        } else if (command.type === 'map_points' || command.type === 'map_clear') {
+            mapComponent.processUIEvent(command);
         } else {
             uiComponents.processUIEvent(command);
         }

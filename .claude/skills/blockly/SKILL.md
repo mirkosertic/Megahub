@@ -116,8 +116,52 @@ Colors are Blockly hue values (0–360). Always import — never hardcode a numb
    - Add `import * as mh_myblock from './mh_myblock.js'` with the other imports
    - Add `mh_myblock` to the `customBlocks` object
 3. **Toolbox**: automatic — `generateToolbox()` groups by `category` field
-4. **Test** in dev mode: `npm run dev`
-5. **Regenerate docs**: `npm run generate-docs` (see below)
+4. **Write unit tests** — REQUIRED for every new block (see below)
+5. **Test** in dev mode: `npm run dev`
+6. **Regenerate docs**: `npm run generate-docs` (see below)
+
+---
+
+## Unit Tests — REQUIRED for Every New Block
+
+Every new block file **must** have a corresponding test file. This is a hard requirement.
+
+**Location:** `frontend/test/blockly/{block_type}.test.js`
+
+**Test file must cover:**
+1. **Generator output** — correct Lua string emitted for representative inputs
+2. **Field values** — all dropdown options generate the correct Lua variant
+3. **Statement vs. value form** (for dual-mode blocks like `mh_startthread` pattern) — both forms generate correct output
+4. **Edge cases** — empty inputs, zero values, boundary field options
+
+**Minimal test pattern:**
+```javascript
+import { describe, it, expect } from 'vitest';
+// Import the block definition
+import { definition } from '../../../../src/components/blockly/mh_myblock.js';
+
+describe('mh_myblock generator', () => {
+    it('generates correct Lua for basic case', () => {
+        const mockBlock = {
+            getFieldValue: (name) => name === 'MY_FIELD' ? 'VALUE' : '',
+            outputConnection: null,
+        };
+        const mockGenerator = {
+            valueToCode: (_b, _name, _prec) => '42',
+        };
+        const result = definition.generator(mockBlock, mockGenerator);
+        expect(result).toBe('myFunction(42, "VALUE")\n');
+    });
+});
+```
+
+**Run tests:**
+```bash
+cd frontend
+npm test
+```
+
+**When to create tests:** Immediately after creating the block file, before registering it in `component.js`. Tests run in CI — a block without tests is incomplete.
 
 The `component.js` registration loop handles everything:
 ```javascript

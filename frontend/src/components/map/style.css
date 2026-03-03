@@ -1,0 +1,149 @@
+:host {
+    --vscode-bg-primary: #1e1e1e;
+    --vscode-bg-secondary: #252526;
+    --vscode-bg-elevated: #2d2d30;
+    --vscode-bg-input: #3c3c3c;
+    --vscode-text-primary: #cccccc;
+    --vscode-text-secondary: #858585;
+    --vscode-text-tertiary: #6a6a6a;
+    --vscode-border-light: #3c3c3c;
+    --vscode-accent-teal: #4ec9b0;
+    --vscode-accent-blue: #007acc;
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 0.75rem;
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --transition-fast: 0.15s ease;
+    --transition-medium: 0.3s ease;
+    --font-xs: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem);
+    --font-fixed-11: 0.688rem;
+    --font-fixed-13: 0.813rem;
+    --line-height-base: 1.4;
+
+    display: block;
+    color: var(--vscode-text-primary);
+    line-height: var(--line-height-base);
+    background: var(--vscode-bg-primary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+:host(.accordion-expanded) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+:host(.accordion-expanded) .map-container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+:host(.accordion-expanded) .collapsible-content {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+}
+
+.map-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--vscode-bg-secondary);
+    border-bottom: 1px solid var(--vscode-border-light);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--transition-fast);
+}
+
+.collapsible-header:hover {
+    background: var(--vscode-bg-elevated);
+}
+
+.collapsible-header-title {
+    margin: 0;
+    font-weight: 600;
+    color: var(--vscode-text-primary);
+    font-size: var(--font-fixed-11);
+}
+
+@media (min-width: 768px) {
+    .collapsible-header-title {
+        font-size: var(--font-fixed-13);
+    }
+}
+
+.collapsible-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: all var(--transition-fast);
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.collapsible-toggle:hover {
+    color: var(--vscode-text-primary);
+    background: var(--vscode-bg-input);
+    border-radius: var(--radius-sm);
+}
+
+.collapsible-icon {
+    font-size: 10px;
+    transition: transform var(--transition-fast);
+    display: inline-block;
+}
+
+.map-container.collapsed .collapsible-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    overflow: hidden;
+    transition:
+        max-height var(--transition-medium),
+        opacity var(--transition-medium);
+    max-height: 300px;
+    opacity: 1;
+}
+
+@media (min-width: 768px) {
+    .collapsible-content {
+        max-height: 400px;
+    }
+}
+
+.map-container.collapsed .collapsible-content {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#mapCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--vscode-bg-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .collapsible-icon,
+    .collapsible-content {
+        transition: none;
+    }
+}

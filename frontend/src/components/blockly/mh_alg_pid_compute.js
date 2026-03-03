@@ -5,6 +5,16 @@ export const definition = {
     category: 'Algorithms',
     colour: colorAlgorithms,
     inputsForToolbox: {
+        HANDLE: {
+            shadow: {
+                type: 'variables_get',
+                fields: {
+                    VAR: {
+                        name: 'myPID',
+                    },
+                },
+            },
+        },
         SETPOINT: {
             shadow: {
                 type: 'math_number',
@@ -63,9 +73,14 @@ export const definition = {
         },
     },
     blockdefinition: {
-        type: 'mh_alg_pid',
-        message0: 'PID controller %1 setpoint: %2 PV: %3 \n%4 Kp: %5 Ki: %6 Kd: %7 %8 \noutput: %9 to %10',
+        type: 'mh_alg_pid_compute',
+        message0: 'PID compute %1 %2 setpoint: %3 PV: %4 \n%5 Kp: %6 Ki: %7 Kd: %8 %9 \noutput: %10 to %11',
         args0: [
+            {
+                type: 'input_value',
+                name: 'HANDLE',
+                check: null,
+            },
             {
                 type: 'input_dummy',
             },
@@ -114,10 +129,12 @@ export const definition = {
         output: 'Number',
         colour: colorAlgorithms,
         tooltip:
-            'Proportional-Integral-Derivative controller. Returns control output based on setpoint and process variable (PV).',
+            'Computes PID control output. The handle comes from "Initialize PID" block. ' +
+            'Returns the control value clamped to output range.',
         helpUrl: '',
     },
     generator: (block, generator) => {
+        const handle = generator.valueToCode(block, 'HANDLE', 0) || '"pid_0"';
         const setpoint = generator.valueToCode(block, 'SETPOINT', 0) || '0';
         const pv = generator.valueToCode(block, 'PV', 0) || '0';
         const kp = generator.valueToCode(block, 'KP', 0) || '1.0';
@@ -126,10 +143,7 @@ export const definition = {
         const outMin = generator.valueToCode(block, 'OUT_MIN', 0) || '-100';
         const outMax = generator.valueToCode(block, 'OUT_MAX', 0) || '100';
 
-        // Use block ID as unique identifier for state
-        const blockId = `"PID_${block.id}"`;
-
-        const command = `alg.PID(${blockId}, ${setpoint}, ${pv}, ${kp}, ${ki}, ${kd}, ${outMin}, ${outMax})`;
+        const command = `alg.computePID(${handle}, ${setpoint}, ${pv}, ${kp}, ${ki}, ${kd}, ${outMin}, ${outMax})`;
 
         return [command, 0];
     },

@@ -209,9 +209,17 @@ function attachShadowBlocks(block, inputsForToolbox) {
           });
         }
 
-        // Mark as shadow
+        // Mark as shadow and initialise SVG BEFORE attaching children,
+        // so the parent SVG element exists when children connect to its inputs.
         shadowBlock.setShadow(true);
         shadowBlock.initSvg();
+
+        // Recursively attach nested shadow blocks (e.g. PORT/DATASET inside lego_get_mode_dataset)
+        if (inputDef.shadow.inputs) {
+          attachShadowBlocks(shadowBlock, inputDef.shadow.inputs);
+        }
+
+        // Render after all children are connected so layout is computed correctly.
         shadowBlock.render();
 
         // Connect to parent block's input

@@ -3,6 +3,7 @@ import './components/files/component.js';
 import './components/logger/component.js';
 import './components/sidebar-toggle/component.js';
 import './components/ui/component.js';
+import './components/map/component.js';
 import './components/portstatus/component.js';
 import './components/blockly/component.js';
 import './components/luapreview/component.js';
@@ -36,6 +37,7 @@ const mode = import.meta.env.VITE_MODE;
 let blocklyEditor = null;
 let luaPreview = null;
 let uiComponents = null;
+let mapComponent = null;
 
 // ===== Notification System =====
 
@@ -418,6 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     luaPreview = document.getElementById('luapreview');
     uiComponents = document.getElementById('uicomponents');
+    mapComponent = document.getElementById('mapcomponent');
 
     // Wire up the save function to the autosave module
     setSaveFunction(saveWorkspace);
@@ -520,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const logger = document.getElementById('logger');
                 const uiEl = document.getElementById('uicomponents');
                 const blocklyEl = document.getElementById('blockly');
-                initBLEConnection({ logger, uiComponents: uiEl, blocklyEditor: blocklyEl });
+                initBLEConnection({ logger, uiComponents: uiEl, mapComponent, blocklyEditor: blocklyEl });
             });
         }
     } else {
@@ -540,7 +543,12 @@ document.addEventListener('DOMContentLoaded', () => {
             logger.addToLog(JSON.parse(event.data).message);
         });
         eventSource.addEventListener('command', (event) => {
-            uiComponents.processUIEvent(JSON.parse(event.data));
+            const cmd = JSON.parse(event.data);
+            if (cmd.type === 'map_points' || cmd.type === 'map_clear') {
+                mapComponent.processUIEvent(cmd);
+            } else {
+                uiComponents.processUIEvent(cmd);
+            }
         });
         eventSource.addEventListener('portstatus', (event) => {
             // Update via state so portstatus component re-renders automatically

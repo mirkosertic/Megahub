@@ -3,6 +3,8 @@
 
 #include "MPU6050_6Axis_MotionApps20.h"
 
+#include <array>
+
 class IMU {
   private:
 	long lastchecktime_;
@@ -17,6 +19,9 @@ class IMU {
 	VectorFloat gravity_; // [x, y, z]            Gravity vector
 	// float euler_[3]; // [psi, theta, phi]    Euler angle container
 	float ypr_[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector
+
+	static std::array<float, 3> applyAxisMapping(const std::array<float, 3>& raw);
+
   public:
 	IMU();
 	virtual ~IMU();

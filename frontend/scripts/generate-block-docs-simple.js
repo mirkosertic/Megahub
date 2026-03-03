@@ -79,7 +79,16 @@ async function loadBlockDefinitions() {
 		mh_gamepad_value : await import('../src/components/blockly/mh_gamepad_value.js'),
 		mh_gamepad_connected : await import('../src/components/blockly/mh_gamepad_connected.js'),
 		mh_debug_millis : await import('../src/components/blockly/mh_debug_millis.js'),
-		mh_alg_pid : await import('../src/components/blockly/mh_alg_pid.js'),
+		mh_alg_pid_init : await import('../src/components/blockly/mh_alg_pid_init.js'),
+		mh_alg_pid_compute : await import('../src/components/blockly/mh_alg_pid_compute.js'),
+		mh_alg_pid_reset : await import('../src/components/blockly/mh_alg_pid_reset.js'),
+		mh_alg_dr_init : await import('../src/components/blockly/mh_alg_dr_init.js'),
+		mh_alg_dr_update : await import('../src/components/blockly/mh_alg_dr_update.js'),
+		mh_alg_dr_get : await import('../src/components/blockly/mh_alg_dr_get.js'),
+		mh_alg_dr_reset : await import('../src/components/blockly/mh_alg_dr_reset.js'),
+		mh_alg_dr_set_pose : await import('../src/components/blockly/mh_alg_dr_set_pose.js'),
+		ui_map_update : await import('../src/components/blockly/ui_map_update.js'),
+		ui_map_clear : await import('../src/components/blockly/ui_map_clear.js'),
 	};
 
 	const colors = await import('../src/components/blockly/colors.js');
@@ -243,7 +252,18 @@ async function loadBlockDefinitions() {
 		mh_stopthread : blockModules.mh_stopthread.definition,
 
 		// Algorithms
-		mh_alg_pid : blockModules.mh_alg_pid.definition
+		mh_alg_pid_init : blockModules.mh_alg_pid_init.definition,
+		mh_alg_pid_compute : blockModules.mh_alg_pid_compute.definition,
+		mh_alg_pid_reset : blockModules.mh_alg_pid_reset.definition,
+		mh_alg_dr_init : blockModules.mh_alg_dr_init.definition,
+		mh_alg_dr_update : blockModules.mh_alg_dr_update.definition,
+		mh_alg_dr_get : blockModules.mh_alg_dr_get.definition,
+		mh_alg_dr_reset : blockModules.mh_alg_dr_reset.definition,
+		mh_alg_dr_set_pose : blockModules.mh_alg_dr_set_pose.definition,
+
+		// Map UI blocks
+		ui_map_update : blockModules.ui_map_update.definition,
+		ui_map_clear : blockModules.ui_map_clear.definition,
 	};
 
 	return {customBlocks, colors};
@@ -321,10 +341,11 @@ async function renderBlockSVGs(blocks) {
 
 		const page = await browser.newPage();
 
-		// Set white background for screenshots
+		// Set viewport large enough for wide/tall blocks (e.g. mh_alg_dr_update with nested shadows).
+		// #blocklyDiv in block-renderer.html must match these CSS pixel dimensions.
 		await page.setViewport({
-			width : 1200,
-			height : 800,
+			width : 2400,
+			height : 2400,
 			deviceScaleFactor : 2 // 2x for higher quality images
 		});
 

@@ -1,8 +1,8 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-01-28
+**Generated:** 2026-03-03
 
-This documentation covers all 73 blocks used in the Megahub project, including 25 custom blocks and 48 standard Blockly blocks with custom colors.
+This documentation covers all 82 blocks used in the Megahub project, including 34 custom blocks and 48 standard Blockly blocks with custom colors.
 
 Block images are rendered as high-quality PNG screenshots to accurately show all block features including text inputs, checkboxes, and statement blocks.
 
@@ -19,8 +19,8 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 - [Gamepad](#gamepad) (5 blocks)
 - [FastLED](#fastled) (4 blocks)
 - [IMU](#imu) (1 blocks)
-- [UI](#ui) (1 blocks)
-- [Algorithms](#algorithms) (1 blocks)
+- [UI](#ui) (3 blocks)
+- [Algorithms](#algorithms) (8 blocks)
 - [Debug](#debug) (2 blocks)
 
 ## Control flow
@@ -941,24 +941,68 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 ---
 
-## Algorithms
+### ui_map_update
 
-### mh_alg_pid
+![ui_map_update](docs/blocks/ui/ui_map_update.png)
 
-![mh_alg_pid](docs/blocks/algorithms/mh_alg_pid.png)
+**Description:** Sends the current robot position to the map visualization panel. x and y in meters, heading in degrees. Internally rate-limited to ~5 Hz. See DEADRECKONING.md for details.
 
-**Description:** Proportional-Integral-Derivative controller. Returns control output based on setpoint and process variable (PV).
+**Type:** Custom Statement Block
 
-**Type:** Custom Value Block
-
-**Message:** `PID controller %1 setpoint: %2 PV: %3 
-%4 Kp: %5 Ki: %6 Kd: %7 %8 
-output: %9 to %10`
+**Message:** `Map: plot position %1 x: %2 y: %3 heading: %4`
 
 **Inputs:**
 
 | Name | Type | Check |
 |------|------|-------|
+| undefined | input_dummy | Any |
+| X | input_value | Number |
+| Y | input_value | Number |
+| HEADING | input_value | Number |
+
+---
+
+### ui_map_clear
+
+![ui_map_clear](docs/blocks/ui/ui_map_clear.png)
+
+**Description:** Clears the map trail in the visualization panel. See DEADRECKONING.md for details.
+
+**Type:** Custom Statement Block
+
+**Message:** `Map: clear`
+
+---
+
+## Algorithms
+
+### mh_alg_pid_init
+
+![mh_alg_pid_init](docs/blocks/algorithms/mh_alg_pid_init.png)
+
+**Description:** Creates a new PID controller instance and returns a handle. Store this in a variable for use with PID compute and reset blocks.
+
+**Message:** `Initialize PID`
+
+---
+
+### mh_alg_pid_compute
+
+![mh_alg_pid_compute](docs/blocks/algorithms/mh_alg_pid_compute.png)
+
+**Description:** Computes PID control output. The handle comes from "Initialize PID" block. Returns the control value clamped to output range.
+
+**Type:** Custom Value Block
+
+**Message:** `PID compute %1 %2 setpoint: %3 PV: %4 
+%5 Kp: %6 Ki: %7 Kd: %8 %9 
+output: %10 to %11`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
 | undefined | input_dummy | Any |
 | SETPOINT | input_value | Number |
 | PV | input_value | Number |
@@ -969,6 +1013,127 @@ output: %9 to %10`
 | undefined | input_dummy | Any |
 | OUT_MIN | input_value | Number |
 | OUT_MAX | input_value | Number |
+
+---
+
+### mh_alg_pid_reset
+
+![mh_alg_pid_reset](docs/blocks/algorithms/mh_alg_pid_reset.png)
+
+**Description:** Resets PID controller state (clears integral accumulator and error history). Use when switching setpoints or restarting control.
+
+**Type:** Custom Statement Block
+
+**Message:** `Reset PID %1`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+
+---
+
+### mh_alg_dr_init
+
+![mh_alg_dr_init](docs/blocks/algorithms/mh_alg_dr_init.png)
+
+**Description:** Creates a new dead reckoning instance and returns a handle. Store this in a variable for use with other DR blocks.
+
+**Message:** `Initialize DR`
+
+---
+
+### mh_alg_dr_update
+
+![mh_alg_dr_update](docs/blocks/algorithms/mh_alg_dr_update.png)
+
+**Description:** Updates the dead reckoning state with new encoder and IMU readings. The handle comes from the "Initialize DR" block stored in a variable. Requires LEGO motor in POS mode (selectmode port 2). See DEADRECKONING.md for algorithm details.
+
+**Type:** Custom Statement Block
+
+**Message:** `Update DR %1 %2 left ticks: %3 right ticks: %4 
+%5 yaw (deg): %6 m/tick: %7 wheelbase (m): %8 
+%9 IMU weight: %10`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| LEFT_TICKS | input_value | Number |
+| RIGHT_TICKS | input_value | Number |
+| undefined | input_dummy | Any |
+| YAW | input_value | Number |
+| M_PER_TICK | input_value | Number |
+| WHEELBASE | input_value | Number |
+| undefined | input_dummy | Any |
+| IMU_WEIGHT | input_value | Number |
+
+---
+
+### mh_alg_dr_get
+
+![mh_alg_dr_get](docs/blocks/algorithms/mh_alg_dr_get.png)
+
+**Description:** Gets a pose component (X/Y in meters, HEADING in degrees) from a dead reckoning instance. Connect the handle from a DR update block variable. See DEADRECKONING.md for details.
+
+**Type:** Custom Value Block
+
+**Message:** `DR pose %1 of %2`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+
+**Fields:**
+
+| Name | Type | Options/Default |
+|------|------|----------------|
+| FIELD | field_dropdown | `X`, `Y`, `HEADING` |
+
+---
+
+### mh_alg_dr_reset
+
+![mh_alg_dr_reset](docs/blocks/algorithms/mh_alg_dr_reset.png)
+
+**Description:** Resets the dead reckoning pose to (0, 0, 0°). The next update call re-bootstraps tick tracking so no spurious jump occurs. See DEADRECKONING.md for details.
+
+**Type:** Custom Statement Block
+
+**Message:** `Reset DR pose of %1`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+
+---
+
+### mh_alg_dr_set_pose
+
+![mh_alg_dr_set_pose](docs/blocks/algorithms/mh_alg_dr_set_pose.png)
+
+**Description:** Injects a known absolute pose (x, y in meters; heading in degrees) into the dead reckoning state. Use when a landmark is detected to correct accumulated drift. See DEADRECKONING.md for details.
+
+**Type:** Custom Statement Block
+
+**Message:** `Set DR pose of %1 %2 x: %3 y: %4 heading: %5`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| X | input_value | Number |
+| Y | input_value | Number |
+| HEADING | input_value | Number |
 
 ---
 
@@ -996,10 +1161,10 @@ output: %9 to %10`
 
 ## Generation Statistics
 
-- Total blocks: 73
-- Custom Megahub blocks: 25
+- Total blocks: 82
+- Custom Megahub blocks: 34
 - Standard Blockly blocks: 48
-- PNG images generated: 73
+- PNG images generated: 82
 
 ---
 
