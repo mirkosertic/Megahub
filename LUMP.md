@@ -70,34 +70,34 @@ Before any sensor data flows, device and hub go through a structured initializat
 
 ```
 Device                          Hub (Megahub)
-  |                                 |
+  |                                |
   |--- CMD_TYPE ------------------>|   "I am device type 37"
   |--- CMD_MODES ----------------->|   "I have 10 modes"
   |--- CMD_SPEED ----------------->|   "Please switch to 115200 baud"
   |--- CMD_VERSION --------------->|   "FW 1.0.0.0, HW 1.0.0.0"
-  |                                 |
-  |  (for each mode 0..N-1:)        |
+  |                                |
+  |  (for each mode 0..N-1:)       |
   |--- INFO NAME (mode X) -------->|   "Mode 0 is called COLOR"
   |--- INFO RAW  (mode X) -------->|   "Raw range: 0.0 – 10.0"
   |--- INFO PCT  (mode X) -------->|   "Pct range: 0.0 – 100.0"
   |--- INFO SI   (mode X) -------->|   "SI  range: 0.0 – 10.0"
   |--- INFO UNITS(mode X) -------->|   "Unit symbol: IDX"
   |--- INFO MAP  (mode X) -------->|   "Supports ABS input"
-  |--- INFO FORMAT(mode X)------->|   "1 dataset × DATA8, 3 sig figs"
-  |  (repeat for all modes)         |
-  |                                 |
+  |--- INFO FORMAT(mode X)-------->|   "1 dataset × DATA8, 3 sig figs"
+  |  (repeat for all modes)        |
+  |                                |
   |--- SYS ACK ------------------->|   "Handshake complete"
-  |                                 |
-  |<-- SYS ACK -------------------|   Hub acknowledges
-  |                                 |
-  [Both sides switch to high baud]  |
-  |                                 |
-  |<-- CMD SELECT mode 0 ---------|   Hub selects default mode
-  |                                 |
+  |                                |
+  |<-- SYS ACK --------------------|   Hub acknowledges
+  |                                |
+  [Both sides switch to high baud] |
+  |                                |
+  |<-- CMD SELECT mode 0 ----------|   Hub selects default mode
+  |                                |
   |--- DATA frame (mode 0)-------->|   Sensor data streaming begins
   |--- DATA frame (mode 0)-------->|
-  |        ...                      |
-  |<-- SYS NACK (every ~50 ms) ---|   Hub keep-alive
+  |        ...                     |
+  |<-- SYS NACK (every ~50 ms) ----|   Hub keep-alive
   |--- DATA frame (mode 0)-------->|
 ```
 
@@ -122,8 +122,8 @@ All LUMP messages share the same outer envelope:
 
 ```
  ┌──────────┬───────────┬──────────────────────┬───────────┐
- │  Header  │ INFO type │  Data payload         │ Checksum  │
- │  1 byte  │  1 byte   │  variable length      │  1 byte   │
+ │  Header  │ INFO type │  Data payload        │ Checksum  │
+ │  1 byte  │  1 byte   │  variable length     │  1 byte   │
  └──────────┴───────────┴──────────────────────┴───────────┘
 ```
 
@@ -136,7 +136,7 @@ Every non-system message starts with a header byte. The 8 bits are split into th
 ```
   Bit:  7   6   5   4   3   2   1   0
         ├───┤   ├───────────┤   ├───┤
-        MSG TYPE  SIZE ENC       CMD/MODE
+        MSG TYPE  SIZE ENC      CMD/MODE
         (2 bits)  (3 bits)      (3 bits)
 ```
 
@@ -329,7 +329,10 @@ The lower 3 bits of the header carry the **mode index** (0–7). Modes 8–15 ar
 The INFO type byte has the following format:
 ```
   Bit:  7   6   5   4   3   2   1   0
-                └── MODE_PLUS_8 flag   └── INFO type (0x00-0x1F)
+        └─┬─┘   │   └───────┬───────┘
+          │     │           └─ INFO type (5 bits: 0x00-0x1F)
+          │     └─ MODE_PLUS_8 flag (0x20)
+       unused
 ```
 
 If bit 5 (`0x20`) is set in the INFO byte, the effective mode index = header mode bits + 8.
