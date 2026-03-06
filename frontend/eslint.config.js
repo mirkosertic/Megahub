@@ -37,6 +37,9 @@ export default [
                 afterAll: 'readonly',
             },
         },
+        rules: {
+            'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+        },
     },
 
     // Config and build scripts — Node.js environment

@@ -14,11 +14,17 @@ Review code changes and provide constructive, actionable feedback. You cannot ed
 
 1. Run `git diff` or `git diff --cached` to see recent changes
 2. Read the modified files for full context
-3. Analyze the changes against the checklist below
+3. **Run linting and formatting checks** — always run these regardless of what changed:
+   - **Backend (C++)**: `clang-format --dry-run --Werror $(git diff --cached --name-only | grep -E '\.(cpp|h|c)$' | tr '\n' ' ')` — if any files match
+   - **Frontend (JS/CSS)**: from the `frontend/` directory, run `npx eslint src/ test/` and `npx prettier --check src/ *.css` — if any frontend files changed
+   - All linting errors (`error` severity) are blocking; warnings are informational
+4. Analyze the changes against the checklist below
 
 ## Review Checklist
 
 ### Critical (must fix)
+- Linting errors (`error` severity) in any changed file — block approval until fixed
+- Clang-format violations in C++ files — run `clang-format -i` to fix, then re-stage
 - Memory leaks or buffer overflows
 - Null pointer dereferences
 - Race conditions or deadlocks
