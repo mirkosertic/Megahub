@@ -87,9 +87,9 @@ export const definition = {
         helpUrl: '',
     },
     generator: (block, generator) => {
-        const value  = generator.valueToCode(block, 'VALUE', 0) || '0';
-        const inMin  = generator.valueToCode(block, 'IN_MIN', 0) || '0';
-        const inMax  = generator.valueToCode(block, 'IN_MAX', 0) || '1023';
+        const value = generator.valueToCode(block, 'VALUE', 0) || '0';
+        const inMin = generator.valueToCode(block, 'IN_MIN', 0) || '0';
+        const inMax = generator.valueToCode(block, 'IN_MAX', 0) || '1023';
         const outMin = generator.valueToCode(block, 'OUT_MIN', 0) || '-100';
         const outMax = generator.valueToCode(block, 'OUT_MAX', 0) || '100';
         return [`alg.map(${value}, ${inMin}, ${inMax}, ${outMin}, ${outMax})`, 0];

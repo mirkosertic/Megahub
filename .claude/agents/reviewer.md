@@ -16,7 +16,7 @@ Review code changes and provide constructive, actionable feedback. You cannot ed
 2. Read the modified files for full context
 3. **Run linting and formatting checks** — always run these regardless of what changed:
    - **Backend (C++)**: `clang-format --dry-run --Werror $(git diff --cached --name-only | grep -E '\.(cpp|h|c)$' | tr '\n' ' ')` — if any files match
-   - **Frontend (JS/CSS)**: from the `frontend/` directory, run `npx eslint src/ test/` and `npx prettier --check src/ *.css` — if any frontend files changed
+   - **Frontend (JS/CSS)**: from the `frontend/` directory, run `npx eslint src/ test/` and `npm run format:check` — if any frontend files changed
    - All linting errors (`error` severity) are blocking; warnings are informational
 4. Analyze the changes against the checklist below
 

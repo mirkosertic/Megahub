@@ -65,7 +65,7 @@ export const definition = {
     },
     generator: (block, generator) => {
         const handle = generator.valueToCode(block, 'HANDLE', 0) || '"ma_0"';
-        const value  = generator.valueToCode(block, 'VALUE', 0) || '0';
+        const value = generator.valueToCode(block, 'VALUE', 0) || '0';
         const window = generator.valueToCode(block, 'WINDOW', 0) || '10';
         return [`alg.movingAvg(${handle}, ${value}, ${window})`, 0];
     },
