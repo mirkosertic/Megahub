@@ -2,19 +2,36 @@
 
 extern Megahub* getMegaHubRef(lua_State* L);
 
-int lego_getmodedataset(lua_State* luaState) {
+int lego_getdevicemode(lua_State* luaState) {
 
 	int port = luaL_checkinteger(luaState, 1);
-	int dataset = luaL_checkinteger(luaState, 2);
 
-	DEBUG("Getting dataset %d of port %d", dataset, port);
+	DEBUG("Getting selected mode of port %d", port);
 
 	Megahub* megahub = getMegaHubRef(luaState);
 	LegoDevice* device = megahub->port(port);
 	if (device != nullptr) {
-		int selectedMode = device->getSelectedModeIndex();
-		if (selectedMode != -1) {
-			Mode* mode = device->getMode(selectedMode);
+		lua_pushinteger(luaState, device->getSelectedModeIndex());
+	} else {
+		WARN("Could not get device for port %d", port);
+		lua_pushinteger(luaState, -1);
+	}
+	return 1;
+}
+
+int lego_getmodedataset(lua_State* luaState) {
+
+	int port = luaL_checkinteger(luaState, 1);
+	int modeIndex = luaL_checkinteger(luaState, 2);
+	int dataset = luaL_checkinteger(luaState, 3);
+
+	DEBUG("Getting dataset %d of mode %d of port %d", dataset, modeIndex, port);
+
+	Megahub* megahub = getMegaHubRef(luaState);
+	LegoDevice* device = megahub->port(port);
+	if (device != nullptr) {
+		if (modeIndex != -1) {
+			Mode* mode = device->getMode(modeIndex);
 			if (mode != nullptr) {
 				Dataset* ds = mode->getDataset(dataset);
 				if (ds != nullptr) {
@@ -35,19 +52,28 @@ int lego_getmodedataset(lua_State* luaState) {
 							lua_pushnumber(luaState, ds->getDataAsInt());
 							return 1;
 						}
+						case Format::FormatType::UNKNOWN: {
+							// Format was declared during handshake but no data frame has
+							// arrived yet for this mode (e.g. COUNT on the Color+Distance
+							// sensor is only sent spontaneously when the counter changes).
+							// Return 0 silently — this is normal transient state, not an error.
+							DEBUG("Mode %d dataset %d: no data received yet (UNKNOWN type), returning 0", modeIndex,
+							      dataset);
+							break;
+						}
 						default: {
-							WARN("Unsupported data format for mode %d and dataset %d : %d", selectedMode, dataset,
-							     ds->getType());
+							WARN("Unsupported data format for mode %d and dataset %d : %d", modeIndex, dataset,
+							     static_cast<int>(ds->getType()));
 						}
 					}
 				} else {
-					WARN("Could not get dataset %d for selected mode of port %d", dataset, port);
+					WARN("Could not get dataset %d for mode %d of port %d", dataset, modeIndex, port);
 				}
 			} else {
-				WARN("Could not get selected mode for port %d", port);
+				WARN("Could not get mode %d for port %d", modeIndex, port);
 			}
 		} else {
-			WARN("Selected mode is undefined : %d", selectedMode);
+			WARN("Mode index is undefined : %d", modeIndex);
 		}
 	} else {
 		WARN("Could not get device for port %d", port);
@@ -80,9 +106,10 @@ int lego_select_mode(lua_State* luaState) {
 
 int lego_library(lua_State* luaState) {
 	const luaL_Reg hubfunctions[] = {
+	    { "getdevicemode",  lego_getdevicemode},
 	    {"getmodedataset", lego_getmodedataset},
-        {    "selectmode",    lego_select_mode},
-        {            NULL,                NULL}
+	    {    "selectmode",    lego_select_mode},
+	    {	        NULL,	            NULL}
     };
 	luaL_newlib(luaState, hubfunctions);
 	return 1;

@@ -29,6 +29,7 @@ import {definition as mh_imu_value} from '../src/components/blockly/mh_imu_value
 import {definition as ui_show_value} from '../src/components/blockly/ui_show_value.js';
 import {definition as mh_debug_free_heap} from '../src/components/blockly/mh_debug_free_heap.js';
 import {definition as mh_port} from '../src/components/blockly/mh_port.js';
+import {definition as lego_get_device_mode} from '../src/components/blockly/lego_get_device_mode.js';
 import {definition as lego_get_mode_dataset} from '../src/components/blockly/lego_get_mode_dataset.js';
 import {definition as lego_select_mode} from '../src/components/blockly/lego_select_mode.js';
 import {definition as gamepad_gamepad} from '../src/components/blockly/mh_gamepad_gamepad.js';
@@ -115,6 +116,7 @@ const customBlocks = {
   "mh_gamepad_buttonsraw": gamepad_buttonsraw,
   "mh_gamepad_value": gamepad_value,
   "mh_gamepad_connected": gamepad_connected,
+  "lego_get_device_mode": lego_get_device_mode,
   "lego_get_mode_dataset": lego_get_mode_dataset,
   "lego_select_mode": lego_select_mode,
   "mh_fastled_addleds": mh_fastled_addleds,

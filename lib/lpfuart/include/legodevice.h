@@ -93,6 +93,9 @@ class LegoDevice {
   private:
 	int getDefaultMode();
 	void logParserStats();
+	// Device-specific fan-out: distributes combined-mode frames to individual mode slots.
+	// Returns true if the frame was fully handled (caller must skip generic processDataPacket).
+	bool distributeCombinedFrame(int mode, const uint8_t* payload, int payloadSize);
 
 	long serialSpeed_;
 	std::array<Mode, 16> modes_;

@@ -133,7 +133,7 @@ void Mode::processDataPacket(const uint8_t* payload, int payloadSize) {
 	int expectedSize = format_->getDatasets() * datasetSize;
 	if (expectedSize != payloadSize) {
 		WARN("Got data %s, expecting %d datasets of type %d, but wrong size. Expected %d, got %d", payloadHex.c_str(),
-		     format_->getDatasets(), format_->getFormatType(), expectedSize, datasetSize);
+		     format_->getDatasets(), format_->getFormatType(), expectedSize, payloadSize);
 		return;
 	}
 

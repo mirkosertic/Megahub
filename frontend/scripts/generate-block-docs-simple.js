@@ -71,6 +71,7 @@ async function loadBlockDefinitions() {
 		ui_show_value : await import('../src/components/blockly/ui_show_value.js'),
 		mh_debug_free_heap : await import('../src/components/blockly/mh_debug_free_heap.js'),
 		mh_port : await import('../src/components/blockly/mh_port.js'),
+		lego_get_device_mode : await import('../src/components/blockly/lego_get_device_mode.js'),
 		lego_get_mode_dataset : await import('../src/components/blockly/lego_get_mode_dataset.js'),
 		lego_select_mode : await import('../src/components/blockly/lego_select_mode.js'),
 		mh_gamepad_gamepad : await import('../src/components/blockly/mh_gamepad_gamepad.js'),
@@ -230,6 +231,7 @@ async function loadBlockDefinitions() {
 		mh_gamepad_connected : blockModules.mh_gamepad_connected.definition,
 
 		// LEGO blocks
+		lego_get_device_mode : blockModules.lego_get_device_mode.definition,
 		lego_get_mode_dataset : blockModules.lego_get_mode_dataset.definition,
 		lego_select_mode : blockModules.lego_select_mode.definition,
 

@@ -413,12 +413,71 @@ SerialIO* LegoDevice::getSerialIO() {
 }
 
 void LegoDevice::onDataFrame(int mode, const uint8_t* payload, int payloadSize) {
+	// Device-specific fan-out takes priority: if distributeCombinedFrame handled
+	// the frame (e.g. SPEC1 on the Color+Distance sensor), skip the generic
+	// processDataPacket path.  Mode 8 has no FORMAT descriptor from the handshake,
+	// so calling processDataPacket on it would always emit a spurious WARN.
+	if (distributeCombinedFrame(mode, payload, payloadSize)) {
+		return;
+	}
 	Mode* m = getMode(mode);
 	if (m == nullptr) {
 		WARN("onDataFrame: invalid mode %d", mode);
 		return;
 	}
 	m->processDataPacket(payload, payloadSize);
+}
+
+bool LegoDevice::distributeCombinedFrame(int mode, const uint8_t* payload, int payloadSize) {
+	switch (deviceId_) {
+		case DEVICEID_BOOST_COLOR_DISTANCE_SENSOR: {
+			// SPEC1 (mode 8): 4 × DATA8 combined frame.
+			// Byte layout based on community reverse-engineering — verify on hardware:
+			//   [0] = color index  → mode 0 (COLOR, 1 × DATA8)
+			//   [1] = proximity    → mode 1 (PROX,  1 × DATA8)
+			//   [2] = reflected    → mode 3 (REFLT, 1 × DATA8)
+			//   [3] = ambient      → mode 4 (AMBI,  1 × DATA8)
+			// COUNT (mode 2, DATA32) is not distributed — SPEC1 only carries an
+			// 8-bit value which is incompatible with DATA32 format.
+			//
+			// Stray-SPEC1 rescue: UART overruns can drop the EXT_MODE byte that
+			// precedes each SPEC1 frame.  Without it the parser resolves the frame
+			// to mode (mode_bits + 0) instead of mode (mode_bits + 8), typically
+			// landing on mode 0.  All individual modes of this sensor are 1-byte
+			// DATA8, so a legitimate 4-byte payload on modes 0–7 is impossible.
+			// Treat any 4-byte DATA8 payload arriving on a mode < 8 as a stray
+			// SPEC1 frame and redistribute it rather than letting processDataPacket
+			// emit a wrong-size WARN.
+			if (payloadSize != 4 || mode > 8) {
+				return false;
+			}
+			if (mode != 8) {
+				// Stray SPEC1 frame: EXT_MODE byte was dropped by UART overrun.
+				// The parser resolved the mode to (mode_bits + 0) instead of
+				// (mode_bits + 8), landing on a low mode.  All individual modes of
+				// this sensor use 1-byte DATA8, so 4 bytes here can only be SPEC1.
+				DEBUG("BOOST sensor: stray SPEC1 on mode %d (EXT_MODE dropped), rescuing", mode);
+			}
+			static const struct {
+				int modeIdx;
+				int byteIdx;
+			} mapping[] = {
+			    {0, 0}, // COLOR
+			    {1, 1}, // PROX
+			    {3, 2}, // REFLT
+			    {4, 3}, // AMBI
+			};
+			for (const auto& entry : mapping) {
+				Mode* subMode = getMode(entry.modeIdx);
+				if (subMode != nullptr) {
+					subMode->processDataPacket(&payload[entry.byteIdx], 1);
+				}
+			}
+			return true;
+		}
+		default:
+			return false;
+	}
 }
 
 void LegoDevice::onCombiDataFrame(int mode, const uint8_t* payload, int payloadSize) {

@@ -772,6 +772,10 @@ class LumpParserT {
 				default:
 					break;
 			}
+			// INFO frames resolve their extended-mode index from LUMP_INFO_MODE_PLUS_8 in
+			// the info byte, not from extModeOffset_.  Consume the offset here so it does
+			// not bleed into subsequent DATA frames after enumeration of modes 8+.
+			extModeOffset_ = 0;
 			return;
 		}
 
@@ -1829,6 +1833,122 @@ void test_LP2w_bcd_nibble_swap_encoding() {
 }
 
 // ---------------------------------------------------------------------------
+// LP-25: extModeOffset_ is consumed after processing an INFO frame.
+// Sequence: EXT_MODE(0x08) → INFO_NAME(mode 8 via PLUS_8) → DATA(mode bits=0, no EXT_MODE)
+// Expected: DATA dispatches to mode 0, not mode 8.
+// Without fix: extModeOffset_=8 bleeds through and DATA goes to mode 8.
+// ---------------------------------------------------------------------------
+static void test_LP25_ext_mode_consumed_after_info_frame() {
+	// --- EXT_MODE(0x08): 0x46 = CMD|SIZE_1|EXT_MODE ---
+	uint8_t extHeader = 0x46;
+	uint8_t extP[] = {0x08};
+	uint8_t extCs = computeChecksum(extHeader, extP, 1);
+
+	// --- INFO_NAME for mode 8 (via PLUS_8) ---
+	// Header 0x98 = INFO(0x80)|SIZE_8(0x18)|MODE_0(0x00)
+	// Combined payload: infoByte=0x20 (INFO_NAME|PLUS_8), then "SPEC1\0\0\0"
+	uint8_t i1Header = 0x98;
+	uint8_t i1Payload[9] = {0x20, 'S', 'P', 'E', 'C', '1', 0, 0, 0};
+	uint8_t i1Cs = computeChecksum(i1Header, i1Payload, 9);
+
+	// --- DATA frame mode 0 (no EXT_MODE prefix) ---
+	uint8_t dHeader = 0xC0;
+	uint8_t dP[] = {0x07};
+	uint8_t dCs = computeChecksum(dHeader, dP, 1);
+
+	// Build all frames: EXT_MODE(3) + INFO_NAME(11) + DATA(3) = 17 bytes
+	uint8_t frame[17];
+	frame[0] = extHeader;
+	frame[1] = extP[0];
+	frame[2] = extCs;
+	frame[3] = i1Header;
+	for (int i = 0; i < 9; i++) {
+		frame[4 + i] = i1Payload[i];
+	}
+	frame[13] = i1Cs;
+	frame[14] = dHeader;
+	frame[15] = dP[0];
+	frame[16] = dCs;
+
+	parser->feedBytes(frame, 17);
+
+	TEST_ASSERT_EQUAL_UINT32(3, parser->stats().framesOk);
+	// Mode 8 should have been named "SPEC1" by the INFO frame
+	TEST_ASSERT_EQUAL_STRING("SPEC1", dev->getMode(8)->getName().c_str());
+	// DATA dispatched exactly once
+	TEST_ASSERT_EQUAL_INT(1, dev->onDataFrameCalls);
+	// KEY: DATA dispatches to mode 0 (extModeOffset_ was consumed after INFO)
+	TEST_ASSERT_EQUAL_INT(0, dev->lastDataMode);
+}
+
+// ---------------------------------------------------------------------------
+// LP-26: Simulated enumeration — multiple EXT_MODE+INFO pairs for modes 8+
+// followed by a DATA frame without EXT_MODE must dispatch to mode 0, not 8.
+// Without fix: the last EXT_MODE from enumeration bleeds into the data phase.
+// ---------------------------------------------------------------------------
+static void test_LP26_enumeration_ext_mode_does_not_bleed_to_data() {
+	// --- EXT_MODE(0x08) for mode 8 ---
+	uint8_t em1Header = 0x46;
+	uint8_t em1P[] = {0x08};
+	uint8_t em1Cs = computeChecksum(em1Header, em1P, 1);
+
+	// --- INFO_NAME for mode 8 (PLUS_8, header mode bits=0) ---
+	uint8_t i1Header = 0x98; // INFO|SIZE_8|MODE_0
+	uint8_t i1Payload[9] = {0x20, 'S', 'P', 'E', 'C', '1', 0, 0, 0};
+	uint8_t i1Cs = computeChecksum(i1Header, i1Payload, 9);
+
+	// --- EXT_MODE(0x08) for mode 9 ---
+	uint8_t em2Header = 0x46;
+	uint8_t em2P[] = {0x08};
+	uint8_t em2Cs = computeChecksum(em2Header, em2P, 1);
+
+	// --- INFO_NAME for mode 9 (PLUS_8, header mode bits=1) ---
+	// 0x99 = INFO(0x80)|SIZE_8(0x18)|MODE_1(0x01)
+	uint8_t i2Header = 0x99;
+	uint8_t i2Payload[9] = {0x20, 'D', 'E', 'B', 'U', 'G', 0, 0, 0};
+	uint8_t i2Cs = computeChecksum(i2Header, i2Payload, 9);
+
+	// --- DATA frame mode 0, no EXT_MODE ---
+	uint8_t dHeader = 0xC0;
+	uint8_t dP[] = {0x42};
+	uint8_t dCs = computeChecksum(dHeader, dP, 1);
+
+	// Build: em1(3) + i1(11) + em2(3) + i2(11) + d(3) = 31 bytes
+	uint8_t frame[31];
+	int pos = 0;
+	frame[pos++] = em1Header;
+	frame[pos++] = em1P[0];
+	frame[pos++] = em1Cs;
+	frame[pos++] = i1Header;
+	for (int i = 0; i < 9; i++) {
+		frame[pos++] = i1Payload[i];
+	}
+	frame[pos++] = i1Cs;
+	frame[pos++] = em2Header;
+	frame[pos++] = em2P[0];
+	frame[pos++] = em2Cs;
+	frame[pos++] = i2Header;
+	for (int i = 0; i < 9; i++) {
+		frame[pos++] = i2Payload[i];
+	}
+	frame[pos++] = i2Cs;
+	frame[pos++] = dHeader;
+	frame[pos++] = dP[0];
+	frame[pos++] = dCs;
+
+	parser->feedBytes(frame, 31);
+
+	// 5 frames: 2×EXT_MODE CMD + 2×INFO + 1×DATA
+	TEST_ASSERT_EQUAL_UINT32(5, parser->stats().framesOk);
+	TEST_ASSERT_EQUAL_STRING("SPEC1", dev->getMode(8)->getName().c_str());
+	TEST_ASSERT_EQUAL_STRING("DEBUG", dev->getMode(9)->getName().c_str());
+	TEST_ASSERT_EQUAL_INT(1, dev->onDataFrameCalls);
+	// KEY: DATA dispatches to mode 0, not mode 8
+	TEST_ASSERT_EQUAL_INT(0, dev->lastDataMode);
+	TEST_ASSERT_EQUAL_HEX8(0x42, dev->lastDataPayload[0]);
+}
+
+// ---------------------------------------------------------------------------
 // main()
 // ---------------------------------------------------------------------------
 int main() {
@@ -1887,6 +2007,10 @@ int main() {
 	// T-C: Version string BCD parsing tests
 	RUN_TEST(test_LP2z_version_info_bcd_parsing);
 	RUN_TEST(test_LP2w_bcd_nibble_swap_encoding);
+
+	// EXT_MODE offset consumed after INFO frames
+	RUN_TEST(test_LP25_ext_mode_consumed_after_info_frame);
+	RUN_TEST(test_LP26_enumeration_ext_mode_does_not_bleed_to_data);
 
 	return UNITY_END();
 }

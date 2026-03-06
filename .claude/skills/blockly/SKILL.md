@@ -112,13 +112,19 @@ Colors are Blockly hue values (0–360). Always import — never hardcode a numb
 ## Adding a New Block
 
 1. **Create** `frontend/src/components/blockly/mh_myblock.js` using the pattern above
-2. **Import and register** in `component.js`:
-   - Add `import * as mh_myblock from './mh_myblock.js'` with the other imports
-   - Add `mh_myblock` to the `customBlocks` object
+2. **Import and register** in **all three** files:
+   - `frontend/src/components/blockly/component.js` — add import + entry in `customBlocks`
+   - `frontend/scripts/block-renderer.js` — add import + entry in `customBlocks`
+   - `frontend/scripts/generate-block-docs-simple.js` — add dynamic import in `blockModules` + entry in `customBlocks`
 3. **Toolbox**: automatic — `generateToolbox()` groups by `category` field
 4. **Write unit tests** — REQUIRED for every new block (see below)
-5. **Test** in dev mode: `npm run dev`
-6. **Regenerate docs**: `npm run generate-docs` (see below)
+5. **Test** in dev mode: `npm run dev` or `npm test`
+6. **Regenerate docs** — REQUIRED after every block add/modify/remove:
+   ```bash
+   cd frontend
+   npm run generate-docs
+   ```
+   This regenerates `BLOCKS.md` and all PNG images in `docs/blocks/`. Never skip this step.
 
 ---
 

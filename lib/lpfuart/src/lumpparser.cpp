@@ -446,7 +446,7 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t* payload, int paylo
 			}
 
 			case LUMP_CMD_EXT_MODE: {
-				INFO("Parsing LUMP_CMD_EXT_MODE");
+				DEBUG("Parsing LUMP_CMD_EXT_MODE");
 				// payload[0] = 0x00 (modes 0-7) or 0x08 (modes 8-15)
 				if (payloadSize >= 1) {
 					extModeOffset_ = payload[0];
@@ -718,6 +718,10 @@ void LumpParser::dispatchFrame(uint8_t header, const uint8_t* payload, int paylo
 				break;
 			}
 		}
+		// INFO frames resolve their extended-mode index from LUMP_INFO_MODE_PLUS_8 in
+		// the info byte, not from extModeOffset_.  Consume the offset here so it does
+		// not bleed into subsequent DATA frames after enumeration of modes 8+.
+		extModeOffset_ = 0;
 		return;
 	}
 

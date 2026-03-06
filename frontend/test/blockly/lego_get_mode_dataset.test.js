@@ -36,12 +36,17 @@ describe('lego_get_mode_dataset block definition', () => {
         expect(definition.blockdefinition.previousStatement).toBeUndefined();
         expect(definition.blockdefinition.nextStatement).toBeUndefined();
     });
+
+    it('has MODE input in inputsForToolbox', () => {
+        expect(definition.inputsForToolbox.MODE).toBeDefined();
+        expect(definition.inputsForToolbox.MODE.shadow.type).toBe('lego_get_device_mode');
+    });
 });
 
 describe('lego_get_mode_dataset generator', () => {
     it('returns an array [code, order] — not a string', () => {
         const block = makeBlock();
-        const gen = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
+        const gen = makeGenerator({ PORT: 'PORT1', MODE: '0', DATASET: '0' });
 
         const result = definition.generator(block, gen);
 
@@ -49,9 +54,9 @@ describe('lego_get_mode_dataset generator', () => {
         expect(result.length).toBe(2);
     });
 
-    it('generates lego.getmodedataset(port, dataset) expression', () => {
+    it('generates lego.getmodedataset(port, mode, dataset) expression', () => {
         const block = makeBlock();
-        const gen = makeGenerator({ PORT: 'PORT1', DATASET: '0' });
+        const gen = makeGenerator({ PORT: 'PORT1', MODE: '0', DATASET: '0' });
 
         const [code] = definition.generator(block, gen);
 
@@ -62,30 +67,31 @@ describe('lego_get_mode_dataset generator', () => {
 
     it('has operator precedence 0 in the returned pair', () => {
         const block = makeBlock();
-        const gen = makeGenerator({ PORT: 'PORT2', DATASET: '1' });
+        const gen = makeGenerator({ PORT: 'PORT2', MODE: '8', DATASET: '1' });
 
         const [, order] = definition.generator(block, gen);
 
         expect(order).toBe(0);
     });
 
-    it('embeds both PORT and DATASET in the code', () => {
+    it('embeds PORT, MODE and DATASET in the code', () => {
         const block = makeBlock();
-        const gen = makeGenerator({ PORT: 'myPort', DATASET: 'idx + 1' });
+        const gen = makeGenerator({ PORT: 'myPort', MODE: 'myMode', DATASET: 'idx + 1' });
 
         const [code] = definition.generator(block, gen);
 
         expect(code).toContain('myPort');
+        expect(code).toContain('myMode');
         expect(code).toContain('idx + 1');
     });
 
-    it('produces exactly lego.getmodedataset(p,d) as the code string', () => {
+    it('produces exactly lego.getmodedataset(p,m,d) as the code string', () => {
         const block = makeBlock();
-        const gen = makeGenerator({ PORT: 'p', DATASET: 'd' });
+        const gen = makeGenerator({ PORT: 'p', MODE: 'm', DATASET: 'd' });
 
         const [code, order] = definition.generator(block, gen);
 
-        expect(code).toBe('lego.getmodedataset(p,d)');
+        expect(code).toBe('lego.getmodedataset(p,m,d)');
         expect(order).toBe(0);
     });
 });

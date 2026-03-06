@@ -26,6 +26,7 @@ import { definition as mh_imu_value } from './mh_imu_value.js';
 import { definition as ui_show_value } from './ui_show_value.js';
 import { definition as mh_debug_free_heap } from './mh_debug_free_heap.js';
 import { definition as mh_port } from './mh_port.js';
+import { definition as lego_get_device_mode } from './lego_get_device_mode.js';
 import { definition as lego_get_mode_dataset } from './lego_get_mode_dataset.js';
 import { definition as lego_select_mode } from './lego_select_mode.js';
 import { definition as gamepad_gamepad } from './mh_gamepad_gamepad.js';
@@ -269,6 +270,8 @@ const customBlocks = {
     mh_gamepad_value: gamepad_value,
 
     mh_gamepad_connected: gamepad_connected,
+
+    lego_get_device_mode: lego_get_device_mode,
 
     lego_get_mode_dataset: lego_get_mode_dataset,
 

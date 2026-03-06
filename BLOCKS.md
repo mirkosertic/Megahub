@@ -1,8 +1,8 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-03-05
+**Generated:** 2026-03-06
 
-This documentation covers all 85 blocks used in the Megahub project, including 37 custom blocks and 48 standard Blockly blocks with custom colors.
+This documentation covers all 86 blocks used in the Megahub project, including 38 custom blocks and 48 standard Blockly blocks with custom colors.
 
 Block images are rendered as high-quality PNG screenshots to accurately show all block features including text inputs, checkboxes, and statement blocks.
 
@@ -15,7 +15,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 - [Text](#text) (13 blocks)
 - [Lists](#lists) (12 blocks)
 - [I/O](#i-o) (5 blocks)
-- [LEGO©](#lego-) (2 blocks)
+- [LEGO©](#lego-) (3 blocks)
 - [Gamepad](#gamepad) (5 blocks)
 - [FastLED](#fastled) (4 blocks)
 - [IMU](#imu) (1 blocks)
@@ -691,19 +691,36 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 ## LEGO©
 
-### lego_get_mode_dataset
+### lego_get_device_mode
 
-![lego_get_mode_dataset](docs/blocks/lego-/lego_get_mode_dataset.png)
+![lego_get_device_mode](docs/blocks/lego-/lego_get_device_mode.png)
 
-**Description:** Get a dataset value from the selected mode of a port
+**Description:** Returns the currently selected mode index of a port
 
-**Message:** `Get dataset %2 from selected mode of %1`
+**Message:** `Selected mode of %1`
 
 **Inputs:**
 
 | Name | Type | Check |
 |------|------|-------|
 | PORT | input_value | Any |
+
+---
+
+### lego_get_mode_dataset
+
+![lego_get_mode_dataset](docs/blocks/lego-/lego_get_mode_dataset.png)
+
+**Description:** Get a dataset value from a specific mode of a port
+
+**Message:** `Get dataset %3 from mode %2 of %1`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| PORT | input_value | Any |
+| MODE | input_value | Any |
 | DATASET | input_value | Any |
 
 ---
@@ -1222,10 +1239,10 @@ output: %10 to %11`
 
 ## Generation Statistics
 
-- Total blocks: 85
-- Custom Megahub blocks: 37
+- Total blocks: 86
+- Custom Megahub blocks: 38
 - Standard Blockly blocks: 48
-- PNG images generated: 85
+- PNG images generated: 86
 
 ---
 
