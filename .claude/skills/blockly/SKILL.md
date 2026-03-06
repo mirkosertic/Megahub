@@ -230,6 +230,91 @@ BLOCKS.md   ← regenerated in full
 
 ---
 
+## Stateful Algorithm Block Pattern
+
+All stateful algorithm blocks in the **Algorithms** category follow an **explicit handle pattern**. This is a hard convention — never use `block.id` as an implicit state key.
+
+### Pattern: Init + Compute (same as PID and DR)
+
+A stateful algorithm requires **two** Blockly blocks:
+
+1. **Init block** (`mh_alg_*_init.js`) — creates a filter/controller instance, returns a handle string. The user stores this in a variable.
+2. **Compute block** (`mh_alg_*.js`) — takes the handle as first input, plus algorithm parameters.
+
+### Firmware side (`libluaalg.cpp`)
+
+```cpp
+// State map keyed by handle string ("ma_0", "ma_1", ...)
+static std::map<std::string, MyState> myStates;
+static int myHandleCounter = 0;
+
+// Init: creates instance, returns handle
+int alg_init_my(lua_State* L) {
+    std::string handle = "my_" + std::to_string(myHandleCounter++);
+    myStates[handle] = MyState{};
+    lua_pushstring(L, handle.c_str());
+    return 1;
+}
+
+// Compute: looks up by handle
+int alg_my(lua_State* L) {
+    const char* handle = luaL_checkstring(L, 1);
+    auto it = myStates.find(handle);
+    if (it == myStates.end()) {
+        WARN("alg_my: handle '%s' not found", handle);
+        lua_pushnumber(L, 0.0);
+        return 1;
+    }
+    // ... use it->second ...
+}
+
+// Clear all: called in alg_library() at init
+int alg_clear_all_my(lua_State* L) {
+    myStates.clear();
+    myHandleCounter = 0;
+    return 0;
+}
+```
+
+Register all three in `alg_library()`, and call `alg_clear_all_my` at the top of `alg_library()`.
+
+### Blockly side
+
+**Init block** — no inputs, output is a handle value:
+```javascript
+generator: (block, generator) => {
+    return [`alg.initMy()`, 0];
+},
+```
+
+**Compute block** — HANDLE is first input, uses `variables_get` shadow:
+```javascript
+inputsForToolbox: {
+    HANDLE: {
+        shadow: { type: 'variables_get', fields: { VAR: { name: 'myFilter' } } },
+    },
+    // ... other inputs ...
+},
+generator: (block, generator) => {
+    const handle = generator.valueToCode(block, 'HANDLE', 0) || '"my_0"';
+    // ...
+    return [`alg.my(${handle}, ...)`, 0];
+},
+```
+
+### Registration
+
+Both blocks must be added to all three registration files:
+- `frontend/src/components/blockly/component.js`
+- `frontend/scripts/block-renderer.js`
+- `frontend/scripts/generate-block-docs-simple.js`
+
+### Stateless algorithms (`alg.map`)
+
+Stateless algorithms (no persistent state) need only one block, no handle, no init, no clearAll. Register only the single block file.
+
+---
+
 ## Toolbox Toolbox Shadow Defaults (`inputsForToolbox`)
 
 To pre-populate inputs in the toolbox with useful defaults, add `inputsForToolbox`:

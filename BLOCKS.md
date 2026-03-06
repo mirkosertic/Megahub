@@ -1,8 +1,8 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-03-03
+**Generated:** 2026-03-05
 
-This documentation covers all 82 blocks used in the Megahub project, including 34 custom blocks and 48 standard Blockly blocks with custom colors.
+This documentation covers all 85 blocks used in the Megahub project, including 37 custom blocks and 48 standard Blockly blocks with custom colors.
 
 Block images are rendered as high-quality PNG screenshots to accurately show all block features including text inputs, checkboxes, and statement blocks.
 
@@ -20,7 +20,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 - [FastLED](#fastled) (4 blocks)
 - [IMU](#imu) (1 blocks)
 - [UI](#ui) (3 blocks)
-- [Algorithms](#algorithms) (8 blocks)
+- [Algorithms](#algorithms) (11 blocks)
 - [Debug](#debug) (2 blocks)
 
 ## Control flow
@@ -1137,6 +1137,67 @@ output: %10 to %11`
 
 ---
 
+### mh_alg_moving_avg_init
+
+![mh_alg_moving_avg_init](docs/blocks/algorithms/mh_alg_moving_avg_init.png)
+
+**Description:** Creates a new moving average filter instance and returns a handle. Store this in a variable and pass it to the Moving average block.
+
+**Message:** `Initialize moving average`
+
+---
+
+### mh_alg_moving_avg
+
+![mh_alg_moving_avg](docs/blocks/algorithms/mh_alg_moving_avg.png)
+
+**Description:** Smooths a sensor value using a ring-buffer moving average. The handle comes from the "Initialize moving average" block stored in a variable. Window is the number of samples to average (2–50; default 10). On first call the buffer is pre-filled so there is no startup ramp.
+
+**Type:** Custom Value Block
+
+**Message:** `Moving average %1 %2 value: %3 
+%4 window: %5`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| VALUE | input_value | Number |
+| undefined | input_dummy | Any |
+| WINDOW | input_value | Number |
+
+---
+
+### mh_alg_map
+
+![mh_alg_map](docs/blocks/algorithms/mh_alg_map.png)
+
+**Description:** Linearly maps a value from one range to another. Equivalent to Arduino map() but with float support. Output is not clamped — values outside the input range extrapolate linearly.
+
+**Type:** Custom Value Block
+
+**Message:** `Map %1 %2 value: %3 
+%4 from: %5 – %6 
+%7 to: %8 – %9`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| undefined | input_dummy | Any |
+| undefined | input_dummy | Any |
+| VALUE | input_value | Number |
+| undefined | input_dummy | Any |
+| IN_MIN | input_value | Number |
+| IN_MAX | input_value | Number |
+| undefined | input_dummy | Any |
+| OUT_MIN | input_value | Number |
+| OUT_MAX | input_value | Number |
+
+---
+
 ## Debug
 
 ### mh_debug_free_heap
@@ -1161,10 +1222,10 @@ output: %10 to %11`
 
 ## Generation Statistics
 
-- Total blocks: 82
-- Custom Megahub blocks: 34
+- Total blocks: 85
+- Custom Megahub blocks: 37
 - Standard Blockly blocks: 48
-- PNG images generated: 82
+- PNG images generated: 85
 
 ---
 

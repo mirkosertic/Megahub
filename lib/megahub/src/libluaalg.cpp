@@ -369,25 +369,175 @@ int alg_clear_all_dr(lua_State* luaState) {
 	return 0;
 }
 
+// ---------- Moving Average ----------
+
+static const int MAX_MA_WINDOW = 50;
+
+struct MovingAvgState {
+	float buf[MAX_MA_WINDOW];
+	int head;
+	int count;
+	float sum;
+};
+
+static std::map<std::string, MovingAvgState> maStates;
+static int maHandleCounter = 0;
+
+/**
+ * Initialize a new Moving Average filter instance
+ *
+ * Lua signature: alg.initMovingAvg()
+ *
+ * Returns: handle string (e.g., "ma_0", "ma_1", ...)
+ */
+int alg_init_moving_avg(lua_State* luaState) {
+	std::string handle = "ma_" + std::to_string(maHandleCounter++);
+	maStates[handle] = MovingAvgState{};
+	lua_pushstring(luaState, handle.c_str());
+	return 1;
+}
+
+/**
+ * Moving Average filter computation with explicit handle
+ *
+ * Lua signature: alg.movingAvg(handle, value, windowSize)
+ *
+ * Parameters:
+ *   handle     - Unique identifier for this filter instance (from initMovingAvg)
+ *   value      - New sample to add
+ *   windowSize - Number of samples to average (2–50; clamped at runtime)
+ *
+ * On first call the buffer is pre-filled with the initial value (no startup ramp).
+ * Returns the arithmetic mean of the last N samples.
+ */
+int alg_moving_avg(lua_State* luaState) {
+	const char* handle = luaL_checkstring(luaState, 1);
+	float value = (float) luaL_checknumber(luaState, 2);
+	int winSize = (int) luaL_checkinteger(luaState, 3);
+
+	if (winSize < 2) {
+		winSize = 2;
+	}
+	if (winSize > MAX_MA_WINDOW) {
+		winSize = MAX_MA_WINDOW;
+	}
+
+	auto it = maStates.find(handle);
+	if (it == maStates.end()) {
+		WARN("movingAvg: handle '%s' not found - call initMovingAvg first", handle);
+		lua_pushnumber(luaState, value);
+		return 1;
+	}
+
+	MovingAvgState& s = it->second;
+
+	// First call: count == 0 → pre-fill buffer
+	if (s.count == 0) {
+		s.count = winSize;
+		s.head = 0;
+		s.sum = value * winSize;
+		for (int i = 0; i < winSize; ++i) {
+			s.buf[i] = value;
+		}
+		lua_pushnumber(luaState, value);
+		return 1;
+	}
+
+	// Window size changed → re-initialize
+	if (s.count != winSize) {
+		s.count = winSize;
+		s.head = 0;
+		s.sum = value * winSize;
+		for (int i = 0; i < winSize; ++i) {
+			s.buf[i] = value;
+		}
+		lua_pushnumber(luaState, value);
+		return 1;
+	}
+
+	s.sum -= s.buf[s.head];
+	s.buf[s.head] = value;
+	s.sum += value;
+	s.head = (s.head + 1) % winSize;
+
+	lua_pushnumber(luaState, s.sum / winSize);
+	return 1;
+}
+
+/**
+ * Clear all Moving Average filter states
+ *
+ * Lua signature: alg.clearAllMovingAvg()
+ */
+int alg_clear_all_moving_avg(lua_State* luaState) {
+	size_t count = maStates.size();
+	maStates.clear();
+	maHandleCounter = 0;
+	DEBUG("Cleared %d moving average states", count);
+	return 0;
+}
+
+// ---------- Map / Scale ----------
+
+int alg_map(lua_State* luaState) {
+	double value = luaL_checknumber(luaState, 1);
+	double inMin = luaL_checknumber(luaState, 2);
+	double inMax = luaL_checknumber(luaState, 3);
+	double outMin = luaL_checknumber(luaState, 4);
+	double outMax = luaL_checknumber(luaState, 5);
+
+	if (inMax == inMin) {
+		WARN("alg.map: inMax == inMin (%.4f), returning outMin", inMin);
+		lua_pushnumber(luaState, outMin);
+		return 1;
+	}
+
+	double result = outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
+	lua_pushnumber(luaState, result);
+	return 1;
+}
+
+/**
+ * Reset all algorithm states.
+ * Called by Megahub::executeLUACode() before each new program run to ensure
+ * a clean slate. Not a Lua function — called directly from C++.
+ */
+void alg_reset_all_states() {
+	pidStates.clear();
+	pidHandleCounter = 0;
+
+	taskENTER_CRITICAL(&drMux);
+	drStates.clear();
+	drHandleCounter = 0;
+	taskEXIT_CRITICAL(&drMux);
+
+	maStates.clear();
+	maHandleCounter = 0;
+
+	DEBUG("Algorithm states reset for new program run");
+}
+
 /**
  * Algorithm library registration
  * Exports the library as "alg" to Lua
  */
 int alg_library(lua_State* luaState) {
-	alg_clear_all_pid(luaState); // auto-clear on new Lua state
-	alg_clear_all_dr(luaState);  // auto-clear on new Lua state
 	const luaL_Reg algfunctions[] = {
-	    {    "initPID",      alg_init_pid},
-	    { "computePID",   alg_compute_pid},
-	    {   "resetPID",     alg_reset_pid},
-	    {"clearAllPID", alg_clear_all_pid},
-	    {     "initDR",       alg_init_dr},
-	    {   "updateDR",     alg_update_dr},
-	    {      "drGet",        alg_dr_get},
-	    {    "drReset",      alg_dr_reset},
-	    {  "drSetPose",   alg_dr_set_pose},
-	    { "clearAllDR",  alg_clear_all_dr},
-	    {	     NULL,              NULL}
+	    {	      "initPID",             alg_init_pid},
+	    {       "computePID",          alg_compute_pid},
+	    {	     "resetPID",            alg_reset_pid},
+	    {      "clearAllPID",        alg_clear_all_pid},
+	    {	       "initDR",              alg_init_dr},
+	    {	     "updateDR",            alg_update_dr},
+	    {	        "drGet",               alg_dr_get},
+	    {	      "drReset",             alg_dr_reset},
+	    {        "drSetPose",          alg_dr_set_pose},
+	    {       "clearAllDR",         alg_clear_all_dr},
+	    {    "initMovingAvg",      alg_init_moving_avg},
+	    {        "movingAvg",           alg_moving_avg},
+	    {"clearAllMovingAvg", alg_clear_all_moving_avg},
+	    {	          "map",	              alg_map},
+	    {	           NULL,	                 NULL}
     };
 	luaL_newlib(luaState, algfunctions);
 	return 1;

@@ -177,7 +177,7 @@ The toolbox is divided into these categories:
 | **FastLED** | Initialize LED strip, set individual LED colour, show, clear |
 | **IMU** | Read yaw, pitch, roll, or acceleration from the on-board sensor |
 | **UI** | Display a labelled value in the IDE Logger panel, map visualization (plot position, clear) |
-| **Algorithms** | PID controller (init/compute/reset), dead reckoning (init/update/get/reset/set pose) |
+| **Algorithms** | PID controller (init/compute/reset), dead reckoning (init/update/get/reset/set pose), moving average filter, map/scale |
 | **Debug** | Free heap memory, milliseconds since boot |
 
 > **Common gotcha:** The **Set motor speed** block is in the **I/O** category — not **LEGO©**. The **LEGO©** category only contains sensor blocks (selecting a measurement mode and reading the sensor dataset). If you want to drive a motor, open **I/O**.
@@ -310,7 +310,7 @@ The on-board MPU6050 provides 6-axis motion data, updated every 100 ms. Read it 
 | ACCELERATION_Y  | m/s²  | Acceleration along Y axis      |
 | ACCELERATION_Z  | m/s²  | Acceleration along Z axis      |
 
-### Algorithm Blocks — PID and Dead Reckoning
+### Algorithm Blocks
 
 The **Algorithms** category provides blocks for closed-loop control and position tracking.
 
@@ -330,6 +330,19 @@ Store the handle from `Init PID` in a variable and pass it to `PID compute` in y
 | `DR pose X/Y/HEADING of` | Reads one component of the pose from a handle — X and Y in meters, HEADING in degrees. |
 | `Reset DR pose of` | Resets pose to origin (0, 0, 0°). Re-bootstraps encoder baselines so the next update produces zero delta. |
 | `Set DR pose of` | Injects a known (x, y, heading) position for landmark-based drift correction. |
+
+**Moving average filter:** Smooths noisy sensor readings using a sliding window of the last N samples. Uses the same explicit handle pattern as PID and DR — call `Initialize moving average` once before your loop, store the handle in a variable, then pass it to `Moving average` on each update.
+
+| Block | Description |
+|-------|-------------|
+| `Initialize moving average` | Creates a new moving average filter instance and returns a handle. Store in a variable. Call once before your loop. |
+| `Moving average` | Adds a new sample and returns the arithmetic mean of the last N values. Inputs: handle, sensor value, window size (2–50; default 10). On first call the buffer is pre-filled so there is no startup ramp. |
+
+**Map / Scale:** Linearly maps a value from one numeric range to another. Stateless — no initialization required.
+
+| Block | Description |
+|-------|-------------|
+| `Map` | Maps `value` from `[inMin, inMax]` to `[outMin, outMax]`. Equivalent to Arduino `map()` with float support. Output is not clamped — values outside the input range extrapolate linearly. |
 
 **LEGO motor POS mode prerequisite:** DR reads absolute encoder positions. Before using DR blocks, call `lego select mode` with mode **2** (POS) on the motor ports in `hub.init()`, then wait briefly for the sensor to settle.
 

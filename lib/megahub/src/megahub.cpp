@@ -209,6 +209,7 @@ extern int lego_library(lua_State* luaState);
 extern int gamepad_library(lua_State* luaState);
 
 extern int alg_library(lua_State* luaState);
+extern void alg_reset_all_states();
 
 int global_wait(lua_State* luaState) {
 	int delay = lua_tointeger(luaState, 1);
@@ -604,6 +605,11 @@ void Megahub::executeLUACode(String luaCode) {
 		lua_closethread(currentprogramstate_, globalLuaState_);
 		currentprogramstate_ = nullptr;
 	}
+
+	// Reset all stateful algorithm instances so each program run starts clean.
+	// Must happen after stopping threads (which may hold handles) and before
+	// creating the new program thread.
+	alg_reset_all_states();
 
 	long startTime = millis();
 

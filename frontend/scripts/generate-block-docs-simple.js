@@ -89,6 +89,9 @@ async function loadBlockDefinitions() {
 		mh_alg_dr_set_pose : await import('../src/components/blockly/mh_alg_dr_set_pose.js'),
 		ui_map_update : await import('../src/components/blockly/ui_map_update.js'),
 		ui_map_clear : await import('../src/components/blockly/ui_map_clear.js'),
+		mh_alg_moving_avg_init : await import('../src/components/blockly/mh_alg_moving_avg_init.js'),
+		mh_alg_moving_avg : await import('../src/components/blockly/mh_alg_moving_avg.js'),
+		mh_alg_map : await import('../src/components/blockly/mh_alg_map.js'),
 	};
 
 	const colors = await import('../src/components/blockly/colors.js');
@@ -264,6 +267,11 @@ async function loadBlockDefinitions() {
 		// Map UI blocks
 		ui_map_update : blockModules.ui_map_update.definition,
 		ui_map_clear : blockModules.ui_map_clear.definition,
+
+		// Moving average and map/scale
+		mh_alg_moving_avg_init : blockModules.mh_alg_moving_avg_init.definition,
+		mh_alg_moving_avg : blockModules.mh_alg_moving_avg.definition,
+		mh_alg_map : blockModules.mh_alg_map.definition,
 	};
 
 	return {customBlocks, colors};

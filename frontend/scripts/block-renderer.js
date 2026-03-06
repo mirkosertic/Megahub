@@ -37,6 +37,9 @@ import {definition as gamepad_buttonsraw} from '../src/components/blockly/mh_gam
 import {definition as gamepad_value} from '../src/components/blockly/mh_gamepad_value.js';
 import {definition as gamepad_connected} from '../src/components/blockly/mh_gamepad_connected.js';
 import {definition as mh_debug_millis} from '../src/components/blockly/mh_debug_millis.js';
+import {definition as mh_alg_moving_avg_init} from '../src/components/blockly/mh_alg_moving_avg_init.js';
+import {definition as mh_alg_moving_avg} from '../src/components/blockly/mh_alg_moving_avg.js';
+import {definition as mh_alg_map} from '../src/components/blockly/mh_alg_map.js';
 
 // Import colors
 import {
@@ -122,6 +125,9 @@ const customBlocks = {
   "ui_show_value": ui_show_value,
   "mh_debug_free_heap": mh_debug_free_heap,
   "mh_debug_millis": mh_debug_millis,
+  "mh_alg_moving_avg_init": mh_alg_moving_avg_init,
+  "mh_alg_moving_avg": mh_alg_moving_avg,
+  "mh_alg_map": mh_alg_map,
   "mh_startthread": mh_startthread,
   "mh_wait": mh_wait,
   "mh_stopthread": mh_stopthread

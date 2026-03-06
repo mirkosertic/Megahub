@@ -42,6 +42,9 @@ import { definition as mh_alg_dr_update } from './mh_alg_dr_update.js';
 import { definition as mh_alg_dr_get } from './mh_alg_dr_get.js';
 import { definition as mh_alg_dr_reset } from './mh_alg_dr_reset.js';
 import { definition as mh_alg_dr_set_pose } from './mh_alg_dr_set_pose.js';
+import { definition as mh_alg_moving_avg_init } from './mh_alg_moving_avg_init.js';
+import { definition as mh_alg_moving_avg } from './mh_alg_moving_avg.js';
+import { definition as mh_alg_map } from './mh_alg_map.js';
 import { definition as ui_map_update } from './ui_map_update.js';
 import { definition as ui_map_clear } from './ui_map_clear.js';
 
@@ -308,6 +311,12 @@ const customBlocks = {
     mh_alg_dr_reset: mh_alg_dr_reset,
 
     mh_alg_dr_set_pose: mh_alg_dr_set_pose,
+
+    mh_alg_moving_avg_init: mh_alg_moving_avg_init,
+
+    mh_alg_moving_avg: mh_alg_moving_avg,
+
+    mh_alg_map: mh_alg_map,
 
     ui_map_update: ui_map_update,
 
