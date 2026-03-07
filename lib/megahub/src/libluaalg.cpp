@@ -477,6 +477,360 @@ int alg_clear_all_moving_avg(lua_State* luaState) {
 	return 0;
 }
 
+// ---------- Hysteresis (Schmitt Trigger) ----------
+
+struct HysteresisState {
+	float lastOutput;
+	bool initialized;
+};
+
+static std::map<std::string, HysteresisState> hyStates;
+static int hyHandleCounter = 0;
+
+/**
+ * Initialize a new Hysteresis (Schmitt trigger) instance
+ *
+ * Lua signature: alg.initHysteresis()
+ *
+ * Returns: handle string (e.g., "hy_0", "hy_1", ...)
+ */
+int alg_init_hysteresis(lua_State* luaState) {
+	std::string handle = "hy_" + std::to_string(hyHandleCounter++);
+	hyStates[handle] = HysteresisState{0.0f, false};
+	lua_pushstring(luaState, handle.c_str());
+	return 1;
+}
+
+/**
+ * Hysteresis (Schmitt trigger) filter
+ *
+ * Lua signature: alg.hysteresis(handle, value, lowThresh, highThresh)
+ *
+ * Parameters:
+ *   handle     - Unique identifier for this instance (from initHysteresis)
+ *   value      - Current input value
+ *   lowThresh  - Threshold below which output switches to 0
+ *   highThresh - Threshold above which output switches to 1
+ *
+ * Returns: 0.0 or 1.0
+ */
+int alg_hysteresis(lua_State* luaState) {
+	const char* handle = luaL_checkstring(luaState, 1);
+	float value = (float) luaL_checknumber(luaState, 2);
+	float lowThresh = (float) luaL_checknumber(luaState, 3);
+	float highThresh = (float) luaL_checknumber(luaState, 4);
+
+	if (lowThresh >= highThresh) {
+		WARN("hysteresis '%s': lowThresh (%.4f) >= highThresh (%.4f), using midpoint as single threshold", handle,
+		     lowThresh, highThresh);
+		float mid = (lowThresh + highThresh) / 2.0f;
+		lowThresh = mid;
+		highThresh = mid;
+	}
+
+	auto it = hyStates.find(handle);
+	if (it == hyStates.end()) {
+		WARN("hysteresis: handle '%s' not found - call initHysteresis first", handle);
+		lua_pushnumber(luaState, 0.0);
+		return 1;
+	}
+
+	HysteresisState& s = it->second;
+
+	if (!s.initialized) {
+		s.lastOutput = (value > highThresh) ? 1.0f : 0.0f;
+		s.initialized = true;
+	} else if (value > highThresh) {
+		s.lastOutput = 1.0f;
+	} else if (value < lowThresh) {
+		s.lastOutput = 0.0f;
+	}
+	// else: keep previous output (hysteresis band)
+
+	lua_pushnumber(luaState, s.lastOutput);
+	return 1;
+}
+
+/**
+ * Clear all Hysteresis states
+ *
+ * Lua signature: alg.clearAllHysteresis()
+ */
+int alg_clear_all_hysteresis(lua_State* luaState) {
+	size_t count = hyStates.size();
+	hyStates.clear();
+	hyHandleCounter = 0;
+	DEBUG("Cleared %d hysteresis states", count);
+	return 0;
+}
+
+// ---------- Debounce ----------
+
+struct DebounceState {
+	bool lastOutput;
+	bool pendingState;
+	uint32_t pendingStartMs;
+	bool initialized;
+};
+
+static std::map<std::string, DebounceState> dbStates;
+static int dbHandleCounter = 0;
+
+/**
+ * Initialize a new Debounce filter instance
+ *
+ * Lua signature: alg.initDebounce()
+ *
+ * Returns: handle string (e.g., "db_0", "db_1", ...)
+ */
+int alg_init_debounce(lua_State* luaState) {
+	std::string handle = "db_" + std::to_string(dbHandleCounter++);
+	dbStates[handle] = DebounceState{false, false, 0, false};
+	lua_pushstring(luaState, handle.c_str());
+	return 1;
+}
+
+/**
+ * Debounce filter for buttons and digital sensors
+ *
+ * Lua signature: alg.debounce(handle, signal, stableMs)
+ *
+ * Parameters:
+ *   handle   - Unique identifier for this instance (from initDebounce)
+ *   signal   - Input signal (treated as boolean: != 0 is true)
+ *   stableMs - Milliseconds the input must remain stable before output changes
+ *
+ * Returns: 0.0 or 1.0
+ */
+int alg_debounce(lua_State* luaState) {
+	const char* handle = luaL_checkstring(luaState, 1);
+	float signalRaw = (float) luaL_checknumber(luaState, 2);
+	uint32_t stableMs = (uint32_t) luaL_checknumber(luaState, 3);
+
+	bool signal = (signalRaw != 0.0f);
+
+	auto it = dbStates.find(handle);
+	if (it == dbStates.end()) {
+		WARN("debounce: handle '%s' not found - call initDebounce first", handle);
+		lua_pushnumber(luaState, 0.0);
+		return 1;
+	}
+
+	DebounceState& s = it->second;
+
+	if (!s.initialized) {
+		s.lastOutput = signal;
+		s.pendingState = signal;
+		s.pendingStartMs = millis();
+		s.initialized = true;
+	} else if (signal != s.lastOutput) {
+		// Input differs from committed output: track pending change
+		if (signal != s.pendingState) {
+			// Direction reversed or first divergence — restart timer
+			s.pendingState = signal;
+			s.pendingStartMs = millis();
+		} else if (millis() - s.pendingStartMs >= stableMs) {
+			// Stable long enough: commit
+			s.lastOutput = s.pendingState;
+		}
+	}
+
+	lua_pushnumber(luaState, s.lastOutput ? 1.0f : 0.0f);
+	return 1;
+}
+
+/**
+ * Clear all Debounce filter states
+ *
+ * Lua signature: alg.clearAllDebounce()
+ */
+int alg_clear_all_debounce(lua_State* luaState) {
+	size_t count = dbStates.size();
+	dbStates.clear();
+	dbHandleCounter = 0;
+	DEBUG("Cleared %d debounce states", count);
+	return 0;
+}
+
+// ---------- Rate Limiter ----------
+
+struct RateLimitState {
+	float prevOutput;
+	bool initialized;
+};
+
+static std::map<std::string, RateLimitState> rlStates;
+static int rlHandleCounter = 0;
+
+/**
+ * Initialize a new Rate Limiter instance
+ *
+ * Lua signature: alg.initRateLimit()
+ *
+ * Returns: handle string (e.g., "rl_0", "rl_1", ...)
+ */
+int alg_init_rate_limit(lua_State* luaState) {
+	std::string handle = "rl_" + std::to_string(rlHandleCounter++);
+	rlStates[handle] = RateLimitState{0.0f, false};
+	lua_pushstring(luaState, handle.c_str());
+	return 1;
+}
+
+/**
+ * Rate limiter (slew rate) — limits how fast the output can change per call
+ *
+ * Lua signature: alg.rateLimit(handle, targetValue, maxDeltaPerCall)
+ *
+ * Parameters:
+ *   handle          - Unique identifier for this instance (from initRateLimit)
+ *   targetValue     - Desired target value
+ *   maxDeltaPerCall - Maximum change allowed per call (must be > 0)
+ *
+ * Returns: rate-limited output value
+ */
+int alg_rate_limit(lua_State* luaState) {
+	const char* handle = luaL_checkstring(luaState, 1);
+	float targetValue = (float) luaL_checknumber(luaState, 2);
+	float maxDelta = (float) luaL_checknumber(luaState, 3);
+
+	if (maxDelta <= 0.0f) {
+		WARN("rateLimit '%s': maxDeltaPerCall (%.4f) <= 0, using fabsf clamped to 0.001", handle, maxDelta);
+		maxDelta = fabsf(maxDelta);
+		if (maxDelta < 0.001f) {
+			maxDelta = 0.001f;
+		}
+	}
+
+	auto it = rlStates.find(handle);
+	if (it == rlStates.end()) {
+		WARN("rateLimit: handle '%s' not found - call initRateLimit first", handle);
+		lua_pushnumber(luaState, targetValue);
+		return 1;
+	}
+
+	RateLimitState& s = it->second;
+
+	if (!s.initialized) {
+		s.prevOutput = targetValue;
+		s.initialized = true;
+		lua_pushnumber(luaState, targetValue);
+		return 1;
+	}
+
+	float delta = targetValue - s.prevOutput;
+	if (delta > maxDelta) {
+		delta = maxDelta;
+	} else if (delta < -maxDelta) {
+		delta = -maxDelta;
+	}
+	float output = s.prevOutput + delta;
+	s.prevOutput = output;
+
+	lua_pushnumber(luaState, output);
+	return 1;
+}
+
+/**
+ * Clear all Rate Limiter states
+ *
+ * Lua signature: alg.clearAllRateLimit()
+ */
+int alg_clear_all_rate_limit(lua_State* luaState) {
+	size_t count = rlStates.size();
+	rlStates.clear();
+	rlHandleCounter = 0;
+	DEBUG("Cleared %d rate limiter states", count);
+	return 0;
+}
+
+// ---------- 1D Kalman Filter ----------
+
+struct KalmanState {
+	float estimate;
+	float errorCovariance;
+	bool initialized;
+};
+
+static std::map<std::string, KalmanState> kfStates;
+static int kfHandleCounter = 0;
+
+/**
+ * Initialize a new 1D Kalman filter instance
+ *
+ * Lua signature: alg.initKalman()
+ *
+ * Returns: handle string (e.g., "kf_0", "kf_1", ...)
+ */
+int alg_init_kalman(lua_State* luaState) {
+	std::string handle = "kf_" + std::to_string(kfHandleCounter++);
+	kfStates[handle] = KalmanState{0.0f, 1.0f, false};
+	lua_pushstring(luaState, handle.c_str());
+	return 1;
+}
+
+/**
+ * 1D Kalman filter computation
+ *
+ * Lua signature: alg.kalman(handle, measurement, processNoise, measureNoise)
+ *
+ * Parameters:
+ *   handle       - Unique identifier for this instance (from initKalman)
+ *   measurement  - Current sensor reading
+ *   processNoise - Q: how much the true value drifts per call
+ *   measureNoise - R: sensor variance
+ *
+ * Returns: filtered estimate
+ */
+int alg_kalman(lua_State* luaState) {
+	const char* handle = luaL_checkstring(luaState, 1);
+	float measurement = (float) luaL_checknumber(luaState, 2);
+	float processNoise = (float) luaL_checknumber(luaState, 3);
+	float measureNoise = (float) luaL_checknumber(luaState, 4);
+
+	auto it = kfStates.find(handle);
+	if (it == kfStates.end()) {
+		WARN("kalman: handle '%s' not found - call initKalman first", handle);
+		lua_pushnumber(luaState, measurement);
+		return 1;
+	}
+
+	KalmanState& s = it->second;
+
+	if (!s.initialized) {
+		s.estimate = measurement;
+		s.errorCovariance = measureNoise;
+		s.initialized = true;
+		lua_pushnumber(luaState, measurement);
+		return 1;
+	}
+
+	// Predict
+	s.errorCovariance += processNoise;
+
+	// Update
+	float K = s.errorCovariance / (s.errorCovariance + measureNoise);
+	s.estimate += K * (measurement - s.estimate);
+	s.errorCovariance *= (1.0f - K);
+
+	DEBUG("kalman '%s': meas=%.4f K=%.4f est=%.4f cov=%.4f", handle, measurement, K, s.estimate, s.errorCovariance);
+
+	lua_pushnumber(luaState, s.estimate);
+	return 1;
+}
+
+/**
+ * Clear all Kalman filter states
+ *
+ * Lua signature: alg.clearAllKalman()
+ */
+int alg_clear_all_kalman(lua_State* luaState) {
+	size_t count = kfStates.size();
+	kfStates.clear();
+	kfHandleCounter = 0;
+	DEBUG("Cleared %d Kalman filter states", count);
+	return 0;
+}
+
 // ---------- Map / Scale ----------
 
 int alg_map(lua_State* luaState) {
@@ -514,6 +868,18 @@ void alg_reset_all_states() {
 	maStates.clear();
 	maHandleCounter = 0;
 
+	hyStates.clear();
+	hyHandleCounter = 0;
+
+	dbStates.clear();
+	dbHandleCounter = 0;
+
+	rlStates.clear();
+	rlHandleCounter = 0;
+
+	kfStates.clear();
+	kfHandleCounter = 0;
+
 	DEBUG("Algorithm states reset for new program run");
 }
 
@@ -523,21 +889,33 @@ void alg_reset_all_states() {
  */
 int alg_library(lua_State* luaState) {
 	const luaL_Reg algfunctions[] = {
-	    {	      "initPID",             alg_init_pid},
-	    {       "computePID",          alg_compute_pid},
-	    {	     "resetPID",            alg_reset_pid},
-	    {      "clearAllPID",        alg_clear_all_pid},
-	    {	       "initDR",              alg_init_dr},
-	    {	     "updateDR",            alg_update_dr},
-	    {	        "drGet",               alg_dr_get},
-	    {	      "drReset",             alg_dr_reset},
-	    {        "drSetPose",          alg_dr_set_pose},
-	    {       "clearAllDR",         alg_clear_all_dr},
-	    {    "initMovingAvg",      alg_init_moving_avg},
-	    {        "movingAvg",           alg_moving_avg},
-	    {"clearAllMovingAvg", alg_clear_all_moving_avg},
-	    {	          "map",	              alg_map},
-	    {	           NULL,	                 NULL}
+	    {	       "initPID",             alg_init_pid},
+	    {        "computePID",          alg_compute_pid},
+	    {	      "resetPID",            alg_reset_pid},
+	    {       "clearAllPID",        alg_clear_all_pid},
+	    {	        "initDR",              alg_init_dr},
+	    {	      "updateDR",            alg_update_dr},
+	    {	         "drGet",               alg_dr_get},
+	    {	       "drReset",             alg_dr_reset},
+	    {	     "drSetPose",          alg_dr_set_pose},
+	    {        "clearAllDR",         alg_clear_all_dr},
+	    {     "initMovingAvg",      alg_init_moving_avg},
+	    {	     "movingAvg",           alg_moving_avg},
+	    { "clearAllMovingAvg", alg_clear_all_moving_avg},
+	    {	           "map",	              alg_map},
+	    {    "initHysteresis",      alg_init_hysteresis},
+	    {        "hysteresis",           alg_hysteresis},
+	    {"clearAllHysteresis", alg_clear_all_hysteresis},
+	    {      "initDebounce",        alg_init_debounce},
+	    {	      "debounce",             alg_debounce},
+	    {  "clearAllDebounce",   alg_clear_all_debounce},
+	    {     "initRateLimit",      alg_init_rate_limit},
+	    {	     "rateLimit",           alg_rate_limit},
+	    { "clearAllRateLimit", alg_clear_all_rate_limit},
+	    {        "initKalman",          alg_init_kalman},
+	    {	        "kalman",               alg_kalman},
+	    {    "clearAllKalman",     alg_clear_all_kalman},
+	    {	            NULL,	                 NULL}
     };
 	luaL_newlib(luaState, algfunctions);
 	return 1;

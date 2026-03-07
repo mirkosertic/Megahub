@@ -1,8 +1,8 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-03-06
+**Generated:** 2026-03-07
 
-This documentation covers all 86 blocks used in the Megahub project, including 38 custom blocks and 48 standard Blockly blocks with custom colors.
+This documentation covers all 94 blocks used in the Megahub project, including 46 custom blocks and 48 standard Blockly blocks with custom colors.
 
 Block images are rendered as high-quality PNG screenshots to accurately show all block features including text inputs, checkboxes, and statement blocks.
 
@@ -20,7 +20,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 - [FastLED](#fastled) (4 blocks)
 - [IMU](#imu) (1 blocks)
 - [UI](#ui) (3 blocks)
-- [Algorithms](#algorithms) (11 blocks)
+- [Algorithms](#algorithms) (19 blocks)
 - [Debug](#debug) (2 blocks)
 
 ## Control flow
@@ -1215,6 +1215,142 @@ output: %10 to %11`
 
 ---
 
+### mh_alg_hysteresis_init
+
+![mh_alg_hysteresis_init](docs/blocks/algorithms/mh_alg_hysteresis_init.png)
+
+**Description:** Creates a new hysteresis (Schmitt trigger) instance and returns a handle. Store in a variable and pass to the Hysteresis block.
+
+**Message:** `Initialize hysteresis`
+
+---
+
+### mh_alg_hysteresis
+
+![mh_alg_hysteresis](docs/blocks/algorithms/mh_alg_hysteresis.png)
+
+**Description:** Hysteresis (Schmitt trigger) filter. Output switches to 1 when value exceeds high threshold, and back to 0 when value drops below low threshold. Eliminates chatter near a threshold. Returns 0 or 1.
+
+**Type:** Custom Value Block
+
+**Message:** `Hysteresis %1 %2 value: %3 
+%4 low: %5 high: %6`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| VALUE | input_value | Number |
+| undefined | input_dummy | Any |
+| LOW | input_value | Number |
+| HIGH | input_value | Number |
+
+---
+
+### mh_alg_debounce_init
+
+![mh_alg_debounce_init](docs/blocks/algorithms/mh_alg_debounce_init.png)
+
+**Description:** Creates a new debounce filter instance and returns a handle. Store in a variable and pass to the Debounce block.
+
+**Message:** `Initialize debounce`
+
+---
+
+### mh_alg_debounce
+
+![mh_alg_debounce](docs/blocks/algorithms/mh_alg_debounce.png)
+
+**Description:** Debounce filter for buttons and digital sensors. Output only changes when the input has been stable for the specified number of milliseconds. Returns 0 or 1. Typical stable time: 20–50 ms.
+
+**Type:** Custom Value Block
+
+**Message:** `Debounce %1 %2 signal: %3 
+%4 stable ms: %5`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| SIGNAL | input_value | Number |
+| undefined | input_dummy | Any |
+| STABLE_MS | input_value | Number |
+
+---
+
+### mh_alg_rate_limit_init
+
+![mh_alg_rate_limit_init](docs/blocks/algorithms/mh_alg_rate_limit_init.png)
+
+**Description:** Creates a new rate limiter instance and returns a handle. Store in a variable and pass to the Rate limiter block.
+
+**Message:** `Initialize rate limiter`
+
+---
+
+### mh_alg_rate_limit
+
+![mh_alg_rate_limit](docs/blocks/algorithms/mh_alg_rate_limit.png)
+
+**Description:** Rate limiter (slew rate). Limits how fast the output value can change per call to avoid sudden jumps. On first call returns target immediately. The effective rate in units/second depends on how often the block is called.
+
+**Type:** Custom Value Block
+
+**Message:** `Rate limit %1 %2 target: %3 
+%4 max Δ per call: %5`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| TARGET | input_value | Number |
+| undefined | input_dummy | Any |
+| MAX_DELTA | input_value | Number |
+
+---
+
+### mh_alg_kalman_init
+
+![mh_alg_kalman_init](docs/blocks/algorithms/mh_alg_kalman_init.png)
+
+**Description:** Creates a new 1D Kalman filter instance and returns a handle. Store in a variable and pass to the Kalman filter block.
+
+**Message:** `Initialize Kalman filter`
+
+---
+
+### mh_alg_kalman
+
+![mh_alg_kalman](docs/blocks/algorithms/mh_alg_kalman.png)
+
+**Description:** Kalman filter. Weighs measurements by noise characteristics for principled smoothing. Process noise Q: how much the true value drifts per call. Measure noise R: sensor variance. Starting values: color sensor Q=0.01 R=10, IMU Q=0.1 R=1.0.
+
+**Type:** Custom Value Block
+
+**Message:** `Kalman filter %1 %2 measurement: %3 
+%4 process noise: %5 
+%6 measure noise: %7`
+
+**Inputs:**
+
+| Name | Type | Check |
+|------|------|-------|
+| HANDLE | input_value | Any |
+| undefined | input_dummy | Any |
+| MEASUREMENT | input_value | Number |
+| undefined | input_dummy | Any |
+| PROCESS_NOISE | input_value | Number |
+| undefined | input_dummy | Any |
+| MEASURE_NOISE | input_value | Number |
+
+---
+
 ## Debug
 
 ### mh_debug_free_heap
@@ -1239,10 +1375,10 @@ output: %10 to %11`
 
 ## Generation Statistics
 
-- Total blocks: 86
-- Custom Megahub blocks: 38
+- Total blocks: 94
+- Custom Megahub blocks: 46
 - Standard Blockly blocks: 48
-- PNG images generated: 86
+- PNG images generated: 94
 
 ---
 

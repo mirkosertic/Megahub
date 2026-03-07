@@ -96,6 +96,27 @@ pio device monitor
 ```
 Default baud rate: **115200**.
 
+### Testing the IDE Without Hardware
+
+You can run the Megahub IDE locally in your browser without a physical board. This is useful for exploring the interface, building Blockly programs, and inspecting generated Lua code — no firmware flashing required.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite starts a local development server (typically at `http://localhost:5173`). Open that URL in any browser.
+
+**What works in dev mode:**
+- Full IDE UI — project management, Blockly workspace, toolbox
+- Blockly drag-and-drop programming and real-time Lua code generation
+- Lua Preview panel — inspect the generated code for any program
+
+**What does not work:**
+- Connecting to a device (no BLE in dev mode)
+- Executing or stopping programs — the **Execute** button requires a live connection to the firmware
+
 ---
 
 ## Hardware Reference

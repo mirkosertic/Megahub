@@ -93,6 +93,14 @@ async function loadBlockDefinitions() {
 		mh_alg_moving_avg_init : await import('../src/components/blockly/mh_alg_moving_avg_init.js'),
 		mh_alg_moving_avg : await import('../src/components/blockly/mh_alg_moving_avg.js'),
 		mh_alg_map : await import('../src/components/blockly/mh_alg_map.js'),
+		mh_alg_hysteresis_init : await import('../src/components/blockly/mh_alg_hysteresis_init.js'),
+		mh_alg_hysteresis : await import('../src/components/blockly/mh_alg_hysteresis.js'),
+		mh_alg_debounce_init : await import('../src/components/blockly/mh_alg_debounce_init.js'),
+		mh_alg_debounce : await import('../src/components/blockly/mh_alg_debounce.js'),
+		mh_alg_rate_limit_init : await import('../src/components/blockly/mh_alg_rate_limit_init.js'),
+		mh_alg_rate_limit : await import('../src/components/blockly/mh_alg_rate_limit.js'),
+		mh_alg_kalman_init : await import('../src/components/blockly/mh_alg_kalman_init.js'),
+		mh_alg_kalman : await import('../src/components/blockly/mh_alg_kalman.js'),
 	};
 
 	const colors = await import('../src/components/blockly/colors.js');
@@ -274,6 +282,16 @@ async function loadBlockDefinitions() {
 		mh_alg_moving_avg_init : blockModules.mh_alg_moving_avg_init.definition,
 		mh_alg_moving_avg : blockModules.mh_alg_moving_avg.definition,
 		mh_alg_map : blockModules.mh_alg_map.definition,
+
+		// Hysteresis, Debounce, Rate Limiter, Kalman
+		mh_alg_hysteresis_init : blockModules.mh_alg_hysteresis_init.definition,
+		mh_alg_hysteresis : blockModules.mh_alg_hysteresis.definition,
+		mh_alg_debounce_init : blockModules.mh_alg_debounce_init.definition,
+		mh_alg_debounce : blockModules.mh_alg_debounce.definition,
+		mh_alg_rate_limit_init : blockModules.mh_alg_rate_limit_init.definition,
+		mh_alg_rate_limit : blockModules.mh_alg_rate_limit.definition,
+		mh_alg_kalman_init : blockModules.mh_alg_kalman_init.definition,
+		mh_alg_kalman : blockModules.mh_alg_kalman.definition,
 	};
 
 	return {customBlocks, colors};

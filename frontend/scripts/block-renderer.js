@@ -41,6 +41,14 @@ import {definition as mh_debug_millis} from '../src/components/blockly/mh_debug_
 import {definition as mh_alg_moving_avg_init} from '../src/components/blockly/mh_alg_moving_avg_init.js';
 import {definition as mh_alg_moving_avg} from '../src/components/blockly/mh_alg_moving_avg.js';
 import {definition as mh_alg_map} from '../src/components/blockly/mh_alg_map.js';
+import {definition as mh_alg_hysteresis_init} from '../src/components/blockly/mh_alg_hysteresis_init.js';
+import {definition as mh_alg_hysteresis} from '../src/components/blockly/mh_alg_hysteresis.js';
+import {definition as mh_alg_debounce_init} from '../src/components/blockly/mh_alg_debounce_init.js';
+import {definition as mh_alg_debounce} from '../src/components/blockly/mh_alg_debounce.js';
+import {definition as mh_alg_rate_limit_init} from '../src/components/blockly/mh_alg_rate_limit_init.js';
+import {definition as mh_alg_rate_limit} from '../src/components/blockly/mh_alg_rate_limit.js';
+import {definition as mh_alg_kalman_init} from '../src/components/blockly/mh_alg_kalman_init.js';
+import {definition as mh_alg_kalman} from '../src/components/blockly/mh_alg_kalman.js';
 
 // Import colors
 import {
@@ -130,6 +138,14 @@ const customBlocks = {
   "mh_alg_moving_avg_init": mh_alg_moving_avg_init,
   "mh_alg_moving_avg": mh_alg_moving_avg,
   "mh_alg_map": mh_alg_map,
+  "mh_alg_hysteresis_init": mh_alg_hysteresis_init,
+  "mh_alg_hysteresis": mh_alg_hysteresis,
+  "mh_alg_debounce_init": mh_alg_debounce_init,
+  "mh_alg_debounce": mh_alg_debounce,
+  "mh_alg_rate_limit_init": mh_alg_rate_limit_init,
+  "mh_alg_rate_limit": mh_alg_rate_limit,
+  "mh_alg_kalman_init": mh_alg_kalman_init,
+  "mh_alg_kalman": mh_alg_kalman,
   "mh_startthread": mh_startthread,
   "mh_wait": mh_wait,
   "mh_stopthread": mh_stopthread

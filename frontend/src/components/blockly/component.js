@@ -46,10 +46,22 @@ import { definition as mh_alg_dr_set_pose } from './mh_alg_dr_set_pose.js';
 import { definition as mh_alg_moving_avg_init } from './mh_alg_moving_avg_init.js';
 import { definition as mh_alg_moving_avg } from './mh_alg_moving_avg.js';
 import { definition as mh_alg_map } from './mh_alg_map.js';
+import { definition as mh_alg_hysteresis_init } from './mh_alg_hysteresis_init.js';
+import { definition as mh_alg_hysteresis } from './mh_alg_hysteresis.js';
+import { definition as mh_alg_debounce_init } from './mh_alg_debounce_init.js';
+import { definition as mh_alg_debounce } from './mh_alg_debounce.js';
+import { definition as mh_alg_rate_limit_init } from './mh_alg_rate_limit_init.js';
+import { definition as mh_alg_rate_limit } from './mh_alg_rate_limit.js';
+import { definition as mh_alg_kalman_init } from './mh_alg_kalman_init.js';
+import { definition as mh_alg_kalman } from './mh_alg_kalman.js';
 import { definition as ui_map_update } from './ui_map_update.js';
 import { definition as ui_map_clear } from './ui_map_clear.js';
 
 import { colorLogic, colorMath, colorText, colorLists } from './colors.js';
+
+// Blockly plugins
+import { PositionedMinimap } from '@blockly/workspace-minimap';
+import { shadowBlockConversionChangeListener } from '@blockly/shadow-block-converter';
 
 // clang-format off
 const customBlocks = {
@@ -321,6 +333,22 @@ const customBlocks = {
 
     mh_alg_map: mh_alg_map,
 
+    mh_alg_hysteresis_init: mh_alg_hysteresis_init,
+
+    mh_alg_hysteresis: mh_alg_hysteresis,
+
+    mh_alg_debounce_init: mh_alg_debounce_init,
+
+    mh_alg_debounce: mh_alg_debounce,
+
+    mh_alg_rate_limit_init: mh_alg_rate_limit_init,
+
+    mh_alg_rate_limit: mh_alg_rate_limit,
+
+    mh_alg_kalman_init: mh_alg_kalman_init,
+
+    mh_alg_kalman: mh_alg_kalman,
+
     ui_map_update: ui_map_update,
 
     ui_map_clear: ui_map_clear,
@@ -425,6 +453,11 @@ class BlocklyHTMLElement extends HTMLElement {
             },
             trashcan: true,
         });
+        this.workspace.addChangeListener(shadowBlockConversionChangeListener);
+
+        // Initialize plugin.
+        const minimap = new PositionedMinimap(this.workspace);
+        minimap.init();
 
         // Loading overlay — shown while a project file is being fetched
         this._loadingOverlay = document.createElement('div');
