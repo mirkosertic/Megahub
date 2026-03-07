@@ -74,7 +74,7 @@ export const definition = {
             'Kalman filter. Weighs measurements by noise characteristics for principled smoothing. ' +
             'Process noise Q: how much the true value drifts per call. Measure noise R: sensor variance. ' +
             'Starting values: color sensor Q=0.01 R=10, IMU Q=0.1 R=1.0.',
-        helpUrl: '',
+        helpUrl: 'https://github.com/mirkosertic/Megahub/FILTERS.md',
     },
     generator: (block, generator) => {
         const handle = generator.valueToCode(block, 'HANDLE', 0) || '"kf_0"';

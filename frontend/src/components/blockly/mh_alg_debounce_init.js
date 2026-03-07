@@ -13,7 +13,7 @@ export const definition = {
         tooltip:
             'Creates a new debounce filter instance and returns a handle. ' +
             'Store in a variable and pass to the Debounce block.',
-        helpUrl: '',
+        helpUrl: 'https://github.com/mirkosertic/Megahub/FILTERS.md',
     },
     generator: (_block, _generator) => {
         return [`alg.initDebounce()`, 0];

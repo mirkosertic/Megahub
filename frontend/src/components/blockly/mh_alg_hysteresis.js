@@ -70,7 +70,7 @@ export const definition = {
         tooltip:
             'Hysteresis (Schmitt trigger) filter. Output switches to 1 when value exceeds high threshold, ' +
             'and back to 0 when value drops below low threshold. Eliminates chatter near a threshold. Returns 0 or 1.',
-        helpUrl: '',
+        helpUrl: 'https://github.com/mirkosertic/Megahub/FILTERS.md',
     },
     generator: (block, generator) => {
         const handle = generator.valueToCode(block, 'HANDLE', 0) || '"hy_0"';

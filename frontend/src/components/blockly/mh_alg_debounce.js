@@ -59,7 +59,7 @@ export const definition = {
         tooltip:
             'Debounce filter for buttons and digital sensors. Output only changes when the input has been stable ' +
             'for the specified number of milliseconds. Returns 0 or 1. Typical stable time: 20–50 ms.',
-        helpUrl: '',
+        helpUrl: 'https://github.com/mirkosertic/Megahub/FILTERS.md',
     },
     generator: (block, generator) => {
         const handle = generator.valueToCode(block, 'HANDLE', 0) || '"db_0"';

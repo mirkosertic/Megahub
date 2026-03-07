@@ -59,7 +59,7 @@ export const definition = {
         tooltip:
             'Rate limiter (slew rate). Limits how fast the output value can change per call to avoid sudden jumps. ' +
             'On first call returns target immediately. The effective rate in units/second depends on how often the block is called.',
-        helpUrl: '',
+        helpUrl: 'https://github.com/mirkosertic/Megahub/FILTERS.md',
     },
     generator: (block, generator) => {
         const handle = generator.valueToCode(block, 'HANDLE', 0) || '"rl_0"';

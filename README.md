@@ -198,7 +198,7 @@ The toolbox is divided into these categories:
 | **FastLED** | Initialize LED strip, set individual LED colour, show, clear |
 | **IMU** | Read yaw, pitch, roll, or acceleration from the on-board sensor |
 | **UI** | Display a labelled value in the IDE Logger panel, map visualization (plot position, clear) |
-| **Algorithms** | PID controller (init/compute/reset), dead reckoning (init/update/get/reset/set pose), moving average filter, map/scale |
+| **Algorithms** | PID controller (init/compute/reset), dead reckoning (init/update/get/reset/set pose), moving average filter, map/scale, hysteresis, debounce, rate limiter, 1D Kalman filter |
 | **Debug** | Free heap memory, milliseconds since boot |
 
 > **Common gotcha:** The **Set motor speed** block is in the **I/O** category — not **LEGO©**. The **LEGO©** category only contains sensor blocks (selecting a measurement mode and reading the sensor dataset). If you want to drive a motor, open **I/O**.
@@ -369,6 +369,17 @@ Store the handle from `Init PID` in a variable and pass it to `PID compute` in y
 
 For a full explanation including the math, calibration procedure, coordinate conventions, and example programs, see [DEADRECKONING.md](DEADRECKONING.md).
 
+**Signal conditioning filters:** Four filters for cleaning up noisy or jerky signals before they reach your control logic. All use the same explicit handle pattern as PID and DR.
+
+| Block pair | Description |
+|-----------|-------------|
+| `Initialize hysteresis` + `Hysteresis` | Schmitt trigger — output latches to 0 or 1, only switching when the input crosses a high or low threshold. Eliminates chatter at sensor boundaries. |
+| `Initialize debounce` + `Debounce` | Waits for a digital signal to be stable for a minimum number of milliseconds before updating output. Eliminates mechanical button bounce and contact noise. |
+| `Initialize rate limiter` + `Rate limit` | Limits how fast the output value can change per call, producing smooth acceleration ramps. Prevents wheel slip and encoder errors from sudden motor commands. |
+| `Initialize Kalman filter` + `Kalman filter` | 1D Kalman filter — weighted sensor smoothing based on process noise Q and measurement noise R. More principled than moving average for sensors with known noise characteristics. |
+
+For intuition, math, tuning guidance, and pipeline examples, see [FILTERS.md](FILTERS.md).
+
 ### Map Visualization
 
 The IDE sidebar includes a **live map panel** that renders the robot's trail as it moves. Use the **UI** category blocks to drive it:
@@ -470,3 +481,4 @@ The log (115200 baud) shows boot messages, port detection results, BLE connectio
 | [LUMP.md](LUMP.md) | LEGO Powered Up UART protocol technical specification |
 | [MEGAHUBIDE.md](MEGAHUBIDE.md) | Frontend IDE architecture — module structure, state, events, components, testing |
 | [DEADRECKONING.md](DEADRECKONING.md) | Dead reckoning guide — intuition, kinematics, math, coordinate conventions, Blockly usage, and calibration |
+| [FILTERS.md](FILTERS.md) | Signal conditioning filters guide — hysteresis, debounce, rate limiter, and 1D Kalman filter: intuition, math, tuning, and pipeline patterns |
