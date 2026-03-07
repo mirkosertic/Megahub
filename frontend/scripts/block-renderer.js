@@ -9,7 +9,7 @@
 import * as Blockly from 'blockly/core';
 import * as libraryBlocks from 'blockly/blocks';
 import {luaGenerator} from 'blockly/lua';
-import {registerFieldColour} from '@blockly/field-colour';
+import {registerFieldColour, FieldColour} from '@blockly/field-colour';
 import * as En from 'blockly/msg/en';
 
 // Import custom block definitions
@@ -366,12 +366,110 @@ function renderStandardBlock(blockType, colour, inputsForToolbox = null) {
   }
 }
 
+/**
+ * Inspect a block's structure by instantiating it and reading its input/field list.
+ * Works for both custom and standard Blockly blocks.
+ * Returns structured metadata: inputs (named, non-dummy), fields, and connection info.
+ */
+function inspectBlock(blockType) {
+  // Blockly input type constants
+  const VALUE     = 1;
+  const STATEMENT = 3;
+  const DUMMY     = 5;
+
+  try {
+    workspace.clear();
+    const block = workspace.newBlock(blockType);
+    block.initSvg();
+
+    const inputs = [];
+    const fields = [];
+
+    block.inputList.forEach(input => {
+      // Collect named fields from every input row (including dummy rows)
+      input.fieldRow.forEach(field => {
+        if (!field.name) return; // skip anonymous labels
+
+        let fieldType    = 'Field';
+        let options      = null;
+        let defaultValue = null;
+
+        // Check most-specific subclasses before their base classes.
+        // FieldVariable and FieldColour both extend FieldDropdown internally,
+        // so they must be tested first to avoid being caught by the FieldDropdown branch.
+        if (field instanceof Blockly.FieldVariable) {
+          fieldType = 'Variable';
+          // getText() returns the human-readable name; getValue() returns an internal UUID
+          try { defaultValue = field.getText(); } catch (_) {}
+        } else if (field instanceof FieldColour) {
+          fieldType = 'Colour picker';
+          // getValue() returns a hex colour string (e.g. '#00a000')
+          try { defaultValue = field.getValue(); } catch (_) {}
+        } else if (field instanceof Blockly.FieldDropdown) {
+          fieldType = 'Dropdown';
+          try {
+            const opts = field.getOptions(false);
+            if (Array.isArray(opts)) {
+              options = opts.map(o => [String(o[0]), String(o[1])]);
+            }
+          } catch (_) { /* dynamic options — ignore */ }
+          try { defaultValue = field.getValue(); } catch (_) {}
+        } else if (field instanceof Blockly.FieldNumber) {
+          fieldType = 'Number';
+          try { defaultValue = field.getValue(); } catch (_) {}
+        } else if (field instanceof Blockly.FieldCheckbox) {
+          fieldType = 'Checkbox';
+          try { defaultValue = field.getValue(); } catch (_) {}
+        } else if (field instanceof Blockly.FieldTextInput) {
+          fieldType = 'Text input';
+          try { defaultValue = field.getValue(); } catch (_) {}
+        } else {
+          try { defaultValue = field.getValue(); } catch (_) {}
+        }
+
+        fields.push({ name: field.name, type: fieldType, options, defaultValue });
+      });
+
+      // Skip DUMMY inputs — they are layout separators with no connection
+      if (input.type === DUMMY) return;
+      // Skip anonymous inputs
+      if (!input.name) return;
+
+      let check = null;
+      try {
+        if (input.connection) check = input.connection.getCheck();
+      } catch (_) {}
+
+      inputs.push({
+        name  : input.name,
+        type  : input.type === VALUE ? 'Value' : input.type === STATEMENT ? 'Statement' : String(input.type),
+        check : check, // null = accepts any type
+      });
+    });
+
+    const result = {
+      inputs,
+      fields,
+      hasOutput : !!block.outputConnection,
+      hasPrev   : !!block.previousConnection,
+      hasNext   : !!block.nextConnection,
+    };
+
+    block.dispose();
+    return result;
+  } catch (error) {
+    console.error(`Error inspecting block ${blockType}:`, error);
+    return null;
+  }
+}
+
 // Make functions available globally for Puppeteer
 window.blockRenderer = {
   initWorkspace,
   registerBlock,
   renderBlockToSVG,
-  renderStandardBlock
+  renderStandardBlock,
+  inspectBlock,
 };
 
 // Auto-initialize when DOM is ready

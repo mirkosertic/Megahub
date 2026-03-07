@@ -35,9 +35,9 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| DO | input_statement | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| DO | Statement | Any |
 
 ---
 
@@ -53,17 +53,17 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| STACKSIZE | input_value | Number |
-| DO | input_statement | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| STACKSIZE | Value | Number |
+| DO | Statement | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| NAME | field_input | Default: `Name` |
-| PROFILING | field_checkbox | - |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| NAME | Text input | Default: `Name` |
+| PROFILING | Checkbox | Default: `TRUE` |
 
 ---
 
@@ -79,9 +79,9 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| VALUE | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Number |
 
 ---
 
@@ -97,9 +97,9 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
 
 ---
 
@@ -111,7 +111,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Conditional block that executes code based on a condition
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| IF0 | Value | Boolean |
+| DO0 | Statement | Any |
 
 ---
 
@@ -121,7 +128,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Compare two values (equal, not equal, less than, greater than, etc.)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| A | Value | Any |
+| B | Value | Any |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `=`, `≠`, `‏<`, `‏≤`, `‏>`, `‏≥` |
 
 ---
 
@@ -131,7 +151,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Logical operations (AND, OR)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| A | Value | Boolean |
+| B | Value | Boolean |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `and`, `or` |
 
 ---
 
@@ -141,7 +174,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Negate a boolean value (NOT)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| BOOL | Value | Boolean |
 
 ---
 
@@ -151,7 +190,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Boolean value (true or false)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| BOOL | Dropdown | `true`, `false` |
 
 ---
 
@@ -161,7 +206,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Null value
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
 
 ---
 
@@ -171,7 +216,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Ternary conditional (if-then-else expression)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| IF | Value | Boolean |
+| THEN | Value | Any |
+| ELSE | Value | Any |
 
 ---
 
@@ -183,7 +236,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Repeat a set of statements a specified number of times
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| TIMES | Value | Number |
+| DO | Statement | Any |
 
 ---
 
@@ -193,7 +253,22 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Count from a start number to an end number by a given increment
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| FROM | Value | Number |
+| TO | Value | Number |
+| BY | Value | Number |
+| DO | Statement | Any |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| VAR | Variable | Default: `i` |
 
 ---
 
@@ -203,7 +278,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Break out of or continue a loop
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| FLOW | Dropdown | `break out`, `continue with next iteration` |
 
 ---
 
@@ -215,7 +296,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** A number value
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| NUM | Number | Default: `0` |
 
 ---
 
@@ -225,7 +312,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Arithmetic operations (add, subtract, multiply, divide, power)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| A | Value | Number |
+| B | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `+`, `-`, `×`, `÷`, `^` |
 
 ---
 
@@ -235,7 +335,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Single number operations (square root, absolute, negate, etc.)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| NUM | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `square root`, `absolute`, `-`, `ln`, `log10`, `e^`, `10^` |
 
 ---
 
@@ -245,7 +357,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Trigonometric functions (sin, cos, tan, asin, acos, atan)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| NUM | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `sin`, `cos`, `tan`, `asin`, `acos`, `atan` |
 
 ---
 
@@ -255,7 +379,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Mathematical constants (pi, e, phi, sqrt(2), etc.)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| CONSTANT | Dropdown | `π`, `e`, `φ`, `sqrt(2)`, `sqrt(½)`, `∞` |
 
 ---
 
@@ -265,7 +395,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Check if a number has a property (even, odd, prime, etc.)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| NUMBER_TO_CHECK | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| PROPERTY | Dropdown | `even`, `odd`, `prime`, `whole`, `positive`, `negative`, `divisible by` |
 
 ---
 
@@ -275,7 +417,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Round a number (round, round up, round down)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| NUM | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `round`, `round up`, `round down` |
 
 ---
 
@@ -285,7 +439,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Perform operation on a list (sum, min, max, average, etc.)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| LIST | Value | Array |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| OP | Dropdown | `sum`, `min`, `max`, `average`, `median`, `modes`, `standard deviation`, `random item` |
 
 ---
 
@@ -295,7 +461,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Remainder of division
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| DIVIDEND | Value | Number |
+| DIVISOR | Value | Number |
 
 ---
 
@@ -305,7 +478,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Constrain a number to be within specified limits
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Number |
+| LOW | Value | Number |
+| HIGH | Value | Number |
 
 ---
 
@@ -315,7 +496,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Random integer between two numbers
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| FROM | Value | Number |
+| TO | Value | Number |
 
 ---
 
@@ -325,7 +513,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Random fraction between 0 and 1
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
 
 ---
 
@@ -335,7 +523,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Arctangent of the quotient of two numbers
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| X | Value | Number |
+| Y | Value | Number |
 
 ---
 
@@ -347,7 +542,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** A text string
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| TEXT | Text input | - |
 
 ---
 
@@ -357,7 +558,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Join multiple text strings together
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| ADD0 | Value | Any |
+| ADD1 | Value | Any |
 
 ---
 
@@ -367,7 +575,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Append text to a variable
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| TEXT | Value | Any |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| VAR | Variable | Default: `item` |
 
 ---
 
@@ -377,7 +597,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get the length of a text string
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String, Array |
 
 ---
 
@@ -387,7 +613,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Check if a text string is empty
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String, Array |
 
 ---
 
@@ -397,7 +629,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Find the position of text within text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String |
+| FIND | Value | String |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| END | Dropdown | `first`, `last` |
 
 ---
 
@@ -407,7 +652,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get a character at a specific position
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String |
+| AT | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| WHERE | Dropdown | `letter #`, `letter # from end`, `first letter`, `last letter`, `random letter` |
 
 ---
 
@@ -417,7 +675,22 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get a substring from text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| STRING | Value | String |
+| AT1 | Value | Number |
+| AT2 | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| WHERE1 | Dropdown | `letter #`, `letter # from end`, `first letter` |
+| WHERE2 | Dropdown | `letter #`, `letter # from end`, `last letter` |
 
 ---
 
@@ -427,7 +700,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Change the case of text (UPPERCASE, lowercase, Title Case)
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| TEXT | Value | String |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| CASE | Dropdown | `UPPER CASE`, `lower case`, `Title Case` |
 
 ---
 
@@ -437,7 +722,19 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Trim spaces from the start and/or end of text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| TEXT | Value | String |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| MODE | Dropdown | `both sides`, `left side`, `right side` |
 
 ---
 
@@ -447,7 +744,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Count occurrences of text within text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| SUB | Value | String |
+| TEXT | Value | String |
 
 ---
 
@@ -457,7 +761,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Replace text within text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| FROM | Value | String |
+| TO | Value | String |
+| TEXT | Value | String |
 
 ---
 
@@ -467,7 +779,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Print text to the console
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| TEXT | Value | Any |
 
 ---
 
@@ -479,7 +797,7 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Create an empty list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
 
 ---
 
@@ -489,7 +807,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Create a list with specified values
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| ADD0 | Value | Any |
+| ADD1 | Value | Any |
+| ADD2 | Value | Any |
 
 ---
 
@@ -499,7 +825,14 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Create a list with a value repeated a number of times
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| ITEM | Value | Any |
+| NUM | Value | Number |
 
 ---
 
@@ -509,7 +842,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get the length of a list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String, Array |
 
 ---
 
@@ -519,7 +858,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Check if a list is empty
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | String, Array |
 
 ---
 
@@ -529,7 +874,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Find the position of an item in a list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Array |
+| FIND | Value | Any |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| END | Dropdown | `first`, `last` |
 
 ---
 
@@ -539,7 +897,22 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get an item from a list at a specific position
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Array |
+| AT | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| MODE | Dropdown | `get`, `get and remove`, `remove` |
+| SPACE | Field | - |
+| WHERE | Dropdown | `#`, `# from end`, `first`, `last`, `random` |
 
 ---
 
@@ -549,7 +922,23 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Set an item in a list at a specific position
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Statement Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| LIST | Value | Array |
+| AT | Value | Number |
+| TO | Value | Any |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| MODE | Dropdown | `set`, `insert at` |
+| SPACE | Field | - |
+| WHERE | Dropdown | `#`, `# from end`, `first`, `last`, `random` |
 
 ---
 
@@ -559,7 +948,22 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get a sublist from a list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| LIST | Value | Array |
+| AT1 | Value | Number |
+| AT2 | Value | Number |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| WHERE1 | Dropdown | `#`, `# from end`, `first` |
+| WHERE2 | Dropdown | `#`, `# from end`, `last` |
 
 ---
 
@@ -569,7 +973,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Split text into a list, or join a list into text
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| INPUT | Value | String |
+| DELIM | Value | String |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| MODE | Dropdown | `list from text`, `text from list` |
 
 ---
 
@@ -579,7 +996,20 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Sort a list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| LIST | Value | Array |
+
+**Fields:**
+
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| TYPE | Dropdown | `numeric`, `alphabetic`, `alphabetic, ignore case` |
+| DIRECTION | Dropdown | `ascending`, `descending` |
 
 ---
 
@@ -589,7 +1019,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Reverse a list
 
-**Type:** Standard Blockly Block
+**Type:** Standard Blockly Value Block
+
+**Inputs:**
+
+| Name | Type | Accepted types |
+|------|------|---------------|
+| LIST | Value | Array |
 
 ---
 
@@ -607,15 +1043,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| VALUE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| PIN | field_dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| PIN | Dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
 
 ---
 
@@ -631,10 +1067,10 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| PIN | field_dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
-| MODE | field_dropdown | `PINMODE_INPUT`, `PINMODE_INPUT_PULLUP`, `PINMODE_INPUT_PULLDOWN`, `PINMODE_OUTPUT` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| PIN | Dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
+| MODE | Dropdown | `PINMODE_INPUT`, `PINMODE_INPUT_PULLUP`, `PINMODE_INPUT_PULLDOWN`, `PINMODE_OUTPUT` |
 
 ---
 
@@ -644,13 +1080,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Liest den Zustand eines GPIO-Pins
 
+**Type:** Custom Value Block
+
 **Message:** `Digital Read %1`
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| PIN | field_dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `GPIO34`, `GPIO35`, `GPIO36`, `GPIO39`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| PIN | Dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33`, `GPIO34`, `GPIO35`, `GPIO36`, `GPIO39`, `UART1_GP4`, `UART1_GP5`, `UART1_GP6`, `UART1_GP7`, `UART2_GP4`, `UART2_GP5`, `UART2_GP6`, `UART2_GP7` |
 
 ---
 
@@ -660,13 +1098,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** A LEGO© intergface port
 
+**Type:** Custom Value Block
+
 **Message:** `%1`
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| PORT | field_dropdown | `PORT1`, `PORT2`, `PORT3`, `PORT4` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| PORT | Dropdown | `PORT1`, `PORT2`, `PORT3`, `PORT4` |
 
 ---
 
@@ -682,10 +1122,10 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| PORT | input_value | Any |
-| VALUE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| PORT | Value | Any |
+| VALUE | Value | Any |
 
 ---
 
@@ -697,13 +1137,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Returns the currently selected mode index of a port
 
+**Type:** Custom Value Block
+
 **Message:** `Selected mode of %1`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| PORT | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| PORT | Value | Any |
 
 ---
 
@@ -713,15 +1155,17 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Get a dataset value from a specific mode of a port
 
+**Type:** Custom Value Block
+
 **Message:** `Get dataset %3 from mode %2 of %1`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| PORT | input_value | Any |
-| MODE | input_value | Any |
-| DATASET | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| DATASET | Value | Any |
+| MODE | Value | Any |
+| PORT | Value | Any |
 
 ---
 
@@ -737,10 +1181,10 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| PORT | input_value | Any |
-| MODE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| PORT | Value | Any |
+| MODE | Value | Any |
 
 ---
 
@@ -752,13 +1196,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** A Gamepad connection
 
+**Type:** Custom Value Block
+
 **Message:** `%1`
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| GAMEPAD | field_dropdown | `GAMEPAD1` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| GAMEPAD | Dropdown | `GAMEPAD1` |
 
 ---
 
@@ -768,19 +1214,21 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Checks if a specific button is pressed on a connected gamepad
 
+**Type:** Custom Value Block
+
 **Message:** `Checks if %2 is pressed on %1`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| GAMEPAD | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| GAMEPAD | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| BUTTON | field_dropdown | `GAMEPAD_BUTTON_1`, `GAMEPAD_BUTTON_1`, `GAMEPAD_BUTTON_2`, `GAMEPAD_BUTTON_4`, `GAMEPAD_BUTTON_5`, `GAMEPAD_BUTTON_6`, `GAMEPAD_BUTTON_7`, `GAMEPAD_BUTTON_8`, `GAMEPAD_BUTTON_9`, `GAMEPAD_BUTTON_10`, `GAMEPAD_BUTTON_11`, `GAMEPAD_BUTTON_12`, `GAMEPAD_BUTTON_13`, `GAMEPAD_BUTTON_14`, `GAMEPAD_BUTTON_15`, `GAMEPAD_BUTTON_16` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| BUTTON | Dropdown | `GAMEPAD_BUTTON_1`, `GAMEPAD_BUTTON_1`, `GAMEPAD_BUTTON_2`, `GAMEPAD_BUTTON_4`, `GAMEPAD_BUTTON_5`, `GAMEPAD_BUTTON_6`, `GAMEPAD_BUTTON_7`, `GAMEPAD_BUTTON_8`, `GAMEPAD_BUTTON_9`, `GAMEPAD_BUTTON_10`, `GAMEPAD_BUTTON_11`, `GAMEPAD_BUTTON_12`, `GAMEPAD_BUTTON_13`, `GAMEPAD_BUTTON_14`, `GAMEPAD_BUTTON_15`, `GAMEPAD_BUTTON_16` |
 
 ---
 
@@ -790,13 +1238,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Gets the raw button values of a Gamepad in as a 32bit integer
 
+**Type:** Custom Value Block
+
 **Message:** `Gets the raw button values of %1`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| GAMEPAD | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| GAMEPAD | Value | Any |
 
 ---
 
@@ -806,19 +1256,21 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Gets a value from a connected Gamepad
 
+**Type:** Custom Value Block
+
 **Message:** `Get %2 from %1`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| GAMEPAD | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| GAMEPAD | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| VALUE | field_dropdown | `GAMEPAD_LEFT_X`, `GAMEPAD_LEFT_Y`, `GAMEPAD_RIGHT_X`, `GAMEPAD_RIGHT_Y`, `GAMEPAD_DPAD` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| VALUE | Dropdown | `GAMEPAD_LEFT_X`, `GAMEPAD_LEFT_Y`, `GAMEPAD_RIGHT_X`, `GAMEPAD_RIGHT_Y`, `GAMEPAD_DPAD` |
 
 ---
 
@@ -828,13 +1280,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Tests if the Gamepad is connected
 
+**Type:** Custom Value Block
+
 **Message:** `Test if %1 is connected`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| GAMEPAD | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| GAMEPAD | Value | Any |
 
 ---
 
@@ -852,16 +1306,16 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| NUM_LEDS | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| NUM_LEDS | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| TYPE | field_dropdown | `NEOPIXEL` |
-| PIN | field_dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| TYPE | Dropdown | `NEOPIXEL` |
+| PIN | Dropdown | `GPIO13`, `GPIO16`, `GPIO17`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO33` |
 
 ---
 
@@ -901,15 +1355,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| INDEX | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| INDEX | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| COLOR | field_colour | - |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| COLOR | Colour picker | Default: `#00a000` |
 
 ---
 
@@ -921,13 +1375,15 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Description:** Gets a value from the IMU
 
+**Type:** Custom Value Block
+
 **Message:** `Get %1 from IMU`
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| VALUE | field_dropdown | `YAW`, `PITCH`, `ROLL`, `ACCELERATION_X`, `ACCELERATION_Y`, `ACCELERATION_Z` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| VALUE | Dropdown | `YAW`, `PITCH`, `ROLL`, `ACCELERATION_X`, `ACCELERATION_Y`, `ACCELERATION_Z` |
 
 ---
 
@@ -945,16 +1401,16 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| VALUE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| LABEL | field_input | Default: `Label` |
-| STYLE | field_dropdown | `FORMAT_SIMPLE` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| LABEL | Text input | Default: `Label` |
+| STYLE | Dropdown | `FORMAT_SIMPLE` |
 
 ---
 
@@ -970,12 +1426,13 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| undefined | input_dummy | Any |
-| X | input_value | Number |
-| Y | input_value | Number |
-| HEADING | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| X | Value | Number |
+| Y | Value | Number |
+| HEADING | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -989,6 +1446,8 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 
 **Message:** `Map: clear`
 
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
+
 ---
 
 ## Algorithms
@@ -998,6 +1457,8 @@ Block images are rendered as high-quality PNG screenshots to accurately show all
 ![mh_alg_pid_init](docs/blocks/algorithms/mh_alg_pid_init.png)
 
 **Description:** Creates a new PID controller instance and returns a handle. Store this in a variable for use with PID compute and reset blocks.
+
+**Type:** Custom Value Block
 
 **Message:** `Initialize PID`
 
@@ -1017,19 +1478,16 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| SETPOINT | input_value | Number |
-| PV | input_value | Number |
-| undefined | input_dummy | Any |
-| KP | input_value | Number |
-| KI | input_value | Number |
-| KD | input_value | Number |
-| undefined | input_dummy | Any |
-| OUT_MIN | input_value | Number |
-| OUT_MAX | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| SETPOINT | Value | Number |
+| PV | Value | Number |
+| KP | Value | Number |
+| KI | Value | Number |
+| KD | Value | Number |
+| OUT_MIN | Value | Number |
+| OUT_MAX | Value | Number |
 
 ---
 
@@ -1045,9 +1503,9 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
 
 ---
 
@@ -1057,7 +1515,11 @@ output: %10 to %11`
 
 **Description:** Creates a new dead reckoning instance and returns a handle. Store this in a variable for use with other DR blocks.
 
+**Type:** Custom Value Block
+
 **Message:** `Initialize DR`
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -1075,18 +1537,17 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| LEFT_TICKS | input_value | Number |
-| RIGHT_TICKS | input_value | Number |
-| undefined | input_dummy | Any |
-| YAW | input_value | Number |
-| M_PER_TICK | input_value | Number |
-| WHEELBASE | input_value | Number |
-| undefined | input_dummy | Any |
-| IMU_WEIGHT | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| LEFT_TICKS | Value | Number |
+| RIGHT_TICKS | Value | Number |
+| YAW | Value | Number |
+| M_PER_TICK | Value | Number |
+| WHEELBASE | Value | Number |
+| IMU_WEIGHT | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -1102,15 +1563,17 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
 
 **Fields:**
 
-| Name | Type | Options/Default |
-|------|------|----------------|
-| FIELD | field_dropdown | `X`, `Y`, `HEADING` |
+| Name | Type | Options / Default |
+|------|------|-----------------|
+| FIELD | Dropdown | `X`, `Y`, `HEADING` |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -1126,9 +1589,11 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -1144,13 +1609,14 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| X | input_value | Number |
-| Y | input_value | Number |
-| HEADING | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| X | Value | Number |
+| Y | Value | Number |
+| HEADING | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/DEADRECKONING.md)
 
 ---
 
@@ -1159,6 +1625,8 @@ output: %10 to %11`
 ![mh_alg_moving_avg_init](docs/blocks/algorithms/mh_alg_moving_avg_init.png)
 
 **Description:** Creates a new moving average filter instance and returns a handle. Store this in a variable and pass it to the Moving average block.
+
+**Type:** Custom Value Block
 
 **Message:** `Initialize moving average`
 
@@ -1177,13 +1645,11 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| VALUE | input_value | Number |
-| undefined | input_dummy | Any |
-| WINDOW | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| VALUE | Value | Number |
+| WINDOW | Value | Number |
 
 ---
 
@@ -1201,17 +1667,13 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| undefined | input_dummy | Any |
-| undefined | input_dummy | Any |
-| VALUE | input_value | Number |
-| undefined | input_dummy | Any |
-| IN_MIN | input_value | Number |
-| IN_MAX | input_value | Number |
-| undefined | input_dummy | Any |
-| OUT_MIN | input_value | Number |
-| OUT_MAX | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| VALUE | Value | Number |
+| IN_MIN | Value | Number |
+| IN_MAX | Value | Number |
+| OUT_MIN | Value | Number |
+| OUT_MAX | Value | Number |
 
 ---
 
@@ -1221,7 +1683,11 @@ output: %10 to %11`
 
 **Description:** Creates a new hysteresis (Schmitt trigger) instance and returns a handle. Store in a variable and pass to the Hysteresis block.
 
+**Type:** Custom Value Block
+
 **Message:** `Initialize hysteresis`
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1238,14 +1704,14 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| VALUE | input_value | Number |
-| undefined | input_dummy | Any |
-| LOW | input_value | Number |
-| HIGH | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| VALUE | Value | Number |
+| LOW | Value | Number |
+| HIGH | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1255,7 +1721,11 @@ output: %10 to %11`
 
 **Description:** Creates a new debounce filter instance and returns a handle. Store in a variable and pass to the Debounce block.
 
+**Type:** Custom Value Block
+
 **Message:** `Initialize debounce`
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1272,13 +1742,13 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| SIGNAL | input_value | Number |
-| undefined | input_dummy | Any |
-| STABLE_MS | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| SIGNAL | Value | Number |
+| STABLE_MS | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1288,7 +1758,11 @@ output: %10 to %11`
 
 **Description:** Creates a new rate limiter instance and returns a handle. Store in a variable and pass to the Rate limiter block.
 
+**Type:** Custom Value Block
+
 **Message:** `Initialize rate limiter`
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1305,13 +1779,13 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| TARGET | input_value | Number |
-| undefined | input_dummy | Any |
-| MAX_DELTA | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| TARGET | Value | Number |
+| MAX_DELTA | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1321,7 +1795,11 @@ output: %10 to %11`
 
 **Description:** Creates a new 1D Kalman filter instance and returns a handle. Store in a variable and pass to the Kalman filter block.
 
+**Type:** Custom Value Block
+
 **Message:** `Initialize Kalman filter`
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1339,15 +1817,14 @@ output: %10 to %11`
 
 **Inputs:**
 
-| Name | Type | Check |
-|------|------|-------|
-| HANDLE | input_value | Any |
-| undefined | input_dummy | Any |
-| MEASUREMENT | input_value | Number |
-| undefined | input_dummy | Any |
-| PROCESS_NOISE | input_value | Number |
-| undefined | input_dummy | Any |
-| MEASURE_NOISE | input_value | Number |
+| Name | Type | Accepted types |
+|------|------|---------------|
+| HANDLE | Value | Any |
+| MEASUREMENT | Value | Number |
+| PROCESS_NOISE | Value | Number |
+| MEASURE_NOISE | Value | Number |
+
+**See also:** [Documentation](https://github.com/mirkosertic/Megahub/FILTERS.md)
 
 ---
 
@@ -1359,6 +1836,8 @@ output: %10 to %11`
 
 **Description:** Get free HEAP memory
 
+**Type:** Custom Value Block
+
 **Message:** `Get free HEAP memory`
 
 ---
@@ -1368,6 +1847,8 @@ output: %10 to %11`
 ![mh_debug_millis](docs/blocks/debug/mh_debug_millis.png)
 
 **Description:** Get the number of milliseconds since system startup
+
+**Type:** Custom Value Block
 
 **Message:** `Get milliseconds since system startup`
 

@@ -310,39 +310,14 @@ function extractBlockMetadata(blockType, blockDef) {
 		inputsForToolbox : blockDef.inputsForToolbox || null,
 		tooltip : '',
 		message : '',
-		inputs : [],
-		fields : [],
-		hasStatements : false,
-		hasOutput : false,
+		helpUrl : '',
 	};
 
 	if (blockDef.blockdefinition) {
 		const def = blockDef.blockdefinition;
 		metadata.tooltip = def.tooltip || '';
 		metadata.message = def.message0 || '';
-		metadata.hasStatements = !!(def.previousStatement || def.nextStatement);
-		metadata.hasOutput = !!def.output;
-
-		// Extract inputs and fields
-		if (def.args0) {
-			def.args0.forEach(arg => {
-				if (arg.type === 'input_value' || arg.type === 'input_statement' || arg.type === 'input_dummy') {
-					metadata.inputs.push({
-						name : arg.name,
-						type : arg.type,
-						check : arg.check || null,
-					});
-				} else if (arg.type?.startsWith('field_')) {
-					metadata.fields.push({
-						name : arg.name,
-						type : arg.type,
-						options : arg.options || null,
-						text : arg.text || null,
-					});
-				}
-			});
-		}
-
+		metadata.helpUrl = def.helpUrl || '';
 		stats.custom++;
 	} else {
 		// Standard block
@@ -443,6 +418,18 @@ async function renderBlockSVGs(blocks) {
 					stats.imagesFailed++;
 					console.log(`  ✗ ${type} - Failed to render`);
 				}
+
+				// Introspect the live Blockly block to get accurate input/field structure.
+				// Works for both custom and standard blocks; automatically excludes
+				// input_dummy layout separators and anonymous fields.
+				try {
+					block.inspected = await page.evaluate((blockType) => {
+						return window.blockRenderer.inspectBlock(blockType);
+					}, type);
+				} catch (inspectError) {
+					console.log(`  ⚠ ${type} - Inspection failed: ${inspectError.message}`);
+					block.inspected = null;
+				}
 			} catch (error) {
 				stats.imagesFailed++;
 				console.log(`  ✗ ${type} - Error: ${error.message}`);
@@ -520,13 +507,20 @@ async function generateMarkdown(blocks) {
 	});
 	markdown += `\n`;
 
+	// Helper: format a Blockly connection check array for display.
+	// null means the input accepts any type; an array lists accepted types.
+	function formatCheck(check) {
+		if (!check || check.length === 0) return 'Any';
+		return check.join(', ');
+	}
+
 	// Generate documentation for each category
 	sortedCategories.forEach(cat => {
 		markdown += `## ${cat}\n\n`;
 
 		const categoryBlocks = categories[cat];
 		categoryBlocks.forEach(block => {
-			const {type, metadata, imagePath} = block;
+			const {type, metadata, imagePath, inspected} = block;
 
 			markdown += `### ${type}\n\n`;
 
@@ -540,52 +534,61 @@ async function generateMarkdown(blocks) {
 				markdown += `**Description:** ${metadata.tooltip}\n\n`;
 			}
 
-			// Block type
+			// Block kind — derived from live introspection when available, otherwise from definition
 			const blockTypeStr = metadata.isCustom ? 'Custom' : 'Standard Blockly';
+			const hasOutput     = inspected ? inspected.hasOutput : false;
+			const hasStatements = inspected ? (inspected.hasPrev || inspected.hasNext) : false;
 			let blockKind = '';
-			if (metadata.hasStatements) {
+			if (hasStatements) {
 				blockKind = 'Statement Block';
-			} else if (metadata.hasOutput) {
+			} else if (hasOutput) {
 				blockKind = 'Value Block';
 			} else if (!metadata.isCustom) {
 				blockKind = 'Block';
 			}
-
 			if (blockKind) {
 				markdown += `**Type:** ${blockTypeStr} ${blockKind}\n\n`;
 			}
 
-			// Message
+			// Message template (custom blocks only)
 			if (metadata.message) {
 				markdown += `**Message:** \`${metadata.message}\`\n\n`;
 			}
 
-			// Inputs
-			if (metadata.inputs.length > 0) {
+			// Inputs — from live Blockly introspection (excludes input_dummy separators)
+			const inputs = inspected ? inspected.inputs : [];
+			if (inputs.length > 0) {
 				markdown += `**Inputs:**\n\n`;
-				markdown += `| Name | Type | Check |\n`;
-				markdown += `|------|------|-------|\n`;
-				metadata.inputs.forEach(input => {
-					markdown += `| ${input.name} | ${input.type} | ${input.check || 'Any'} |\n`;
+				markdown += `| Name | Type | Accepted types |\n`;
+				markdown += `|------|------|---------------|\n`;
+				inputs.forEach(input => {
+					markdown += `| ${input.name} | ${input.type} | ${formatCheck(input.check)} |\n`;
 				});
 				markdown += `\n`;
 			}
 
-			// Fields
-			if (metadata.fields.length > 0) {
+			// Fields — from live Blockly introspection
+			const fields = inspected ? inspected.fields : [];
+			if (fields.length > 0) {
 				markdown += `**Fields:**\n\n`;
-				markdown += `| Name | Type | Options/Default |\n`;
-				markdown += `|------|------|----------------|\n`;
-				metadata.fields.forEach(field => {
-					let options = '-';
-					if (field.options) {
-						options = field.options.map(opt => `\`${opt[0]}\``).join(', ');
-					} else if (field.text) {
-						options = `Default: \`${field.text}\``;
+				markdown += `| Name | Type | Options / Default |\n`;
+				markdown += `|------|------|-----------------|\n`;
+				fields.forEach(field => {
+					let optStr = '-';
+					if (field.options && field.options.length > 0) {
+						// Show dropdown display labels
+						optStr = field.options.map(o => `\`${o[0]}\``).join(', ');
+					} else if (field.defaultValue !== null && field.defaultValue !== undefined && field.defaultValue !== '') {
+						optStr = `Default: \`${field.defaultValue}\``;
 					}
-					markdown += `| ${field.name} | ${field.type} | ${options} |\n`;
+					markdown += `| ${field.name} | ${field.type} | ${optStr} |\n`;
 				});
 				markdown += `\n`;
+			}
+
+			// Help URL (custom blocks only)
+			if (metadata.helpUrl) {
+				markdown += `**See also:** [Documentation](${metadata.helpUrl})\n\n`;
 			}
 
 			markdown += `---\n\n`;
