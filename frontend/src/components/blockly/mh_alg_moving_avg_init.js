@@ -15,7 +15,7 @@ export const definition = {
             'Store this in a variable and pass it to the Moving average block.',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return [`alg.initMovingAvg()`, 0];
     },
 };

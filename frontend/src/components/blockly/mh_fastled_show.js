@@ -14,7 +14,7 @@ export const definition = {
         tooltip: 'Shop current FastLED values to the LED strip',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return 'fastled.show()\n';
     },
 };

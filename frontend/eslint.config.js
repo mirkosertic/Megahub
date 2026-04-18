@@ -14,7 +14,14 @@ export default [
             },
         },
         rules: {
-            'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+            'no-unused-vars': [
+                'warn',
+                {
+                    argsIgnorePattern: '^_',
+                    caughtErrorsIgnorePattern: '^_',
+                    destructuredArrayIgnorePattern: '^_',
+                },
+            ],
             'no-var': 'error',
             'prefer-const': 'warn',
             eqeqeq: ['error', 'always'],
@@ -38,7 +45,14 @@ export default [
             },
         },
         rules: {
-            'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+            'no-unused-vars': [
+                'warn',
+                {
+                    argsIgnorePattern: '^_',
+                    caughtErrorsIgnorePattern: '^_',
+                    destructuredArrayIgnorePattern: '^_',
+                },
+            ],
         },
     },
 

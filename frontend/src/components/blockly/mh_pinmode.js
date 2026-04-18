@@ -31,7 +31,7 @@ export const definition = {
         tooltip: 'Set the mode of a GPIO pin',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (block, _generator) => {
         const pin = block.getFieldValue('PIN');
         const mode = block.getFieldValue('MODE');
 

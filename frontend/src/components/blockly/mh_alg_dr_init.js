@@ -15,7 +15,7 @@ export const definition = {
             'Store this in a variable for use with other DR blocks.',
         helpUrl: 'https://github.com/mirkosertic/Megahub/DEADRECKONING.md',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return [`alg.initDR()`, 0];
     },
 };

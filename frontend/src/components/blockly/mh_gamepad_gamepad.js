@@ -19,7 +19,7 @@ export const definition = {
         tooltip: 'A Gamepad connection',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (block, _generator) => {
         const gamepad = block.getFieldValue('GAMEPAD');
 
         return [gamepad, 0];

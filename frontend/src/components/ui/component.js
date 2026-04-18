@@ -73,7 +73,6 @@ class UIHTMLElement extends HTMLElement {
     processUIEvent(event) {
         if (event.type === 'show_value') {
             const label = event.label || 'Value';
-            const format = event.format || 'FORMAT_SIMPLE';
             const value = event.value || 0;
 
             const container = this.shadowRoot.getElementById('uiValuesList');

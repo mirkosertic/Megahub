@@ -36,7 +36,6 @@ const ControlMessageType = {
 
 // Fragment Flags (INTERNAL)
 const FLAG_LAST_FRAGMENT = 0x01;
-const FLAG_ERROR = 0x02;
 
 // Constants
 const FRAGMENT_HEADER_SIZE = 5;
@@ -125,7 +124,7 @@ export class BLEClient {
             await this._setupGattConnection(onProgress);
         } catch (error) {
             this.logError('Connection error:', error);
-            throw new Error(`BLE connection failed: ${error.message}`);
+            throw new Error(`BLE connection failed: ${error.message}`, { cause: error });
         }
     }
 
@@ -145,7 +144,7 @@ export class BLEClient {
             await this._setupGattConnection();
         } catch (error) {
             this.logError('Reconnection error:', error);
-            throw new Error(`BLE reconnection failed: ${error.message}`);
+            throw new Error(`BLE reconnection failed: ${error.message}`, { cause: error });
         }
     }
 
@@ -315,7 +314,7 @@ export class BLEClient {
                 this.mtu = size;
                 this.logInfo(`MTU negotiated: ${size} bytes`);
                 return;
-            } catch (error) {
+            } catch (_error) {
                 continue;
             }
         }
@@ -344,7 +343,7 @@ export class BLEClient {
         // Clean up event listeners for proper resource cleanup
         this.removeAllEventListeners();
 
-        for (const [messageId, request] of this.pendingRequests) {
+        for (const [_messageId, request] of this.pendingRequests) {
             request.reject(new Error('Connection closed'));
         }
         this.pendingRequests.clear();
@@ -945,7 +944,7 @@ export class BLEClient {
                     startSuccess = true;
                 } catch (error) {
                     if (attempt === 2) {
-                        throw new Error(`Stream start failed after 3 attempts: ${error.message}`);
+                        throw new Error(`Stream start failed after 3 attempts: ${error.message}`, { cause: error });
                     }
                     this.logWarn(`Stream ${streamId}: Start ACK timeout on attempt ${attempt + 1}: ${error.message}`);
                     streamState.startAcked = false; // Reset for retry
@@ -992,7 +991,8 @@ export class BLEClient {
                         nextChunkToAck++;
                     } catch (error) {
                         throw new Error(
-                            `Stream ${streamId}: ACK timeout for chunk ${nextChunkToAck}: ${error.message}`
+                            `Stream ${streamId}: ACK timeout for chunk ${nextChunkToAck}: ${error.message}`,
+                            { cause: error }
                         );
                     }
                 }

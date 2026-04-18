@@ -26,7 +26,7 @@ export const definition = {
         tooltip: 'Gets a value from the IMU',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (block, _generator) => {
         const value = block.getFieldValue('VALUE');
         const command = 'imu.value(' + value + ')';
         return [command, 0];

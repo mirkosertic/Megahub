@@ -13,7 +13,7 @@ export const definition = {
         tooltip: 'Get free HEAP memory',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         const command = 'deb.freeHeap()';
 
         return [command, 0];

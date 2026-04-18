@@ -14,7 +14,7 @@ export const definition = {
         tooltip: 'Clear current FastLED values and sent them to the LED strip',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return 'fastled.clear()\n';
     },
 };

@@ -20,7 +20,7 @@ export const definition = {
         tooltip: 'Liest den Zustand eines GPIO-Pins',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (block, _generator) => {
         const pin = block.getFieldValue('PIN');
 
         const command = 'hub.digitalRead(' + pin + ')';

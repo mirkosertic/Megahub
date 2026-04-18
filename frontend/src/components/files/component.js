@@ -1,6 +1,6 @@
 import template from './component.html?raw';
 import styleSheet from './style.css?raw';
-import { subscribe, getState } from '../../app/state.js';
+import { subscribe } from '../../app/state.js';
 import {
     APP_EVENT_PROJECT_OPEN,
     APP_EVENT_PROJECT_CREATE,
@@ -128,17 +128,17 @@ class FilesHTMLElement extends HTMLElement {
             // Set project name
             projectNameSpan.textContent = project.name;
 
-            projectItem.addEventListener('click', (event) => {
+            projectItem.addEventListener('click', (_event) => {
                 this.selectProject(project, projectItem);
             });
 
             autostartBtn.dataset.project = project.name;
 
-            autostartBtn.addEventListener('click', (event) => {
+            autostartBtn.addEventListener('click', (_event) => {
                 this._setAutoStartProjectAndNotify(project.name);
             });
 
-            deleteBtn.addEventListener('click', (e) => {
+            deleteBtn.addEventListener('click', (_e) => {
                 this.deleteProject(project.name);
             });
 
@@ -153,7 +153,7 @@ class FilesHTMLElement extends HTMLElement {
             projectList.appendChild(clone);
         });
 
-        this.shadowRoot.getElementById('openbutton').addEventListener('click', (event) => {
+        this.shadowRoot.getElementById('openbutton').addEventListener('click', (_event) => {
             this.openProject(this.selectedProject.name);
         });
 
@@ -162,7 +162,7 @@ class FilesHTMLElement extends HTMLElement {
             this.updateValidationUI();
         });
 
-        this.shadowRoot.getElementById('createbutton').addEventListener('click', (event) => {
+        this.shadowRoot.getElementById('createbutton').addEventListener('click', (_event) => {
             const project = newProjectInput.value;
             if (!this.validateProjectName(project)) {
                 this.createProject(project);

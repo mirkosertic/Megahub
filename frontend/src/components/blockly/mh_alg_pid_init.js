@@ -15,7 +15,7 @@ export const definition = {
             'Store this in a variable for use with PID compute and reset blocks.',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return [`alg.initPID()`, 0];
     },
 };

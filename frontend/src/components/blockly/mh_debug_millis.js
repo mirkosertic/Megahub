@@ -13,7 +13,7 @@ export const definition = {
         tooltip: 'Get the number of milliseconds since system startup',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         const command = 'millis()';
 
         return [command, 0];

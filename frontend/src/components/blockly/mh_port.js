@@ -24,7 +24,7 @@ export const definition = {
         tooltip: 'A LEGO© intergface port',
         helpUrl: '',
     },
-    generator: (block, generator) => {
+    generator: (block, _generator) => {
         const port = block.getFieldValue('PORT');
 
         return [port, 0];

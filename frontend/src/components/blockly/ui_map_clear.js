@@ -14,7 +14,7 @@ export const definition = {
         tooltip: 'Clears the map trail in the visualization panel. See DEADRECKONING.md for details.',
         helpUrl: 'https://github.com/mirkosertic/Megahub/DEADRECKONING.md',
     },
-    generator: (block, generator) => {
+    generator: (_block, _generator) => {
         return 'ui.mapclear()\n';
     },
 };
