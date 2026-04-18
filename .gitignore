@@ -2,6 +2,7 @@
 .pio
 .vscode
 .cache
+.idea
 sdkconfig.*
 !sdkconfig.defaults
 config/secrets.ini

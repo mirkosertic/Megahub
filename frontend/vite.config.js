@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import compress from 'vite-plugin-compression';
+import { compression } from 'vite-plugin-compression2';
 
 // clang-format off
 export default defineConfig(({ mode }) => {
@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: `../data/${mode}`,
             emptyOutDir: true,
-            minify: 'esbuild',
+            minify: true,
             cssMinify: true,
             cssCodeSplit: false,
             rollupOptions: {
@@ -19,22 +19,15 @@ export default defineConfig(({ mode }) => {
                     manualChunks: undefined,
                     entryFileNames: '[name].js',
                     chunkFileNames: '[name].js',
-                    assetFileNames: (assetInfo) => {
-                        if (assetInfo.name.endsWith('.css')) {
-                            return '[name][extname]';
-                        }
-                        return '[name][extname]';
-                    },
+                    assetFileNames: '[name][extname]',
                 },
             },
             // Increase warning limit if you get large bundle warnings
             chunkSizeWarningLimit: 1500,
         },
         plugins: [
-            compress({
+            compression({
                 algorithm: 'gzip',
-                ext: '.gz',
-                deleteOriginFile: false,
             }),
         ],
         define: {
