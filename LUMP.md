@@ -34,7 +34,7 @@ The documentation is structured from big picture to bit-level detail, so you can
 
 LUMP is the protocol that LEGO smart devices use to talk to the hub that powers them. When you plug a LEGO color sensor, distance sensor, or motor into a Powered Up port, the device immediately begins a self-describing handshake: it tells the hub its type, its capabilities, and the format of all the data it will send. After that, the device streams measurements continuously while the hub sends commands.
 
-From an electronics perspective, LUMP runs over a **half-duplex single-wire UART** — the same data line is used for both directions, but normally only one side transmits at a time.
+From an electronics perspective, LUMP runs over a **standard dual-wire UART** — the LPF2 connector provides two separate data lines: C1 (RX, pin 5) carries data from the device to the hub, and C2 (TX, pin 6) carries data from the hub to the device.
 
 ### Who uses LUMP?
 
@@ -58,7 +58,7 @@ From an electronics perspective, LUMP runs over a **half-duplex single-wire UART
 | Data bits | 8 |
 | Parity | None |
 | Stop bits | 1 |
-| Connector | Single data wire (LPF2 connector pin 5/6) |
+| Connector | Two separate data wires: C1/RX (pin 5) and C2/TX (pin 6) |
 
 The device always starts at **2400 baud**. During the handshake it announces its preferred operating speed via a `CMD_SPEED` message. Once the hub acknowledges the handshake, both sides switch to the higher speed simultaneously.
 

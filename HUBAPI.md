@@ -94,7 +94,7 @@ Upload a file to a project. Creates the project directory if it does not exist. 
 
 ### DELETE /project/{projectId}
 
-Remove a project from the device configuration. The project's files on the SD card are **not** deleted — only the configuration entry is removed.
+Delete a project directory and all its files from the SD card.
 
 **URL parameters:**
 - `projectId` — URL-encoded project name
