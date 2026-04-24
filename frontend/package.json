@@ -33,7 +33,7 @@
     "vitest": "^4.1.5"
   },
   "dependencies": {
-    "@blockly/field-colour": "^6.0.8",
+    "@blockly/field-colour": "^6.0.12",
     "@blockly/shadow-block-converter": "^7.0.9",
     "@blockly/workspace-minimap": "^0.3.8",
     "blockly": "^12.3.1",
