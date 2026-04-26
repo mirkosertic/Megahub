@@ -13,3 +13,13 @@ updates:
     directory: "frontend" # Location of package manifests
     schedule:
       interval: "daily"
+  # GitHub Actions dependencies (actions/checkout, actions/cache, etc.)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
