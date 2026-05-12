@@ -27,7 +27,7 @@
     "happy-dom": "^20.9.0",
     "lightningcss": "^1.30.2",
     "prettier": "^3.8.3",
-    "puppeteer": "^24.42.0",
+    "puppeteer": "^24.43.1",
     "vite": "^8.0.11",
     "vite-plugin-compression2": "^2.5.3",
     "vitest": "^4.1.5"
