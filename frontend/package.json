@@ -30,7 +30,7 @@
     "puppeteer": "^25.0.2",
     "vite": "^8.0.14",
     "vite-plugin-compression2": "^2.5.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "@blockly/field-colour": "^6.0.12",
