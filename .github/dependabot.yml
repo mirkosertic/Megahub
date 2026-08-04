@@ -9,10 +9,14 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+    labels:
+      - "dependencies"
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "frontend" # Location of package manifests
     schedule:
       interval: "daily"
+    labels:
+      - "dependencies"
   # GitHub Actions dependencies (actions/checkout, actions/cache, etc.)
   - package-ecosystem: "github-actions"
     directory: "/"
