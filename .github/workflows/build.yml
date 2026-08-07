@@ -69,7 +69,7 @@ jobs:
         run: pio test -e native
       - name: Build PlatformIO Project
         run: pio run
-      - uses: JamesIves/github-pages-deploy-action@3.7.1
+      - uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: gh-pages
