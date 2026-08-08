@@ -443,6 +443,8 @@ class BlocklyHTMLElement extends HTMLElement {
         // Workspace Setup
         this.workspace = Blockly.inject(this, {
             toolbox: generateToolbox(customBlocks),
+            // Deliberately override Blockly's default 'geras' renderer with 'thrasos'
+            renderer: 'thrasos',
             zoom: {
                 controls: true,
                 wheel: true,

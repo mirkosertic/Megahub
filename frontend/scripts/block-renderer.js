@@ -199,7 +199,7 @@ function initWorkspace() {
   // Create workspace with minimal chrome for clean screenshots
   workspace = Blockly.inject('blocklyDiv', {
     toolbox: '<xml></xml>',
-    renderer: 'geras', // Default Blockly renderer (same as main app)
+    renderer: 'thrasos', // Explicit Thrasos renderer (deliberately overriding Blockly's default 'geras') — kept in sync with component.js
     scrollbars: false,
     trashcan: false,
     zoom: false,

@@ -1,6 +1,6 @@
 # Blockly Blocks Documentation
 
-**Generated:** 2026-03-07
+**Generated:** 2026-08-08
 
 This documentation covers all 94 blocks used in the Megahub project, including 46 custom blocks and 48 standard Blockly blocks with custom colors.
 
