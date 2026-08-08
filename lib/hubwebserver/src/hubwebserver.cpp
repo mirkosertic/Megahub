@@ -99,9 +99,7 @@ void HubWebServer::start() {
 	announceMDNS();
 	announceSSDP();
 
-	server_->config.max_uri_handlers = 40;
 	server_->setPort(80);
-	server_->start();
 
 	server_->on("/", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* resp) {
 		INFO("webserver() - Rendering / page");
@@ -465,6 +463,11 @@ void HubWebServer::start() {
 	eventSource_.onClose(
 	    [](PsychicEventSourceClient* client) { INFO("[eventsource] connection #%u closed\n", client->socket()); });
 	server_->on("/events", &eventSource_);
+
+	// All server.on() registrations must happen before start() - PsychicHttp wires
+	// the per-HTTP-method dispatch handlers into the underlying ESP-IDF httpd here,
+	// using only the routes registered up to this point.
+	server_->start();
 
 	// Logging forwarder task
 	xTaskCreate(logForwarderTask, "LogForwarderTask", 4096, (void*) this, 1,
