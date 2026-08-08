@@ -11,12 +11,14 @@ updates:
       interval: "daily"
     labels:
       - "dependencies"
+      - "maven"
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "frontend" # Location of package manifests
     schedule:
       interval: "daily"
     labels:
       - "dependencies"
+      - "node"
   # GitHub Actions dependencies (actions/checkout, actions/cache, etc.)
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -26,3 +28,4 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+      - "actions"
